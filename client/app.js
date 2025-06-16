@@ -1,0 +1,1 @@
+const API_URL = 'https://echoes-server.onrender.com/';

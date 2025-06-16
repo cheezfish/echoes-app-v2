@@ -46,6 +46,36 @@ app.get('/echoes', async (req, res) => {
 // =============================
 
 
+// === ADD THIS NEW POST ENDPOINT ===
+// POST a new echo to the database
+app.post('/echoes', async (req, res) => {
+  // We get the data from the 'body' of the request
+  const { w3w_address, audio_url } = req.body;
+
+  // Basic validation: Make sure we got the data we need
+  if (!w3w_address || !audio_url) {
+    return res.status(400).json({ error: 'w3w_address and audio_url are required' });
+  }
+
+  console.log(`Creating new echo for ${w3w_address}`);
+
+  try {
+    const sql = 'INSERT INTO echoes (w3w_address, audio_url) VALUES ($1, $2) RETURNING *;';
+    const values = [w3w_address, audio_url];
+    
+    const result = await pool.query(sql, values);
+    
+    // Send the newly created echo back to the frontend
+    res.status(201).json(result.rows[0]);
+
+  } catch (err) {
+    console.error('Error creating echo:', err);
+    res.status(500).send('Server Error');
+  }
+});
+// ===================================
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

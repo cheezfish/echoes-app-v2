@@ -59,7 +59,6 @@ function createEchoPopup(echo) {
     `;
 }
 
-// === 3. GEOLOCATION & WHAT3WORDS ===
 async function onLocationSuccess(position) {
     currentUserPosition.lat = position.coords.latitude;
     currentUserPosition.lng = position.coords.longitude;
@@ -68,18 +67,19 @@ async function onLocationSuccess(position) {
     L.marker([currentUserPosition.lat, currentUserPosition.lng]).addTo(map).bindPopup("You are here!").openPopup();
 
     try {
-        const response = await fetch(`https://api.what3words.com/v3/convert-to-3wa?coordinates=${currentUserPosition.lat},${currentUserPosition.lng}&key=${W3W_API_KEY}`);
-        const data = await response.json();
-        if (data.words) {
-            currentW3WAddress = data.words;
-            w3wAddressEl.textContent = `///${currentW3WAddress}`;
+        // Use the Plus Codes library (it's available globally now)
+        const plusCode = OpenLocationCode.encode(currentUserPosition.lat, currentUserPosition.lng);
+
+        if (plusCode) {
+            currentW3WAddress = plusCode; // We'll keep the variable name for simplicity
+            w3wAddressEl.textContent = `+${currentW3WAddress}`; // Display it like a Plus Code
             recordBtn.disabled = false;
         } else {
-            w3wAddressEl.textContent = "Could not find 3 word address.";
+            throw new Error("Could not generate Plus Code.");
         }
     } catch (error) {
-        console.error("w3w API error:", error);
-        w3wAddressEl.textContent = "Error getting 3 word address.";
+        console.error("Plus Code error:", error);
+        w3wAddressEl.textContent = "Error generating location code.";
     }
 }
 

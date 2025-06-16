@@ -1,0 +1,7 @@
+# server/.gitignore
+
+# Ignore all the downloaded node packages
+node_modules
+
+# Ignore the file containing our secrets
+.env

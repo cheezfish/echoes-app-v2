@@ -1,46 +1,45 @@
-/* client/style.css */
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Echoes</title>
 
-body {
-    font-family: sans-serif;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-}
+    <!-- This is the official CSS for the Leaflet map library -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-h1 {
-    text-align: center;
-    margin: 10px 0;
-}
+    <!-- This links to your own stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-#map {
-    height: 70%; /* Give the map most of the space */
-    width: 100%;
-    background-color: #eee;
-}
+    <header>
+        <h1>Echoes</h1>
+    </header>
 
-#info-panel {
-    height: 30%;
-    padding: 10px;
-    box-sizing: border-box;
-    text-align: center;
-    background-color: #f8f9fa;
-    border-top: 1px solid #ddd;
-    overflow-y: auto;
-}
+    <main>
+        <!-- This div is where the Leaflet map will be placed by the JavaScript -->
+        <div id="map"></div>
 
-button {
-    font-size: 16px;
-    padding: 10px 15px;
-    margin: 5px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    cursor: pointer;
-    background-color: #007bff;
-    color: white;
-}
+        <!-- This is the control panel at the bottom -->
+        <div id="info-panel">
+            <h2 id="w3w-address">Locating your position...</h2>
+            
+            <button id="record-btn">Record Echo</button>
+            
+            <!-- The button for our current test -->
+            <button id="test-create-btn" style="background-color: #ffc107; color: #333;">Create FAKE Echo</button>
+            
+            <!-- This div will be used later to display the list of echoes -->
+            <div id="echo-list"></div>
+        </div>
+    </main>
 
-button:hover {
-    opacity: 0.9;
-}
+    <!-- This is the official JavaScript for the Leaflet map library -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- This links to your own application's JavaScript -->
+    <script src="app.js"></script>
+
+</body>
+</html>

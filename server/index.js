@@ -1,43 +1,26 @@
-// server/index.js
+// server/index.js - THE FINAL VERSION
 
-// --- DEPENDENCIES ---
-// Load environment variables from .env file
 require('dotenv').config();
-
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg'); // For PostgreSQL connection
-
-// For generating presigned URLs for Cloudflare R2
+const { Pool } = require('pg');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
-
-// --- DATABASE CONNECTION SETUP ---
-// This creates a "pool" of connections that can be reused for efficiency.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    // Required for connections to Render's managed database
-    rejectUnauthorized: false
-  }
+  ssl: { rejectUnauthorized: false }
 });
 
-
-// --- EXPRESS APP SETUP ---
 const app = express();
-app.use(cors()); // Enable Cross-Origin Resource Sharing for all routes
-app.use(express.json()); // Enable the express app to parse JSON formatted request bodies
-
+app.use(cors());
+app.use(express.json());
 
 // --- API ENDPOINTS ---
 
-// 1. A simple test route to check if the server is live
-app.get('/', (req, res) => {
-  res.send('Echoes server is alive and well!');
-});
+app.get('/', (req, res) => res.send('Echoes server is live!'));
 
-// 2. GET all echoes from the database
+// GET all echoes
 app.get('/echoes', async (req, res) => {
   console.log("Received request for GET /echoes");
   try {
@@ -49,34 +32,34 @@ app.get('/echoes', async (req, res) => {
   }
 });
 
-// 3. POST a new echo's metadata to the database
+// POST a new echo's metadata
 app.post('/echoes', async (req, res) => {
-  const { w3w_address, audio_url } = req.body;
+  // Now we accept lat and lng!
+  const { w3w_address, audio_url, lat, lng } = req.body;
 
-  if (!w3w_address || !audio_url) {
-    return res.status(400).json({ error: 'w3w_address and audio_url are required' });
+  if (!w3w_address || !audio_url || lat === undefined || lng === undefined) {
+    return res.status(400).json({ error: 'w3w_address, audio_url, lat, and lng are required' });
   }
 
-  console.log(`Creating new echo metadata for: ${w3w_address}`);
+  console.log(`Creating new echo for: ${w3w_address}`);
   try {
-    const sql = 'INSERT INTO echoes (w3w_address, audio_url) VALUES ($1, $2) RETURNING *;';
-    const values = [w3w_address, audio_url];
+    const sql = 'INSERT INTO echoes (w3w_address, audio_url, lat, lng) VALUES ($1, $2, $3, $4) RETURNING *;';
+    const values = [w3w_address, audio_url, lat, lng];
     const result = await pool.query(sql, values);
-    res.status(201).json(result.rows[0]); // Respond with the newly created record
+    res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Error creating echo metadata:', err);
     res.status(500).send('Server Error');
   }
 });
 
-// 4. POST to get a secure, one-time URL to upload a file to Cloudflare R2
+// POST to get a presigned URL
 app.post('/presigned-url', async (req, res) => {
   const { fileName, fileType } = req.body;
   if (!fileName || !fileType) {
     return res.status(400).json({ error: 'fileName and fileType are required' });
   }
 
-  // Configure the S3 client to talk to our Cloudflare R2 bucket
   const s3 = new S3Client({
     region: 'auto',
     endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -86,19 +69,15 @@ app.post('/presigned-url', async (req, res) => {
     },
   });
 
-  // Prepare the command for a PUT (upload) operation
   const putCommand = new PutObjectCommand({
     Bucket: process.env.R2_BUCKET_NAME,
-    Key: fileName,          // The name we want the file to have in the bucket
-    ContentType: fileType,  // The type of file (e.g., 'audio/webm')
+    Key: fileName,
+    ContentType: fileType,
   });
 
   console.log(`Generating presigned URL for: ${fileName}`);
   try {
-    // Generate the special URL that is valid for 60 seconds
     const signedUrl = await getSignedUrl(s3, putCommand, { expiresIn: 60 });
-    
-    // Send the URL back to the frontend
     res.json({ url: signedUrl });
   } catch (err) {
     console.error('Error creating presigned URL:', err);
@@ -106,9 +85,5 @@ app.post('/presigned-url', async (req, res) => {
   }
 });
 
-
-// --- START THE SERVER ---
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

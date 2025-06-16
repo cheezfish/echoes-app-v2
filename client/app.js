@@ -1,155 +1,166 @@
-// client/app.js
+// client/app.js - THE FULL MONTY
 
-//
-// === CRITICAL: Make sure this URL is correct! ===
-//
-const API_URL = 'https://echoes-server.onrender.com'; // Replace with YOUR Render server URL if different
+const API_URL = 'https://echoes-server.onrender.com'; // Your Render server URL
+const W3W_API_KEY = 'GLHHZA8C'; // <-- PASTE YOUR KEY HERE
 
 // --- DOM ELEMENTS ---
 const mapContainer = document.getElementById('map');
 const w3wAddressEl = document.getElementById('w3w-address');
 const recordBtn = document.getElementById('record-btn');
-const testCreateBtn = document.getElementById('test-create-btn');
 
 // --- APP STATE ---
 let map;
 let mediaRecorder;
 let audioChunks = [];
+let currentUserPosition = { lat: 0, lng: 0 };
 let currentW3WAddress = '';
 
-// === 1. INITIALIZE THE APP ===
+// === 1. INITIALIZE ===
 function initializeApp() {
-    // We don't need the test button anymore
-    if (testCreateBtn) {
-        testCreateBtn.style.display = 'none';
-    }
+    map = L.map(mapContainer).setView([51.505, -0.09], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Initialize Leaflet map
-    map = L.map(mapContainer).setView([51.505, -0.09], 13); // Default to London
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
-
-    // Get user's location
     if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError);
     } else {
-        w3wAddressEl.textContent = "Geolocation is not supported by your browser.";
+        w3wAddressEl.textContent = "Geolocation not supported.";
     }
 
     recordBtn.addEventListener('click', handleRecordClick);
+    fetchAllEchoes(); // Fetch existing echoes on load
 }
 
-// === 2. GEOLOCATION & WHAT3WORDS LOGIC ===
-async function onLocationSuccess(position) {
-    const { latitude, longitude } = position.coords;
-    map.setView([latitude, longitude], 16);
-    L.marker([latitude, longitude]).addTo(map).bindPopup("You are here!").openPopup();
+// === 2. MAP & DATA FETCHING ===
+async function fetchAllEchoes() {
+    try {
+        const response = await fetch(`${API_URL}/echoes`);
+        const echoes = await response.json();
+        renderEchoesOnMap(echoes);
+    } catch (error) {
+        console.error("Failed to fetch echoes:", error);
+    }
+}
 
-    // TODO: Integrate what3words API here to get the real address
-    // For now, we'll use a placeholder. This is fine for testing.
-    currentW3WAddress = `lat_${latitude.toFixed(4)}_lng_${longitude.toFixed(4)}`;
-    w3wAddressEl.textContent = `Your Square: ${currentW3WAddress}`;
-    recordBtn.disabled = false; // Enable the record button
+function renderEchoesOnMap(echoes) {
+    echoes.forEach(echo => {
+        if (echo.lat && echo.lng) {
+            L.marker([echo.lat, echo.lng])
+             .addTo(map)
+             .bindPopup(createEchoPopup(echo));
+        }
+    });
+}
+
+function createEchoPopup(echo) {
+    return `
+        <h3>${echo.w3w_address}</h3>
+        <p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()}</p>
+        <audio controls src="${echo.audio_url}"></audio>
+    `;
+}
+
+// === 3. GEOLOCATION & WHAT3WORDS ===
+async function onLocationSuccess(position) {
+    currentUserPosition.lat = position.coords.latitude;
+    currentUserPosition.lng = position.coords.longitude;
+    
+    map.setView([currentUserPosition.lat, currentUserPosition.lng], 16);
+    L.marker([currentUserPosition.lat, currentUserPosition.lng]).addTo(map).bindPopup("You are here!").openPopup();
+
+    try {
+        const response = await fetch(`https://api.what3words.com/v3/convert-to-3wa?coordinates=${currentUserPosition.lat},${currentUserPosition.lng}&key=${W3W_API_KEY}`);
+        const data = await response.json();
+        if (data.words) {
+            currentW3WAddress = data.words;
+            w3wAddressEl.textContent = `///${currentW3WAddress}`;
+            recordBtn.disabled = false;
+        } else {
+            w3wAddressEl.textContent = "Could not find 3 word address.";
+        }
+    } catch (error) {
+        console.error("w3w API error:", error);
+        w3wAddressEl.textContent = "Error getting 3 word address.";
+    }
 }
 
 function onLocationError(error) {
     w3wAddressEl.textContent = `Error getting location: ${error.message}`;
 }
 
-// === 3. RECORDING LOGIC ===
+// === 4. RECORDING & UPLOAD FLOW ===
 async function handleRecordClick() {
     if (mediaRecorder && mediaRecorder.state === 'recording') {
-        // --- STOP RECORDING ---
         mediaRecorder.stop();
         recordBtn.textContent = 'Record Echo';
         recordBtn.style.backgroundColor = '#007bff';
-        recordBtn.disabled = true; // Disable until processing is done
-        w3wAddressEl.textContent = 'Processing your echo...';
+        recordBtn.disabled = true;
+        w3wAddressEl.textContent = 'Processing...';
     } else {
-        // --- START RECORDING ---
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            
-            audioChunks = []; // Clear previous chunks
-            mediaRecorder.ondataavailable = event => {
-                audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = uploadAndSaveEcho; // This function runs when recording stops
-
+            audioChunks = [];
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = uploadAndSaveEcho;
             mediaRecorder.start();
             recordBtn.textContent = 'Stop Recording';
-            recordBtn.style.backgroundColor = '#dc3545'; // Red color for recording
+            recordBtn.style.backgroundColor = '#dc3545';
         } catch (error) {
-            console.error('Error accessing microphone:', error);
+            console.error('Mic error:', error);
             w3wAddressEl.textContent = 'Could not access microphone.';
         }
     }
 }
 
-// === 4. THE UPLOAD AND SAVE FLOW ===
 async function uploadAndSaveEcho() {
-    if (audioChunks.length === 0) {
-        w3wAddressEl.textContent = 'No audio recorded. Please try again.';
-        recordBtn.disabled = false;
-        return;
-    }
+    if (audioChunks.length === 0) return;
     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-    const fileName = `echo_${currentW3WAddress}_${Date.now()}.webm`;
+    const fileName = `echo_${currentW3WAddress.replace(/\./g, '-')}_${Date.now()}.webm`;
 
     try {
-        // --- Step A: Get a presigned URL from our backend ---
-        console.log('Asking backend for an upload URL...');
-        const presignedUrlResponse = await fetch(`${API_URL}/presigned-url`, {
+        const presignedUrlRes = await fetch(`${API_URL}/presigned-url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fileName, fileType: audioBlob.type })
         });
+        if (!presignedUrlRes.ok) throw new Error(`Presigned URL fetch failed: ${await presignedUrlRes.text()}`);
+        const { url: uploadUrl } = await presignedUrlRes.json();
 
-        if (!presignedUrlResponse.ok) throw new Error(`Failed to get presigned URL: ${await presignedUrlResponse.text()}`);
-        const { url: uploadUrl } = await presignedUrlResponse.json();
-        console.log('Got upload URL. Uploading file directly to R2...');
-
-        // --- Step B: Upload the audio file directly to Cloudflare R2 ---
-        const uploadResponse = await fetch(uploadUrl, {
+        const uploadRes = await fetch(uploadUrl, {
             method: 'PUT',
             body: audioBlob,
             headers: { 'Content-Type': audioBlob.type }
         });
-
-        if (!uploadResponse.ok) throw new Error('Failed to upload audio to R2');
-        console.log('Upload successful!');
-        
-        // The final URL of the object in the R2 bucket is the presigned URL without the query string
+        if (!uploadRes.ok) throw new Error('Upload to R2 failed');
         const audio_url = uploadUrl.split('?')[0];
 
-        // --- Step C: Save the final echo metadata to our database ---
-        console.log('Saving echo metadata to our database...');
-        const saveEchoResponse = await fetch(`${API_URL}/echoes`, {
+        const saveEchoRes = await fetch(`${API_URL}/echoes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ w3w_address: currentW3WAddress, audio_url })
+            body: JSON.stringify({
+                w3w_address: currentW3WAddress,
+                audio_url: audio_url,
+                lat: currentUserPosition.lat,
+                lng: currentUserPosition.lng
+            })
         });
+        if (!saveEchoRes.ok) throw new Error('Save echo metadata failed');
         
-        if (!saveEchoResponse.ok) throw new Error('Failed to save echo metadata');
-
-        const newEcho = await saveEchoResponse.json();
-        console.log('Echo saved!', newEcho);
-        w3wAddressEl.textContent = `Success! Echo ${newEcho.id} created.`;
-        alert(`Success! Your echo for ${currentW3WAddress} has been saved.`);
+        const newEcho = await saveEchoRes.json();
+        alert(`Success! Echo saved.`);
+        w3wAddressEl.textContent = `///${currentW3WAddress}`;
+        // Add the new echo to the map immediately
+        renderEchoesOnMap([newEcho]);
 
     } catch (error) {
-        console.error('The echo creation process failed:', error);
-        w3wAddressEl.textContent = 'Sorry, something went wrong. Please try again.';
-        alert('An error occurred. Please check the console for details.');
+        console.error('Full echo process failed:', error);
+        alert('An error occurred. Check console.');
+        w3wAddressEl.textContent = `///${currentW3WAddress}`;
     } finally {
-        recordBtn.disabled = false; // Re-enable the button
+        recordBtn.disabled = false;
     }
 }
 
-// --- KICK EVERYTHING OFF ---
-// Disable the button until we have a location
+// --- KICK IT OFF ---
 recordBtn.disabled = true;
 initializeApp();

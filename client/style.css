@@ -1,26 +1,56 @@
-/* client/style.css - FINAL POLISHED VERSION */
+/* client/style.css - FINAL CLEANED VERSION WITH MAP LAYOUT FIX */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background-color: #000000; color: #eee; }
-header { flex-shrink: 0; background-color: #1a1a1a; color: white; position: relative; z-index: 1001; display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; }
-h1 { font-size: 1.25rem; margin: 0; text-align: left; }
-#user-auth-container { flex-shrink: 0; display: flex; align-items: center; }
-main { flex-grow: 1; display: flex; flex-direction: column; position: relative; overflow: hidden; }
-#map { flex-grow: 1; width: 100%; background-color: #000000; }
-#info-panel { flex-shrink: 0; padding: 1rem; text-align: center; background-color: #1a1a1a; border-top: 1px solid #333; min-height: 180px; max-height: 35vh; overflow-y: auto; color: #ccc; }
-#info-panel h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #eee; min-height: 1.3em; }
-button { font-size: 0.9rem; padding: 0.6em 1.2em; margin: 0.3em; border-radius: 6px; border: none; cursor: pointer; background-color: #007bff; color: white; font-weight: bold; transition: background-color 0.2s ease, transform 0.1s ease; }
-button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background-color: #222; color: #eee; }
+header { flex-shrink: 0; background-color: #333; color: white; position: relative; z-index: 1001; }
+h1 { text-align: center; padding: 0.75rem; font-size: 1.25rem; }
+
+/* === MAIN LAYOUT FIX IS HERE === */
+main {
+    flex-grow: 1; /* Let main fill vertical space after header */
+    display: flex;
+    flex-direction: column;
+    position: relative; 
+    overflow: hidden; /* Prevent main from having its own scrollbars if content overflows */
+}
+
+#map {
+    flex-grow: 1;  /* CRITICAL: Map takes all available vertical space in main */
+    width: 100%;
+    background-color: #1a1a1a; /* Dark background for dark map theme */
+    position: relative; /* Needed for absolute positioning of Find Me button */
+}
+
+#info-panel {
+    flex-shrink: 0; /* Prevent info-panel from shrinking */
+    /* Give it a sensible default height, or use min/max-height with vh */
+    height: 220px; /* Example: Fixed height, adjust as needed */
+    /* For a more responsive approach: */
+    /* max-height: 40vh;  */
+    /* min-height: 180px; */
+    padding: 1rem;
+    text-align: center;
+    background-color: #333;
+    border-top: 1px solid #444;
+    overflow-y: auto;
+    color: #ccc;
+}
+/* ============================== */
+
+#info-panel h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #eee; }
+button { font-size: 1rem; padding: 0.6em 1.2em; margin: 0.3em; border-radius: 6px; border: none; cursor: pointer; background-color: #007bff; color: white; font-weight: bold; transition: background-color 0.2s ease, transform 0.1s ease; }
+button:disabled { background-color: #555; cursor: not-allowed; }
 button:hover:not(:disabled) { background-color: #0056b3; }
 button:active:not(:disabled) { transform: scale(0.98); }
+#user-auth-container { position: absolute; top: 50%; transform: translateY(-50%); right: 10px; }
 .auth-btn { padding: 5px 10px; font-size: 14px; margin-left: 5px; }
 #welcome-message { margin-right: 10px; font-weight: bold; color: white; }
-.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.8);display:flex;justify-content:center;align-items:center;z-index:1005}
-.modal-content{background-color:#2b2b2b;color:#eee;padding:2rem;border-radius:8px;width:90%;max-width:400px;position:relative;box-shadow:0 5px 15px rgba(0,0,0,.5)}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:flex;justify-content:center;align-items:center;z-index:1005}
+.modal-content{background-color:#444;color:#eee;padding:2rem;border-radius:8px;width:90%;max-width:400px;position:relative;box-shadow:0 5px 15px rgba(0,0,0,.5)}
 .close-btn{position:absolute;top:10px;right:15px;font-size:28px;font-weight:700;border:none;background:0 0;cursor:pointer;color:#aaa}
 .close-btn:hover{color:#fff}
 .form-group{margin-bottom:1rem}
 .form-group label{display:block;margin-bottom:.5rem}
-.form-group input{width:100%;padding:.5rem;font-size:1rem;border:1px solid #555;border-radius:4px;background-color:#333;color:#eee;}
+.form-group input{width:100%;padding:.5rem;font-size:1rem;border:1px solid #555;border-radius:4px;background-color:#555;color:#eee;}
 #modal-submit-btn{width:100%;margin-top:1rem}
 .error-message{color:#ffc107;margin-top:1rem;text-align:center;min-height:1em}
 #status-message{min-height:1.2em;margin:.5rem 0;font-weight:500;transition:color .3s ease}
@@ -29,15 +59,19 @@ button:active:not(:disabled) { transform: scale(0.98); }
 #status-message.error{color:#dc3545}
 .is-recording{animation:pulse 1.5s infinite; background-color: #dc3545 !important;}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(220,53,69,.7)}70%{box-shadow:0 0 0 10px rgba(220,53,69,0)}100%{box-shadow:0 0 0 0 rgba(220,53,69,0)}}
-.js-radar-beacon{stroke:#007bff;stroke-width:2;stroke-opacity:.5;fill:#007bff;fill-opacity:.1;pointer-events:none}
-#find-me-btn { position: absolute; bottom: 20px; right: 10px; z-index: 999; padding: 8px; line-height: 0; border-radius: 50%; background-color: rgba(0, 123, 255, 0.7); border: 1px solid rgba(255, 255, 255, 0.3); }
+.js-radar-beacon{stroke:#007bff;stroke-width:2;stroke-opacity:.8;fill:#007bff;fill-opacity:.2;pointer-events:none}
+
+#find-me-btn { position: absolute; top: 10px; right: 10px; z-index: 999; padding: 8px; line-height: 0; border-radius: 50%; background-color: rgba(0, 123, 255, 0.7); border: 1px solid rgba(255, 255, 255, 0.7); }
 #find-me-btn img { width: 24px; height: 24px; vertical-align: middle; }
+
+/* Refresh Radar Button was removed from HTML, so this style is not strictly needed but harmless */
+/* #refresh-radar-btn { padding: 8px; line-height: 0; position: absolute; bottom: 20px; right: 20px; border-radius: 50%; } */
+/* #refresh-radar-btn img { width: 24px; height: 24px; } */
+
 #cluster-echo-list .echo-item{border-bottom:1px solid #555;padding:10px 0}
 #cluster-echo-list .echo-item:last-child{border-bottom:none}
 #cluster-echo-list p{margin:5px 0;font-size:14px;color:#ccc}
 #cluster-echo-list audio{width:100%;margin-top:10px}
-.leaflet-control-zoom { border: 1px solid #555 !important;}
-.leaflet-control-zoom a { background-color: #333 !important; color: #eee !important; border-bottom-color: #555 !important; }
-.leaflet-control-zoom a:hover { background-color: #444 !important; }
-.leaflet-control-attribution { background: rgba(26, 26, 26, 0.7) !important; color: #ccc !important; }
+.leaflet-control-zoom a { background-color: #444 !important; color: #eee !important; border-color: #555 !important; }
+.leaflet-control-attribution { background: rgba(51, 51, 51, 0.7) !important; color: #ccc !important; }
 .leaflet-control-attribution a { color: #87cefa !important; }

@@ -216,4 +216,36 @@ button:active {
 
 /* ========================================= */
 
-    
+/* === ADD THIS NEW CSS AT THE END === */
+
+/* Refresh Radar Button Styling */
+#refresh-radar-btn {
+    padding: 8px;
+    line-height: 0; /* Helps center the icon */
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    border-radius: 50%;
+}
+#refresh-radar-btn img {
+    width: 24px;
+    height: 24px;
+}
+
+/* Cluster List Modal Styling */
+#cluster-echo-list .echo-item {
+    border-bottom: 1px solid #eee;
+    padding: 10px 0;
+}
+#cluster-echo-list .echo-item:last-child {
+    border-bottom: none;
+}
+#cluster-echo-list p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: #666;
+}
+#cluster-echo-list audio {
+    width: 100%;
+    margin-top: 10px;
+}

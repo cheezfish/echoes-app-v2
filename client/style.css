@@ -1,271 +1,54 @@
-/* A clean and simple stylesheet for the Echoes app */
+/* client/style.css - FINAL CLEANED VERSION */
 
-/* Apply a clean box model and basic font to everything */
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+header { flex-shrink: 0; background-color: #333; color: white; }
+h1 { text-align: center; padding: 0.75rem; font-size: 1.25rem; }
+main { flex-grow: 1; display: flex; flex-direction: column; position: relative; /* For Find Me button */ }
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    display: flex;
-    flex-direction: column;
-    height: 100vh; /* Make the body fill the entire height of the screen */
-    overflow: hidden; /* Prevent ugly scrollbars on the main body */
-}
+/* === CRITICAL: Give map explicit height === */
+#map { height: 65%; /* Or whatever percentage you prefer */ width: 100%; background-color: #333; /* Dark background for dark map */ }
 
-header {
-    flex-shrink: 0; /* Prevent the header from shrinking */
-}
-
-h1 {
-    text-align: center;
-    padding: 1rem;
-    font-size: 1.5rem;
-}
-
-main {
-    flex-grow: 1; /* Allow the main content area to grow and fill available space */
-    display: flex;
-    flex-direction: column;
-}
-
-/* The container for the map itself */
-#map {
-    flex-grow: 1; /* Make the map fill the available vertical space */
-    width: 100%;
-    background-color: #e0e0e0; /* A light grey background for while the map tiles load */
-}
-
-/* The bottom panel for controls and information */
-#info-panel {
-    flex-shrink: 0; /* Prevent the panel from shrinking */
-    padding: 1rem;
-    text-align: center;
-    background-color: #f7f7f7;
-    border-top: 1px solid #ccc;
-    height: 35%; /* Give the panel a fixed height */
-    overflow-y: auto; /* Add a scrollbar if the content overflows */
-}
-
-h2 {
-    font-size: 1.2rem;
-    margin-bottom: 1rem;
-    color: #333;
-}
-
-/* General button styling */
-button {
-    font-size: 1rem;
-    padding: 0.75em 1.5em;
-    margin: 0.5em;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    background-color: #007bff;
-    color: white;
-    font-weight: bold;
-    transition: transform 0.1s ease;
-}
-
-/* A little effect to show the button is being pressed */
-button:active {
-    transform: scale(0.98);
-}
-
-/* User Auth Area in Header */
-#user-auth-container {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-}
-
-.auth-btn {
-    padding: 5px 10px;
-    font-size: 14px;
-    margin-left: 5px;
-}
-
-#welcome-message {
-    margin-right: 10px;
-    font-weight: bold;
-}
+#info-panel { flex-shrink: 0; padding: 1rem; text-align: center; background-color: #f8f9fa; border-top: 1px solid #ddd; height: 35%; overflow-y: auto; }
+#info-panel h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #333; }
+button { font-size: 1rem; padding: 0.6em 1.2em; margin: 0.3em; border-radius: 6px; border: none; cursor: pointer; background-color: #007bff; color: white; font-weight: bold; transition: transform 0.1s ease; }
+button:active { transform: scale(0.98); }
+#user-auth-container { position: absolute; top: 10px; right: 10px; z-index: 1000; } /* Ensure on top */
+.auth-btn { padding: 5px 10px; font-size: 14px; margin-left: 5px; }
+#welcome-message { margin-right: 10px; font-weight: bold; color: white; /* If header is dark */ }
 
 /* Modal styles */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.6);display:flex;justify-content:center;align-items:center;z-index:1001}
+.modal-content{background-color:#fff;padding:2rem;border-radius:8px;width:90%;max-width:400px;position:relative;box-shadow:0 5px 15px rgba(0,0,0,.3)}
+.close-btn{position:absolute;top:10px;right:15px;font-size:28px;font-weight:700;border:none;background:0 0;cursor:pointer;color:#aaa}
+.close-btn:hover{color:#333}
+.form-group{margin-bottom:1rem}
+.form-group label{display:block;margin-bottom:.5rem}
+.form-group input{width:100%;padding:.5rem;font-size:1rem;border:1px solid #ccc;border-radius:4px}
+#modal-submit-btn{width:100%;margin-top:1rem}
+.error-message{color:#dc3545;margin-top:1rem;text-align:center;min-height:1em}
 
-.modal-content {
-    background-color: white;
-    padding: 2rem;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 400px;
-    position: relative;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-}
+/* Status Message */
+#status-message{min-height:1.2em;margin:.5rem 0;font-weight:500;transition:color .3s ease}
+#status-message.info{color:#555}
+#status-message.success{color:#28a745}
+#status-message.error{color:#dc3545}
 
-.close-btn {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    font-size: 28px;
-    font-weight: bold;
-    border: none;
-    background: none;
-    cursor: pointer;
-    color: #aaa;
-}
+/* Recording Button */
+.is-recording{animation:pulse 1.5s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(220,53,69,.7)}70%{box-shadow:0 0 0 10px rgba(220,53,69,0)}100%{box-shadow:0 0 0 0 rgba(220,53,69,0)}}
 
-.close-btn:hover {
-    color: #333;
-}
+/* Radar Beacon */
+.js-radar-beacon{stroke:#007bff;stroke-width:2;stroke-opacity:.8;fill:#007bff;fill-opacity:.2;pointer-events:none}
 
-.form-group {
-    margin-bottom: 1rem;
-}
+/* Refresh & Find Me Buttons */
+#refresh-radar-btn, #find-me-btn { padding: 8px; line-height: 0; border-radius: 50%; background-color: #007bff; border: 1px solid white; }
+#refresh-radar-btn img, #find-me-btn img { width: 24px; height: 24px; vertical-align: middle; }
+#find-me-btn { position: absolute; top: 10px; right: 10px; z-index: 999; }
+#refresh-radar-btn { position: absolute; bottom: 10px; right: 10px; z-index: 999; }
 
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-}
-
-.form-group input {
-    width: 100%;
-    padding: 0.5rem;
-    font-size: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-
-#modal-submit-btn {
-    width: 100%;
-    margin-top: 1rem;
-}
-
-.error-message {
-    color: #dc3545;
-    margin-top: 1rem;
-    text-align: center;
-    height: 1em;
-}
-
-/* ================================== */
-
-/* === ADD THIS NEW CSS AT THE END === */
-
-/* Status Message Styling */
-#status-message {
-    min-height: 1.2em; /* Prevents layout jump when text appears */
-    margin: 0.5rem 0;
-    font-weight: 500;
-    transition: color 0.3s ease;
-}
-
-#status-message.info {
-    color: #555;
-}
-#status-message.success {
-    color: #28a745; /* Green */
-}
-#status-message.error {
-    color: #dc3545; /* Red */
-}
-
-/* Recording Button Visual Feedback */
-.is-recording {
-    animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-    }
-    70% {
-        box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
-    }
-}
-/* ================================== */
-
-      
-/* === REPLACE THE OLD RADAR CSS WITH THIS === */
-
-/* Radar Beacon Styling (now controlled by JS) */
-.js-radar-beacon {
-    stroke: #007bff;      /* The color of the circle's edge */
-    stroke-width: 2;
-    stroke-opacity: 0.8;
-    fill: #007bff;        /* The color of the circle's inside */
-    fill-opacity: 0.2;
-    pointer-events: none; /* Make it so you can click "through" the circle */
-}
-
-/* ========================================= */
-
-/* === ADD THIS NEW CSS AT THE END === */
-
-/* Refresh Radar Button Styling */
-#refresh-radar-btn {
-    padding: 8px;
-    line-height: 0; /* Helps center the icon */
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    border-radius: 50%;
-}
-#refresh-radar-btn img {
-    width: 24px;
-    height: 24px;
-}
-
-/* Cluster List Modal Styling */
-#cluster-echo-list .echo-item {
-    border-bottom: 1px solid #eee;
-    padding: 10px 0;
-}
-#cluster-echo-list .echo-item:last-child {
-    border-bottom: none;
-}
-#cluster-echo-list p {
-    margin: 5px 0;
-    font-size: 14px;
-    color: #666;
-}
-#cluster-echo-list audio {
-    width: 100%;
-    margin-top: 10px;
-}
-
-/* === ADD THIS NEW CSS AT THE END === */
-
-/* Find Me Button Styling */
-#find-me-btn {
-    position: absolute;
-    top: 90px; /* Adjust as needed */
-    right: 10px;
-    z-index: 999; /* Ensure it's above the map tiles */
-    padding: 8px;
-    line-height: 0;
-    border-radius: 4px;
-    background-color: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.7);
-}
-
-#find-me-btn img {
-    width: 24px;
-    height: 24px;
-}
+/* Cluster List Modal */
+#cluster-echo-list .echo-item{border-bottom:1px solid #eee;padding:10px 0}
+#cluster-echo-list .echo-item:last-child{border-bottom:none}
+#cluster-echo-list p{margin:5px 0;font-size:14px;color:#666}
+#cluster-echo-list audio{width:100%;margin-top:10px}

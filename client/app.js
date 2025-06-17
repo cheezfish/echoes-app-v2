@@ -1,7 +1,7 @@
 // client/app.js - WITH MARKER CLUSTERING
 
 const API_URL = 'https://echoes-server.onrender.com';
-const R2_PUBLIC_URL_BASE = 'https://pub-YOUR-RANDOM-STRING.r2.dev'; // MAKE SURE THIS IS CORRECT
+const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev'; // MAKE SURE THIS IS CORRECT
 
 // --- DOM ELEMENTS ---
 const mapContainer = document.getElementById('map');

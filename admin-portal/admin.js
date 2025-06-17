@@ -108,12 +108,16 @@ function renderEchoesTable(echoes) {
     }
     echoes.forEach(echo => {
         const row = echoesTableBody.insertRow();
+        // New code in renderEchoesTable
+        const latNum = parseFloat(echo.lat); // Convert to number
+        const lngNum = parseFloat(echo.lng); // Convert to number
+
         row.innerHTML = `
             <td>${echo.id}</td>
             <td>${echo.username || 'Anonymous'}</td>
             <td>${echo.w3w_address}</td>
-            <td>${echo.lat ? echo.lat.toFixed(4) : 'N/A'}</td>
-            <td>${echo.lng ? echo.lng.toFixed(4) : 'N/A'}</td>
+            <td>${!isNaN(latNum) ? latNum.toFixed(4) : 'N/A'}</td> {/* Use converted number */}
+            <td>${!isNaN(lngNum) ? lngNum.toFixed(4) : 'N/A'}</td> {/* Use converted number */}
             <td>${new Date(echo.created_at).toLocaleString()}</td>
             <td>${echo.play_count}</td>
             <td><audio controls src="${echo.audio_url}"></audio></td>
@@ -129,16 +133,21 @@ function renderEchoesTable(echoes) {
 function renderEchoesOnAdminMap(echoes) {
     if (!adminMap || !adminMarkers) return;
     echoes.forEach(echo => {
+        // New code in renderEchoesOnAdminMap
         if (echo.lat && echo.lng) {
-            const marker = L.marker([echo.lat, echo.lng]);
-            // Simple popup for admin map
-            marker.bindPopup(`
-                <b>Echo ID:</b> ${echo.id}<br>
-                <b>Author:</b> ${echo.username || 'Anonymous'}<br>
-                <b>Location:</b> ${echo.w3w_address}<br>
-                <a href="${echo.audio_url}" target="_blank">Play Audio</a>
-            `);
-            adminMarkers.addLayer(marker);
+            const latNum = parseFloat(echo.lat); // Convert to number
+            const lngNum = parseFloat(echo.lng); // Convert to number
+
+            if (!isNaN(latNum) && !isNaN(lngNum)) { // Only create marker if conversion is valid
+                const marker = L.marker([latNum, lngNum]); 
+                marker.bindPopup(`
+                    <b>Echo ID:</b> ${echo.id}<br>
+                    <b>Author:</b> ${echo.username || 'Anonymous'}<br>
+                    <b>Location:</b> ${echo.w3w_address}<br>
+                    <a href="${echo.audio_url}" target="_blank">Play Audio</a>
+                `);
+                adminMarkers.addLayer(marker);
+            }
         }
     });
 }

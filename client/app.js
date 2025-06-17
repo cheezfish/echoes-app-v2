@@ -1,6 +1,11 @@
-// client/app.js - FINAL, SIMPLIFIED VERSION
+// client/app.js - FINAL VERSION WITH PUBLIC URL FIX
 
 const API_URL = 'https://echoes-server.onrender.com'; // Your Render server URL
+
+// === CRITICAL: PASTE YOUR PUBLIC R2 BUCKET URL HERE ===
+// It looks like: https://pub-xxxxxxxxxxxxxxxx.r2.dev
+const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev'; 
+
 
 // --- DOM ELEMENTS ---
 const mapContainer = document.getElementById('map');
@@ -12,12 +17,14 @@ let map;
 let mediaRecorder;
 let audioChunks = [];
 let currentUserPosition = { lat: 0, lng: 0 };
-let currentBucketKey = ''; // This is our new, simple key
+let currentBucketKey = '';
 
 // === 1. INITIALIZE ===
 function initializeApp() {
     map = L.map(mapContainer).setView([51.505, -0.09], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
 
     if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError);
@@ -33,7 +40,7 @@ function initializeApp() {
 async function fetchAllEchoes() {
     try {
         const response = await fetch(`${API_URL}/echoes`);
-        if (!response.ok) throw new Error('Failed to fetch');
+        if (!response.ok) throw new Error('Failed to fetch echoes from server');
         const echoes = await response.json();
         renderEchoesOnMap(echoes);
     } catch (error) {
@@ -68,7 +75,6 @@ function onLocationSuccess(position) {
     map.setView([currentUserPosition.lat, currentUserPosition.lng], 16);
     L.marker([currentUserPosition.lat, currentUserPosition.lng]).addTo(map).bindPopup("You are here!").openPopup();
 
-    // The new, simple "rounding" method to create a bucket key
     const latRounded = currentUserPosition.lat.toFixed(4);
     const lngRounded = currentUserPosition.lng.toFixed(4);
     currentBucketKey = `sq_${latRounded}_${lngRounded}`;
@@ -81,9 +87,8 @@ function onLocationError(error) {
     w3wAddressEl.textContent = `Error getting location: ${error.message}`;
 }
 
-// === 4. RECORDING & UPLOAD FLOW ===
+// === 4. RECORDING LOGIC ===
 async function handleRecordClick() {
-    // This function remains the same
     if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
         recordBtn.textContent = 'Record Echo';
@@ -107,13 +112,18 @@ async function handleRecordClick() {
     }
 }
 
+// === 5. THE UPLOAD AND SAVE FLOW ===
 async function uploadAndSaveEcho() {
-    if (audioChunks.length === 0) return;
+    if (audioChunks.length === 0) {
+        w3wAddressEl.textContent = 'You are ready to record an echo.';
+        recordBtn.disabled = false;
+        return;
+    }
     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-    // Use our simple bucket key for the filename
     const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
 
     try {
+        // Step A: Get presigned URL from our backend
         const presignedUrlRes = await fetch(`${API_URL}/presigned-url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -122,16 +132,22 @@ async function uploadAndSaveEcho() {
         if (!presignedUrlRes.ok) throw new Error(`Presigned URL failed: ${await presignedUrlRes.text()}`);
         const { url: uploadUrl } = await presignedUrlRes.json();
 
+        // Step B: Upload the audio file directly to Cloudflare R2
         const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: audioBlob, headers: { 'Content-Type': audioBlob.type } });
         if (!uploadRes.ok) throw new Error('Upload to R2 failed');
-        const audio_url = uploadUrl.split('?')[0];
 
+        // === THE FIX ===
+        // Construct the correct, public URL using the base and the filename.
+        const audio_url = `${R2_PUBLIC_URL_BASE}/${fileName}`;
+        // ===============
+
+        // Step C: Save the final metadata to our database
         const saveEchoRes = await fetch(`${API_URL}/echoes`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'json' },
             body: JSON.stringify({
-                w3w_address: currentBucketKey, // The server just sees this as a string key
-                audio_url: audio_url,
+                w3w_address: currentBucketKey,
+                audio_url: audio_url, // We now save the correct public URL
                 lat: currentUserPosition.lat,
                 lng: currentUserPosition.lng
             })
@@ -141,7 +157,7 @@ async function uploadAndSaveEcho() {
         const newEcho = await saveEchoRes.json();
         alert(`Success! Echo saved.`);
         w3wAddressEl.textContent = `You are ready to record an echo.`;
-        renderEchoesOnMap([newEcho]);
+        renderEchoesOnMap([newEcho]); // Add the new marker to the map instantly
 
     } catch (error) {
         console.error('Full echo process failed:', error);
@@ -152,6 +168,6 @@ async function uploadAndSaveEcho() {
     }
 }
 
-// --- KICK IT OFF ---
+// --- KICK EVERYTHING OFF ---
 recordBtn.disabled = true;
 initializeApp();

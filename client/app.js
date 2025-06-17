@@ -1,23 +1,13 @@
-// client/app.js - FINAL VERSION WITH PUBLIC URL FIX
+// client/app.js - FINAL VERSION WITH METADATA HEADER FIX
 
 const API_URL = 'https://echoes-server.onrender.com'; // Your Render server URL
+const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev'; // PASTE YOUR PUBLIC R2 URL
 
-// === CRITICAL: PASTE YOUR PUBLIC R2 BUCKET URL HERE ===
-// It looks like: https://pub-xxxxxxxxxxxxxxxx.r2.dev
-const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev'; 
-
-
-// --- DOM ELEMENTS ---
+// --- DOM ELEMENTS & APP STATE ---
 const mapContainer = document.getElementById('map');
 const w3wAddressEl = document.getElementById('w3w-address');
 const recordBtn = document.getElementById('record-btn');
-
-// --- APP STATE ---
-let map;
-let mediaRecorder;
-let audioChunks = [];
-let currentUserPosition = { lat: 0, lng: 0 };
-let currentBucketKey = '';
+let map, mediaRecorder, audioChunks = [], currentUserPosition = { lat: 0, lng: 0 }, currentBucketKey = '';
 
 // === 1. INITIALIZE ===
 function initializeApp() {
@@ -25,13 +15,11 @@ function initializeApp() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
-
     if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError);
     } else {
         w3wAddressEl.textContent = "Geolocation not supported.";
     }
-
     recordBtn.addEventListener('click', handleRecordClick);
     fetchAllEchoes();
 }
@@ -59,7 +47,6 @@ function renderEchoesOnMap(echoes) {
 }
 
 function createEchoPopup(echo) {
-    // We'll just show "Echo" since the grid key isn't user-friendly
     return `
         <h3>Echo Location</h3>
         <p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()}</p>
@@ -71,14 +58,11 @@ function createEchoPopup(echo) {
 function onLocationSuccess(position) {
     currentUserPosition.lat = position.coords.latitude;
     currentUserPosition.lng = position.coords.longitude;
-    
     map.setView([currentUserPosition.lat, currentUserPosition.lng], 16);
     L.marker([currentUserPosition.lat, currentUserPosition.lng]).addTo(map).bindPopup("You are here!").openPopup();
-
     const latRounded = currentUserPosition.lat.toFixed(4);
     const lngRounded = currentUserPosition.lng.toFixed(4);
     currentBucketKey = `sq_${latRounded}_${lngRounded}`;
-    
     w3wAddressEl.textContent = "You are ready to record an echo.";
     recordBtn.disabled = false;
 }
@@ -99,15 +83,12 @@ async function handleRecordClick() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-            audioChunks = [];
-            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-            mediaRecorder.onstop = uploadAndSaveEcho;
-            mediaRecorder.start();
+            audioChunks = [], mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = uploadAndSaveEcho, mediaRecorder.start();
             recordBtn.textContent = 'Stop Recording';
             recordBtn.style.backgroundColor = '#dc3545';
         } catch (error) {
-            console.error('Mic error:', error);
-            w3wAddressEl.textContent = 'Could not access microphone.';
+            console.error('Mic error:', error), w3wAddressEl.textContent = 'Could not access microphone.';
         }
     }
 }
@@ -123,7 +104,6 @@ async function uploadAndSaveEcho() {
     const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
 
     try {
-        // Step A: Get presigned URL from our backend
         const presignedUrlRes = await fetch(`${API_URL}/presigned-url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -132,22 +112,20 @@ async function uploadAndSaveEcho() {
         if (!presignedUrlRes.ok) throw new Error(`Presigned URL failed: ${await presignedUrlRes.text()}`);
         const { url: uploadUrl } = await presignedUrlRes.json();
 
-        // Step B: Upload the audio file directly to Cloudflare R2
         const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: audioBlob, headers: { 'Content-Type': audioBlob.type } });
         if (!uploadRes.ok) throw new Error('Upload to R2 failed');
 
-        // === THE FIX ===
-        // Construct the correct, public URL using the base and the filename.
         const audio_url = `${R2_PUBLIC_URL_BASE}/${fileName}`;
-        // ===============
 
         // Step C: Save the final metadata to our database
         const saveEchoRes = await fetch(`${API_URL}/echoes`, {
             method: 'POST',
-            headers: { 'Content-Type': 'json' },
+            // === THIS IS THE FIX ===
+            headers: { 'Content-Type': 'application/json' },
+            // ======================
             body: JSON.stringify({
                 w3w_address: currentBucketKey,
-                audio_url: audio_url, // We now save the correct public URL
+                audio_url: audio_url,
                 lat: currentUserPosition.lat,
                 lng: currentUserPosition.lng
             })
@@ -157,7 +135,7 @@ async function uploadAndSaveEcho() {
         const newEcho = await saveEchoRes.json();
         alert(`Success! Echo saved.`);
         w3wAddressEl.textContent = `You are ready to record an echo.`;
-        renderEchoesOnMap([newEcho]); // Add the new marker to the map instantly
+        renderEchoesOnMap([newEcho]);
 
     } catch (error) {
         console.error('Full echo process failed:', error);

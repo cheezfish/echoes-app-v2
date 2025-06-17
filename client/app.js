@@ -5,8 +5,6 @@ const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev'
 
 const MAX_RECORDING_SECONDS = 60;
 
-// FIX: Define a custom HTML divIcon that combines the icon and pulse animation.
-// This guarantees perfect centering. The CSS handles the visuals.
 const userLocationIcon = L.divIcon({
     className: 'user-location-marker',
     html: `<div class="pulse"></div><img src="https://api.iconify.design/material-symbols:my-location.svg?color=%23007bff"/>`,
@@ -292,6 +290,9 @@ function updateUIAfterLogout() {
     updateInfoPanelText();
 }
 
+// ===================
+//  MODIFIED FUNCTION
+// ===================
 function handleClusterClick(a) {
     const childMarkers = a.layer.getAllChildMarkers();
     const echoes = childMarkers.map(marker => marker.echoData);
@@ -300,8 +301,19 @@ function handleClusterClick(a) {
     echoes.forEach(echo => {
         const item = document.createElement("div");
         item.className = "echo-item";
-        const author = echo.username ? `by ${echo.username}` : "by an anonymous user";
-        item.innerHTML = `<p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p><audio controls onplay="keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>`;
+        
+        const author = echo.username ? `<span class="echo-author">by ${echo.username}</span>` : `<span class="echo-author">by an anonymous user</span>`;
+        const date = `<span class="echo-date">Recorded: ${new Date(echo.created_at).toLocaleDateString()}</span>`;
+        
+        // FIX: Added preload="none" to the audio tag to prevent the Android "chime" issue.
+        // Also using the new HTML structure for better styling.
+        item.innerHTML = `
+            <div class="echo-info">
+                ${author}
+                ${date}
+            </div>
+            <audio controls preload="none" onplay="keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>
+        `;
         clusterEchoList.appendChild(item);
     });
     clusterModal.style.display = "flex";
@@ -344,7 +356,8 @@ function renderEchoesOnMap(echoes) {
 
 function createEchoPopup(echo) {
     const author = echo.username ? `by ${echo.username}` : "by an anonymous user";
-    return `<h3>Echo Location</h3><p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p><audio controls onplay="keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>`;
+    // FIX: Added preload="none" here too, just in case.
+    return `<h3>Echo Location</h3><p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p><audio controls preload="none" onplay="keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>`;
 }
 
 window.keepEchoAlive = async (id) => {

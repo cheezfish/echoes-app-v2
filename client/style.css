@@ -1,4 +1,78 @@
-/* === ADD THIS NEW CSS AT THE END === */
+/* A clean and simple stylesheet for the Echoes app */
+
+/* Apply a clean box model and basic font to everything */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Make the body fill the entire height of the screen */
+    overflow: hidden; /* Prevent ugly scrollbars on the main body */
+}
+
+header {
+    flex-shrink: 0; /* Prevent the header from shrinking */
+}
+
+h1 {
+    text-align: center;
+    padding: 1rem;
+    font-size: 1.5rem;
+}
+
+main {
+    flex-grow: 1; /* Allow the main content area to grow and fill available space */
+    display: flex;
+    flex-direction: column;
+}
+
+/* The container for the map itself */
+#map {
+    flex-grow: 1; /* Make the map fill the available vertical space */
+    width: 100%;
+    background-color: #e0e0e0; /* A light grey background for while the map tiles load */
+}
+
+/* The bottom panel for controls and information */
+#info-panel {
+    flex-shrink: 0; /* Prevent the panel from shrinking */
+    padding: 1rem;
+    text-align: center;
+    background-color: #f7f7f7;
+    border-top: 1px solid #ccc;
+    height: 35%; /* Give the panel a fixed height */
+    overflow-y: auto; /* Add a scrollbar if the content overflows */
+}
+
+h2 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    color: #333;
+}
+
+/* General button styling */
+button {
+    font-size: 1rem;
+    padding: 0.75em 1.5em;
+    margin: 0.5em;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    font-weight: bold;
+    transition: transform 0.1s ease;
+}
+
+/* A little effect to show the button is being pressed */
+button:active {
+    transform: scale(0.98);
+}
 
 /* User Auth Area in Header */
 #user-auth-container {

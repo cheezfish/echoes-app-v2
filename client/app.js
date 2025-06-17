@@ -3,7 +3,12 @@
 const API_URL = 'https://echoes-server.onrender.com';
 const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev'; // MAKE SURE THIS IS CORRECT
 
-// === NEW: DOM ELEMENTS for AUTH ===
+// client/app.js - FINAL AUTHENTICATED VERSION
+
+// DOM Elements
+const mapContainer = document.getElementById('map');
+const w3wAddressEl = document.getElementById('w3w-address');
+const recordBtn = document.getElementById('record-btn');
 const loginBtn = document.getElementById('login-btn');
 const registerBtn = document.getElementById('register-btn');
 const logoutBtn = document.getElementById('logout-btn');
@@ -17,58 +22,40 @@ const modalError = document.getElementById('modal-error');
 const usernameInput = document.getElementById('username');
 const passwordInput = document.getElementById('password');
 
-// --- OLD DOM ELEMENTS ---
-const mapContainer = document.getElementById('map');
-const w3wAddressEl = document.getElementById('w3w-address');
-const recordBtn = document.getElementById('record-btn');
+// App State
+let map, mediaRecorder, audioChunks = [], currentUserPosition = { lat: 0, lng: 0 }, currentBucketKey = '', markers, userToken = null, loggedInUser = null;
 
-// --- APP STATE ---
-let map;
-let mediaRecorder;
-let audioChunks = [];
-let currentUserPosition = { lat: 0, lng: 0 };
-let currentBucketKey = '';
-let markers;
-let userToken = null; // <<< NEW: To store the user's JWT
-let loggedInUser = null; // <<< NEW: To store username
-
-// === 1. INITIALIZE ===
+// === 1. INITIALIZE & EVENT LISTENERS ===
 function initializeApp() {
     map = L.map(mapContainer).setView([51.505, -0.09], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
     markers = L.markerClusterGroup();
     map.addLayer(markers);
+
+    setupEventListeners();
+    checkLoginState();
+    fetchAllEchoes();
 
     if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError);
     } else {
         w3wAddressEl.textContent = "Geolocation not supported.";
     }
-
-    // === NEW: Setup all event listeners ===
-    setupEventListeners();
-
-    // Check if a token exists in local storage from a previous session
-    checkLoginState();
-    
-    // Fetch echoes on load
-    fetchAllEchoes();
 }
 
-// === NEW: SETUP EVENT LISTENERS ===
 function setupEventListeners() {
     loginBtn.addEventListener('click', () => openModal('login'));
     registerBtn.addEventListener('click', () => openModal('register'));
     logoutBtn.addEventListener('click', handleLogout);
     closeModalBtn.addEventListener('click', closeModal);
-    authModal.addEventListener('click', (e) => {
-        if (e.target === authModal) closeModal(); // Close if clicking on the overlay
-    });
+    authModal.addEventListener('click', (e) => { if (e.target === authModal) closeModal(); });
     authForm.addEventListener('submit', handleAuthFormSubmit);
     recordBtn.addEventListener('click', handleRecordClick);
 }
 
-// === NEW: AUTH MODAL LOGIC ===
+// === 2. AUTHENTICATION (Modal, State, Forms) ===
 function openModal(mode) {
     modalError.textContent = '';
     authForm.reset();
@@ -95,7 +82,6 @@ async function handleAuthFormSubmit(e) {
     const password = passwordInput.value;
     const mode = authForm.dataset.mode;
     const endpoint = mode === 'login' ? '/api/users/login' : '/api/users/register';
-
     try {
         const response = await fetch(`${API_URL}${endpoint}`, {
             method: 'POST',
@@ -106,14 +92,12 @@ async function handleAuthFormSubmit(e) {
         if (!response.ok) {
             throw new Error(data.error || 'An unknown error occurred.');
         }
-
         if (mode === 'register') {
             alert('Registration successful! Please log in.');
             openModal('login');
         } else {
-            // Login was successful, we have a token
-            localStorage.setItem('echoes_token', data.token); // Store token
-            checkLoginState(); // Update UI
+            localStorage.setItem('echoes_token', data.token);
+            checkLoginState();
             closeModal();
         }
     } catch (error) {
@@ -121,15 +105,18 @@ async function handleAuthFormSubmit(e) {
     }
 }
 
-// === NEW: AUTH STATE MANAGEMENT ===
 function checkLoginState() {
     const token = localStorage.getItem('echoes_token');
     if (token) {
         userToken = token;
-        // Decode token to get username (a simple way, doesn't verify signature)
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        loggedInUser = payload.user.username;
-        updateUIAfterLogin();
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            loggedInUser = payload.user.username;
+            updateUIAfterLogin();
+        } catch (error) {
+            console.error("Failed to decode token", error);
+            handleLogout();
+        }
     } else {
         updateUIAfterLogout();
     }
@@ -147,7 +134,7 @@ function updateUIAfterLogin() {
     loginBtn.style.display = 'none';
     registerBtn.style.display = 'none';
     logoutBtn.style.display = 'inline-block';
-    recordBtn.disabled = false; // Enable recording
+    if (currentBucketKey) recordBtn.disabled = false;
 }
 
 function updateUIAfterLogout() {
@@ -155,28 +142,134 @@ function updateUIAfterLogout() {
     loginBtn.style.display = 'inline-block';
     registerBtn.style.display = 'inline-block';
     logoutBtn.style.display = 'none';
-    recordBtn.disabled = true; // Disable recording
+    recordBtn.disabled = true;
 }
 
-// === OLD FUNCTIONS (Mostly unchanged) ===
-async function fetchAllEchoes() { /* ... no change ... */ }
-function renderEchoesOnMap(echoes) { /* ... no change ... */ }
-function createEchoPopup(echo) { /* ... no change ... */ }
-function onLocationSuccess(position) { /* ... no change ... */ }
-function onLocationError(error) { /* ... no change ... */ }
-async function handleRecordClick() { /* ... no change ... */ }
-async function uploadAndSaveEcho() { /* ... no change ... */ }
+// === 3. MAP & DATA FETCHING ===
+async function fetchAllEchoes() {
+    markers.clearLayers();
+    try {
+        const response = await fetch(`${API_URL}/echoes`);
+        if (!response.ok) throw new Error('Failed to fetch');
+        const echoes = await response.json();
+        renderEchoesOnMap(echoes);
+    } catch (error) {
+        console.error("Failed to fetch echoes:", error);
+    }
+}
 
+function renderEchoesOnMap(echoes) {
+    echoes.forEach(echo => {
+        if (echo.lat && echo.lng) {
+            const marker = L.marker([echo.lat, echo.lng]);
+            marker.bindPopup(createEchoPopup(echo));
+            markers.addLayer(marker);
+        }
+    });
+}
 
-// (Copying unchanged functions for completeness)
-async function fetchAllEchoes(){markers.clearLayers();try{const e=await fetch(`${API_URL}/echoes`);if(!e.ok)throw new Error("Failed to fetch");const t=await e.json();renderEchoesOnMap(t)}catch(e){console.error("Failed to fetch echoes:",e)}}
-function renderEchoesOnMap(e){e.forEach(e=>{if(e.lat&&e.lng){const t=L.marker([e.lat,e.lng]);t.bindPopup(createEchoPopup(e)),markers.addLayer(t)}})}
-function createEchoPopup(e){return`<h3>Echo Location</h3><p>Recorded on: ${new Date(e.created_at).toLocaleDateString()}</p><audio controls src="${e.audio_url}"></audio>`}
-function onLocationSuccess(e){currentUserPosition.lat=e.coords.latitude,currentUserPosition.lng=e.coords.longitude,map.setView([currentUserPosition.lat,currentUserPosition.lng],16),L.marker([currentUserPosition.lat,currentUserPosition.lng]).addTo(map).bindPopup("You are here!").openPopup();const t=currentUserPosition.lat.toFixed(4),o=currentUserPosition.lng.toFixed(4);currentBucketKey=`sq_${t}_${o}`,w3wAddressEl.textContent="You are ready to record an echo.",userToken||(recordBtn.disabled=!0)}
-function onLocationError(e){w3wAddressEl.textContent=`Error getting location: ${e.message}`}
-async function handleRecordClick(){if(mediaRecorder&&"recording"===mediaRecorder.state)mediaRecorder.stop(),recordBtn.textContent="Record Echo",recordBtn.style.backgroundColor="#007bff",recordBtn.disabled=!0,w3wAddressEl.textContent="Processing...";else try{const e=await navigator.mediaDevices.getUserMedia({audio:!0});mediaRecorder=new MediaRecorder(e,{mimeType:"audio/webm"}),audioChunks=[],mediaRecorder.ondataavailable=e=>{audioChunks.push(e.data)},mediaRecorder.onstop=uploadAndSaveEcho,mediaRecorder.start(),recordBtn.textContent="Stop Recording",recordBtn.style.backgroundColor="#dc3545"}catch(e){console.error("Mic error:",e),w3wAddressEl.textContent="Could not access microphone."}}
-async function uploadAndSaveEcho(){if(0!==audioChunks.length){const e=new Blob(audioChunks,{type:"audio/webm"}),t=`echo_${currentBucketKey}_${Date.now()}.webm`;try{const o=await fetch(`${API_URL}/presigned-url`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fileName:t,fileType:e.type})});if(!o.ok)throw new Error(`Presigned URL failed: ${await o.text()}`);const{url:r}=await o.json(),a=await fetch(r,{method:"PUT",body:e,headers:{"Content-Type":e.type}});if(!a.ok)throw new Error("Upload to R2 failed");const n=`${R2_PUBLIC_URL_BASE}/${t}`,d=await fetch(`${API_URL}/echoes`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({w3w_address:currentBucketKey,audio_url:n,lat:currentUserPosition.lat,lng:currentUserPosition.lng})});if(!d.ok)throw new Error("Save metadata failed");const c=await d.json();alert("Success! Echo saved."),w3wAddressEl.textContent="You are ready to record an echo.",renderEchoesOnMap([c])}catch(e){console.error("Full echo process failed:",e),alert("An error occurred. Check console."),w3wAddressEl.textContent="You are ready to record an echo."}finally{recordBtn.disabled=!1}}else w3wAddressEl.textContent="You are ready to record an echo.",recordBtn.disabled=!1}
+function createEchoPopup(echo) {
+    const author = echo.username ? `by ${echo.username}` : 'by an anonymous user';
+    return `
+        <h3>Echo Location</h3>
+        <p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p>
+        <audio controls src="${echo.audio_url}"></audio>
+    `;
+}
 
+// === 4. GEOLOCATION & RECORDING LOGIC ===
+function onLocationSuccess(position) {
+    currentUserPosition.lat = position.coords.latitude;
+    currentUserPosition.lng = position.coords.longitude;
+    map.setView([currentUserPosition.lat, currentUserPosition.lng], 16);
+    L.marker([currentUserPosition.lat, currentUserPosition.lng]).addTo(map).bindPopup("You are here!").openPopup();
+    const latRounded = currentUserPosition.lat.toFixed(4);
+    const lngRounded = currentUserPosition.lng.toFixed(4);
+    currentBucketKey = `sq_${latRounded}_${lngRounded}`;
+    w3wAddressEl.textContent = "You are ready to record an echo.";
+    if (userToken) recordBtn.disabled = false;
+}
 
-// --- KICK IT OFF ---
+function onLocationError(error) {
+    w3wAddressEl.textContent = `Error getting location: ${error.message}`;
+}
+
+async function handleRecordClick() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        recordBtn.textContent = 'Record Echo';
+        recordBtn.style.backgroundColor = '#007bff';
+        recordBtn.disabled = true;
+        w3wAddressEl.textContent = 'Processing...';
+    } else {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            audioChunks = [];
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = uploadAndSaveEcho;
+            mediaRecorder.start();
+            recordBtn.textContent = 'Stop Recording';
+            recordBtn.style.backgroundColor = '#dc3545';
+        } catch (error) {
+            console.error('Mic error:', error);
+            w3wAddressEl.textContent = 'Could not access microphone.';
+        }
+    }
+}
+
+// === 5. UPLOAD & SAVE FLOW ===
+async function uploadAndSaveEcho() {
+    if (audioChunks.length === 0) {
+        w3wAddressEl.textContent = 'You are ready to record an echo.';
+        recordBtn.disabled = false;
+        return;
+    }
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
+    try {
+        const presignedUrlRes = await fetch(`${API_URL}/presigned-url`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileName, fileType: audioBlob.type })
+        });
+        if (!presignedUrlRes.ok) throw new Error(`Presigned URL failed: ${await presignedUrlRes.text()}`);
+        const { url: uploadUrl } = await presignedUrlRes.json();
+
+        const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: audioBlob, headers: { 'Content-Type': audioBlob.type } });
+        if (!uploadRes.ok) throw new Error('Upload to R2 failed');
+
+        const audio_url = `${R2_PUBLIC_URL_BASE}/${fileName}`;
+
+        const saveEchoRes = await fetch(`${API_URL}/echoes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${userToken}`
+            },
+            body: JSON.stringify({
+                w3w_address: currentBucketKey,
+                audio_url: audio_url,
+                lat: currentUserPosition.lat,
+                lng: currentUserPosition.lng
+            })
+        });
+        if (!saveEchoRes.ok) throw new Error('Save metadata failed');
+        
+        const newEcho = await saveEchoRes.json();
+        alert(`Success! Echo saved.`);
+        w3wAddressEl.textContent = `You are ready to record an echo.`;
+        newEcho.username = loggedInUser; 
+        renderEchoesOnMap([newEcho]);
+
+    } catch (error) {
+        console.error('Full echo process failed:', error);
+        alert('An error occurred. Check console.');
+        w3wAddressEl.textContent = `You are ready to record an echo.`;
+    } finally {
+        recordBtn.disabled = false;
+    }
+}
+
+// --- KICK EVERYTHING OFF ---
 initializeApp();

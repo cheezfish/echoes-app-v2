@@ -1,4 +1,4 @@
-// server/index.js - USER ACCOUNTS UPDATE
+// server/index.js - FINAL AUTHENTICATED VERSION
 
 // --- DEPENDENCIES ---
 require('dotenv').config();
@@ -9,6 +9,7 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const authMiddleware = require('./middleware/auth'); // Import the auth "guard"
 
 // --- SETUP ---
 const pool = new Pool({
@@ -28,7 +29,6 @@ app.post('/api/users/register', async (req, res) => {
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and password are required.' });
     }
-
     try {
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
@@ -49,7 +49,6 @@ app.post('/api/users/login', async (req, res) => {
     if (!username || !password) {
         return res.status(400).json({ error: 'Username and password are required.' });
     }
-
     try {
         const userQuery = 'SELECT * FROM users WHERE username = $1;';
         const result = await pool.query(userQuery, [username]);
@@ -73,15 +72,71 @@ app.post('/api/users/login', async (req, res) => {
 });
 
 
-// === ECHOES ROUTES (Unchanged for now) ===
-app.get('/echoes', async(req, res) => { /* ... unchanged ... */ });
-app.post('/echoes', async(req, res) => { /* ... unchanged ... */ });
-app.post('/presigned-url', async(req, res) => { /* ... unchanged ... */ });
+// === ECHOES ROUTES (UPGRADED) ===
 
-// (Copying unchanged functions for completeness)
-app.get('/echoes',async(e,s)=>{try{const o=await pool.query("SELECT * FROM echoes ORDER BY created_at DESC;");s.json(o.rows)}catch(o){console.error("Error fetching echoes:",o),s.status(500).send("Server Error")}});
-app.post('/echoes',async(e,s)=>{const{w3w_address:o,audio_url:t,lat:r,lng:n}=e.body;if(!o||!t||void 0===r||void 0===n)return s.status(400).json({error:"w3w_address, audio_url, lat, and lng are required"});try{const a="INSERT INTO echoes (w3w_address, audio_url, lat, lng) VALUES ($1, $2, $3, $4) RETURNING *;",i=[o,t,r,n],c=await pool.query(a,i);s.status(201).json(c.rows[0])}catch(o){console.error("Error creating echo metadata:",o),s.status(500).send("Server Error")}});
-app.post('/presigned-url',async(e,s)=>{const{fileName:o,fileType:t}=e.body;if(!o||!t)return s.status(400).json({error:"fileName and fileType are required"});const r=new S3Client({region:"auto",endpoint:`https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,credentials:{accessKeyId:process.env.R2_ACCESS_KEY_ID,secretAccessKey:process.env.R2_SECRET_ACCESS_KEY}}),n=new PutObjectCommand({Bucket:process.env.R2_BUCKET_NAME,Key:o,ContentType:t});try{const a=await getSignedUrl(r,n,{expiresIn:60});s.json({url:a})}catch(o){console.error("Error creating presigned URL:",o),s.status(500).send("Server Error")}});
+app.get('/echoes', async (req, res) => {
+    console.log("Received request for GET /echoes with author names");
+    try {
+        const query = `
+            SELECT echoes.*, users.username 
+            FROM echoes 
+            LEFT JOIN users ON echoes.user_id = users.id 
+            ORDER BY echoes.created_at DESC;
+        `;
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching echoes:', err);
+        res.status(500).send('Server Error');
+    }
+});
+
+app.post('/echoes', authMiddleware, async (req, res) => {
+    const { w3w_address, audio_url, lat, lng } = req.body;
+    const user_id = req.user.id;
+    if (!w3w_address || !audio_url || lat === undefined || lng === undefined) {
+        return res.status(400).json({ error: 'All fields are required' });
+    }
+    console.log(`User ${user_id} creating new echo for: ${w3w_address}`);
+    try {
+        const sql = 'INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING *;';
+        const values = [w3w_address, audio_url, lat, lng, user_id];
+        const result = await pool.query(sql, values);
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('Error creating echo metadata:', err);
+        res.status(500).send('Server Error');
+    }
+});
+
+app.post('/presigned-url', async (req, res) => {
+    const { fileName, fileType } = req.body;
+    if (!fileName || !fileType) {
+        return res.status(400).json({ error: 'fileName and fileType are required' });
+    }
+    const s3 = new S3Client({
+        region: 'auto',
+        endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+        credentials: {
+            accessKeyId: process.env.R2_ACCESS_KEY_ID,
+            secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+        },
+    });
+    const putCommand = new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: fileName,
+        ContentType: fileType,
+    });
+    console.log(`Generating presigned URL for: ${fileName}`);
+    try {
+        const signedUrl = await getSignedUrl(s3, putCommand, { expiresIn: 60 });
+        res.json({ url: signedUrl });
+    } catch (err) {
+        console.error('Error creating presigned URL:', err);
+        res.status(500).send('Server Error');
+    }
+});
+
 
 // --- START THE SERVER ---
 const PORT = process.env.PORT || 3000;

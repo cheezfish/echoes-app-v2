@@ -8,16 +8,21 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
+    <!-- === ADD THE MARKER CLUSTER CSS HERE === -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <!-- ======================================= -->
+
     <!-- Your Custom CSS -->
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Plus Codes / Open Location Code Library -->
+    <script src="https://unpkg.com/open-location-code@2.0.0/dist/open-location-code.min.js"></script>
     
 </head>
 <body>
 
-    <header>
-        <h1>Echoes</h1>
-    </header>
-
+    <header><h1>Echoes</h1></header>
     <main>
         <div id="map"></div>
         <div id="info-panel">
@@ -29,6 +34,10 @@
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- === ADD THE MARKER CLUSTER JS HERE === -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <!-- ==================================== -->
     
     <!-- Your App's JavaScript -->
     <script src="app.js"></script>

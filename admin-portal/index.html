@@ -3,59 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <title>Echoes Admin</title>
-    <!-- === NEW: Leaflet and MarkerCluster CSS === -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-    <!-- ========================================= -->
     <link rel="stylesheet" href="admin.css">
 </head>
 <body>
     <div class="container">
         <h1>Echoes Admin Portal</h1>
 
-        <div id="admin-login-section">
+        <div id="admin-login-section"> <!-- This section is shown/hidden -->
             <h2>Admin Login</h2>
-            <form id="admin-login-form">
+            <form id="admin-login-form"> <!-- Make sure this ID is correct -->
                 <input type="text" id="admin-username" placeholder="Username" required><br>
                 <input type="password" id="admin-password" placeholder="Password" required><br>
-                <button type="submit">Login</button>
+                <button type="submit">Login</button> <!-- type="submit" is correct -->
                 <p id="admin-login-error" class="error"></p>
             </form>
         </div>
 
-        <div id="admin-dashboard-section" style="display:none;">
+        <div id="admin-dashboard-section" style="display:none;"> <!-- Shown after login -->
             <p>Welcome, Admin! <button id="admin-logout-btn">Logout</button></p>
-            
-            <!-- === NEW: Global Echoes Map === -->
             <h2>Global Echoes Map</h2>
             <div id="admin-map"></div>
-            <!-- ============================ -->
-
             <h2>All Echoes (Table View)</h2>
             <table id="echoes-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Author</th>
-                        <th>Location Key/Name</th>
-                        <th>Lat</th>
-                        <th>Lng</th>
-                        <th>Created</th>
-                        <th>Plays</th>
-                        <th>Audio</th>
-                        <th>Actions</th>
+                        <th>ID</th><th>Author</th><th>Location Key/Name</th><th>Lat</th><th>Lng</th>
+                        <th>Created</th><th>Plays</th><th>Audio</th><th>Actions</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
             </table>
+            <h2>All Users</h2>
+            <table id="users-table">
+                <thead>
+                    <tr>
+                        <th>ID</th><th>Username</th><th>Created</th><th>Is Admin?</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table-body"></tbody>
+            </table>
         </div>
     </div>
-
-    <!-- === NEW: Leaflet and MarkerCluster JS === -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <!-- ======================================= -->
     <script src="admin.js"></script>
 </body>
 </html>

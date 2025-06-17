@@ -201,31 +201,19 @@ button:active {
 }
 /* ================================== */
 
-/* === ADD THIS NEW CSS AT THE END === */
+      
+/* === REPLACE THE OLD RADAR CSS WITH THIS === */
 
-/* Radar Beacon Styling */
-.radar-beacon {
-    background-color: rgba(0, 123, 255, 0.25); /* Semi-transparent blue */
-    border: 2px solid rgba(0, 123, 255, 0.5);
-    border-radius: 50%;
-    width: 200px; /* This size will be scaled by the map's zoom */
-    height: 200px;
+/* Radar Beacon Styling (now controlled by JS) */
+.js-radar-beacon {
+    stroke: #007bff;      /* The color of the circle's edge */
+    stroke-width: 2;
+    stroke-opacity: 0.8;
+    fill: #007bff;        /* The color of the circle's inside */
+    fill-opacity: 0.2;
+    pointer-events: none; /* Make it so you can click "through" the circle */
+}
+
+/* ========================================= */
+
     
-    /* The animation magic */
-    animation: pulse-radar 2.5s infinite cubic-bezier(0.0, 0, 0.2, 1);
-}
-
-@keyframes pulse-radar {
-    0% {
-        transform: scale(0);
-        opacity: 0;
-    }
-    50% {
-        opacity: 0.5;
-    }
-    100% {
-        transform: scale(1);
-        opacity: 0;
-    }
-}
-/* ================================== */

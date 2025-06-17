@@ -1,4 +1,4 @@
-// client/app.js - BASED ON YOUR WORKING VERSION, WITH DOMContentLoaded AND CORRECT IDs
+// client/app.js - FINAL VERSION WITH CORRECT DOM IDs AND STARTUP LOGIC
 
 const API_URL = 'https://echoes-server.onrender.com';
 const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev';
@@ -24,10 +24,7 @@ let isManualFind = false;
 document.addEventListener('DOMContentLoaded', () => {
     // Assign DOM elements now that we know they exist
     mapContainer = document.getElementById("map");
-    // ***** THE CRITICAL FIX: Use the correct ID from your HTML *****
-    infoPanelTitleEl = document.getElementById("info-panel-title"); 
-    // ***** Also ensure w3wAddressEl is not used if infoPanelTitleEl is the target for text updates *****
-    
+    infoPanelTitleEl = document.getElementById("info-panel-title"); // Uses the ID from index.html
     recordBtn = document.getElementById("record-btn");
     loginBtn = document.getElementById("login-btn");
     registerBtn = document.getElementById("register-btn");
@@ -42,10 +39,17 @@ document.addEventListener('DOMContentLoaded', () => {
     usernameInput = document.getElementById("username");
     passwordInput = document.getElementById("password");
     clusterModal = document.getElementById("cluster-modal");
-    closeClusterModalBtn = document.getElementById("close-cluster-modal-btn"); 
+    closeClusterModalBtn = document.getElementById("close-cluster-modal-btn");
     clusterEchoList = document.getElementById("cluster-echo-list");
     findMeBtn = document.getElementById("find-me-btn");
     statusMessageEl = document.getElementById("status-message");
+
+    // CRITICAL: Check if all essential elements were found
+    if (!mapContainer || !infoPanelTitleEl || !recordBtn || !loginBtn || !registerBtn || !logoutBtn || !findMeBtn || !authModal || !clusterModal) {
+        console.error("CRITICAL ERROR: One or more essential HTML elements were not found. Check IDs in HTML and JS.");
+        document.body.innerHTML = "<h1 style='color:red; text-align:center; margin-top: 50px;'>Critical Error: App cannot start. Check console.</h1>";
+        return; // Stop execution
+    }
 
     initializeApp();
 });
@@ -66,9 +70,9 @@ function updateStatus(message, type = 'info', duration = 0) {
 
 function initializeApp() {
     setupEventListeners();
-    checkLoginState(); // This will call updateInfoPanelTextAndButtonState
+    checkLoginState(); // This also calls updateInfoPanelTextAndButtonState
     map = L.map(mapContainer, { zoomControl: true, attributionControl: false }).setView([20, 0], 2);
-    L.tileLayer('https://api.maptiler.com/maps/toner-v2/{z}/{x}/{y}.png?key=oeJYklnaUPpZgpHgTszf', {
+    L.tileLayer('https://api.maptiler.com/maps/toner-v2/{z}/{x}/{y}.png?key=oeJYklnaUPpZgpHgTszf', { // Ensure your key is correct
         maxZoom: 19, tileSize: 512, zoomOffset: -1,
         attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">© MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap contributors</a>'
     }).addTo(map);
@@ -78,27 +82,25 @@ function initializeApp() {
     });
     markers.on('clusterclick', handleClusterClick);
     map.addLayer(markers);
-    // Call updateInfoPanelTextAndButtonState explicitly here to set initial state
-    updateInfoPanelTextAndButtonState(); 
+    // updateInfoPanelTextAndButtonState(); // Called by checkLoginState already
 }
 
 function setupEventListeners() {
-    // Add null checks for safety, though DOMContentLoaded should ensure they exist
-    if (loginBtn) loginBtn.addEventListener('click', () => openModal('login'));
-    if (registerBtn) registerBtn.addEventListener('click', () => openModal('register'));
-    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
-    if (closeModalBtn) closeModalBtn.addEventListener('click', () => { if (authModal) authModal.style.display = 'none'; });
-    if (closeClusterModalBtn) closeClusterModalBtn.addEventListener('click', () => { if (clusterModal) clusterModal.style.display = 'none'; });
-    if (authModal) authModal.addEventListener('click', e => { if (e.target === authModal) authModal.style.display = 'none'; });
-    if (clusterModal) clusterModal.addEventListener('click', e => { if (e.target === clusterModal) clusterModal.style.display = 'none'; });
-    if (authForm) authForm.addEventListener('submit', handleAuthFormSubmit);
-    if (recordBtn) recordBtn.addEventListener('click', handleRecordClick);
-    if (findMeBtn) findMeBtn.addEventListener('click', handleFindMeClick);
+    loginBtn.addEventListener('click', () => openModal('login'));
+    registerBtn.addEventListener('click', () => openModal('register'));
+    logoutBtn.addEventListener('click', handleLogout);
+    closeModalBtn.addEventListener('click', () => authModal.style.display = 'none');
+    closeClusterModalBtn.addEventListener('click', () => clusterModal.style.display = 'none');
+    authModal.addEventListener('click', e => { if (e.target === authModal) authModal.style.display = 'none'; });
+    clusterModal.addEventListener('click', e => { if (e.target === clusterModal) clusterModal.style.display = 'none'; });
+    authForm.addEventListener('submit', handleAuthFormSubmit);
+    recordBtn.addEventListener('click', handleRecordClick);
+    findMeBtn.addEventListener('click', handleFindMeClick);
 }
 
 function openModal(mode){if(!authModal||!modalError||!authForm||!modalTitle||!modalSubmitBtn)return;modalError.textContent="",authForm.reset(),mode==="login"?(modalTitle.textContent="Login",modalSubmitBtn.textContent="Login",authForm.dataset.mode="login"):(modalTitle.textContent="Register",modalSubmitBtn.textContent="Register",authForm.dataset.mode="register"),authModal.style.display="flex"}
-async function handleAuthFormSubmit(e){e.preventDefault();if(!usernameInput||!passwordInput||!modalError)return;modalError.textContent="";const username=usernameInput.value,password=passwordInput.value,mode=authForm.dataset.mode,endpoint="login"===mode?"/api/users/login":"/api/users/register";try{const response=await fetch(`${API_URL}${endpoint}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})}),data=await response.json();if(!response.ok)throw new Error(data.error||"An unknown error occurred.");"register"===mode?(modalError.textContent="Registration successful! Please log in.",authForm.reset(),openModal("login")):(localStorage.setItem("echoes_token",data.token),checkLoginState(),closeModal())}catch(error){modalError.textContent=error.message}}
-function checkLoginState(){const token=localStorage.getItem("echoes_token");token?(userToken=token,loggedInUser=JSON.parse(atob(token.split(".")[1])).user.username,updateUIAfterLogin()):updateUIAfterLogout()} // Removed redundant call
+async function handleAuthFormSubmit(e){e.preventDefault();if(!usernameInput||!passwordInput||!modalError)return;modalError.textContent="";const username=usernameInput.value,password=passwordInput.value,mode=authForm.dataset.mode,endpoint="login"===mode?"/api/users/login":"/api/users/register";try{const response=await fetch(`${API_URL}${endpoint}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})}),data=await response.json();if(!response.ok)throw new Error(data.error||"An unknown error occurred.");mode==="register"?(modalError.textContent="Registration successful! Please log in.",authForm.reset(),openModal("login")):(localStorage.setItem("echoes_token",data.token),checkLoginState(),closeModal())}catch(error){modalError.textContent=error.message}}
+function checkLoginState(){const token=localStorage.getItem("echoes_token");token?(userToken=token,loggedInUser=JSON.parse(atob(token.split(".")[1])).user.username,updateUIAfterLogin()):updateUIAfterLogout(); /* updateInfoPanelTextAndButtonState will be called by these */}
 function handleLogout(){localStorage.removeItem("echoes_token"),userToken=null,loggedInUser=null,updateUIAfterLogout()}
 function updateUIAfterLogin(){if(!welcomeMessage||!loginBtn||!registerBtn||!logoutBtn)return;welcomeMessage.textContent=`Welcome, ${loggedInUser}!`,loginBtn.style.display="none",registerBtn.style.display="none",logoutBtn.style.display="inline-block",updateInfoPanelTextAndButtonState()}
 function updateUIAfterLogout(){if(!welcomeMessage||!loginBtn||!registerBtn||!logoutBtn)return;welcomeMessage.textContent="",loginBtn.style.display="inline-block",registerBtn.style.display="inline-block",logoutBtn.style.display="none",updateInfoPanelTextAndButtonState()}
@@ -111,7 +113,6 @@ function handleFindMeClick(){updateStatus("Locating your position...","info"),is
 function onLocationSuccess(position){currentUserPosition={lat:position.coords.latitude,lng:position.coords.longitude},map.flyTo([currentUserPosition.lat,currentUserPosition.lng],16),userMarker?userMarker.setLatLng([currentUserPosition.lat,currentUserPosition.lng]):userMarker=L.marker([currentUserPosition.lat,currentUserPosition.lng],{icon:userLocationIcon,interactive:!1,zIndexOffset:1e3}).addTo(map),radarCircle?radarCircle.setLatLng([currentUserPosition.lat,currentUserPosition.lng]):radarCircle=L.circle([currentUserPosition.lat,currentUserPosition.lng],{radius:RADAR_RADIUS_METERS,className:"js-radar-beacon"}).addTo(map),fetchAllEchoes(currentUserPosition);const latRounded=currentUserPosition.lat.toFixed(4),lngRounded=currentUserPosition.lng.toFixed(4);currentBucketKey=`sq_${latRounded}_${lngRounded}`,updateInfoPanelTextAndButtonState(),locationWatcherId||startLocationWatcher(),isManualFind=!1}
 function onLocationError(error){updateStatus(`Error: ${error.message}`,"error",4e3),updateInfoPanelTextAndButtonState(),isManualFind=!1}
 function startLocationWatcher(){locationWatcherId&&clearInterval(locationWatcherId),locationWatcherId=setInterval(()=>{isManualFind=!1,navigator.geolocation.getCurrentPosition(onLocationSuccess,onLocationError,{enableHighAccuracy:!0,timeout:1e4,maximumAge:0})},LOCATION_FETCH_INTERVAL_MS)}
-// Renamed this function to avoid confusion and ensure it's called correctly
 function updateInfoPanelTextAndButtonState(){if(!infoPanelTitleEl||!recordBtn)return;currentUserPosition?(userToken?(infoPanelTitleEl.textContent="You are ready to record an echo.",recordBtn.disabled=!1):(infoPanelTitleEl.textContent="Please Login or Register to leave an echo.",recordBtn.disabled=!0)):(infoPanelTitleEl.textContent="Click the 'Find Me' button on the map to start exploring.",recordBtn.disabled=!0)}
 async function handleRecordClick(){if(!currentUserPosition)return void updateStatus("Please find your location first.","error",3e3);if(map.getZoom()<15&¤tUserPosition)map.flyTo([currentUserPosition.lat,currentUserPosition.lng],16);if(mediaRecorder&&"recording"===mediaRecorder.state)mediaRecorder.stop(),clearTimeout(recordingTimer);else try{const stream=await navigator.mediaDevices.getUserMedia({audio:!0});mediaRecorder=new MediaRecorder(stream,{mimeType:"audio/webm"}),audioChunks=[],mediaRecorder.ondataavailable=e=>{audioChunks.push(e.data)},mediaRecorder.onstop=uploadAndSaveEcho,mediaRecorder.start(),recordBtn.textContent=`Stop Recording (${MAX_RECORDING_SECONDS}s)`,recordBtn.classList.add("is-recording");let timeLeft=MAX_RECORDING_SECONDS;recordingTimer=setInterval(()=>{timeLeft--,recordBtn.textContent=`Stop Recording (${timeLeft}s)`,timeLeft<=0&&(mediaRecorder.stop(),clearTimeout(recordingTimer))},1e3)}catch(error){console.error("Mic error:",error),updateStatus("Could not access microphone.","error",3e3)}}
 async function uploadAndSaveEcho(){recordBtn.textContent="Record Echo",recordBtn.classList.remove("is-recording"),recordBtn.disabled=!0,updateStatus("Processing...","info"),clearTimeout(recordingTimer);if(0===audioChunks.length)return updateStatus("Recording too short.","error",3e3),updateInfoPanelTextAndButtonState(),void(recordBtn.disabled=!userToken||!currentUserPosition);const audioBlob=new Blob(audioChunks,{type:"audio/webm"}),fileName=`echo_${currentBucketKey}_${Date.now()}.webm`;try{updateStatus("Preparing upload...","info");const presignedUrlRes=await fetch(`${API_URL}/presigned-url`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fileName,fileType:audioBlob.type})});if(!presignedUrlRes.ok)throw new Error(`Presigned URL failed: ${await presignedUrlRes.text()}`);const{url:uploadUrl}=await presignedUrlRes.json();updateStatus("Uploading...","info");const uploadRes=await fetch(uploadUrl,{method:"PUT",body:audioBlob,headers:{"Content-Type":audioBlob.type}});if(!uploadRes.ok)throw new Error("Upload to R2 failed");const audio_url=`${R2_PUBLIC_URL_BASE}/${fileName}`;updateStatus("Saving...","info");const saveEchoRes=await fetch(`${API_URL}/echoes`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${userToken}`},body:JSON.stringify({w3w_address:currentBucketKey,audio_url,lat:currentUserPosition.lat,lng:currentUserPosition.lng})});if(!saveEchoRes.ok)throw new Error(`Save metadata failed: ${await saveEchoRes.text()}`);const newEcho=await saveEchoRes.json();updateStatus("Echo saved!","success",3e3),newEcho.username=loggedInUser,renderEchoesOnMap([newEcho])}catch(error){console.error("Full echo process failed:",error),updateStatus(`Error: ${error.message}`,"error",5e3)}finally{updateInfoPanelTextAndButtonState()}}

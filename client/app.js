@@ -1,9 +1,13 @@
-// client/app.js - FINAL ROBUST & READABLE VERSION
+// client/app.js - FINAL WITH ECHO LIFECYCLE
 
 const API_URL = 'https://echoes-server.onrender.com';
 const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev';
 
 const MAX_RECORDING_SECONDS = 60;
+
+// NEW: TWEAKABLE CONSTANTS FOR ECHO LIFECYCLE (in milliseconds)
+const FRESH_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;   // 3 days
+const STABLE_THRESHOLD_MS = 10 * 24 * 60 * 60 * 1000; // 10 days
 
 const userLocationIcon = L.divIcon({
     className: 'user-location-marker',
@@ -13,7 +17,7 @@ const userLocationIcon = L.divIcon({
 });
 
 const echoIconFresh = L.icon({ iconUrl: "https://api.iconify.design/mdi:fire.svg?color=%23ffc107", iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16] });
-const echoIconStable = L.icon({ iconUrl: "https://api.iconify.design/material-symbols:graphic-eq.svg?color=%23dc3545", iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16] });
+const echoIconStable = L.icon({ iconUrl: "https://api.iconify.design/material-symbols:graphic-eq.svg?color=%23007bff", iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16] });
 const echoIconFading = L.icon({ iconUrl: "https://api.iconify.design/material-symbols:graphic-eq.svg?color=%236c757d", iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16] });
 
 let mapContainer, infoPanelTitle, recordBtn, loginBtn, registerBtn, logoutBtn, welcomeMessage, authModal, closeModalBtn, authForm, modalTitle, modalSubmitBtn, modalError, usernameInput, passwordInput, clusterModal, closeClusterModalBtn, clusterEchoList, findMeBtn, statusMessageEl;
@@ -43,7 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
     clusterEchoList = document.getElementById("cluster-echo-list");
     findMeBtn = document.getElementById("find-me-btn");
     statusMessageEl = document.getElementById("status-message");
-
     initializeApp();
 });
 
@@ -56,14 +59,13 @@ function initializeApp() {
         attribution: '© <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
     L.control.attribution({ position: 'topright' }).addTo(map);
-
     markers = L.markerClusterGroup({
         iconCreateFunction: function(cluster) {
             const count = cluster.getChildCount();
             let c = ' marker-cluster-';
-            if (count < 10) { c += 'small'; } 
-            else if (count < 100) { c += 'medium'; } 
-            else { c += 'large'; }
+            if (count < 10) c += 'small';
+            else if (count < 100) c += 'medium';
+            else c += 'large';
             return new L.DivIcon({ html: `<div><span>${count}</span></div>`, className: 'marker-cluster' + c, iconSize: new L.Point(40, 40) });
         }
     });
@@ -72,20 +74,34 @@ function initializeApp() {
     updateInfoPanelText();
 }
 
+function renderEchoesOnMap(echoes) {
+    echoes.forEach(echo => {
+        if (echo.lat && echo.lng) {
+            const ageMs = new Date() - new Date(echo.last_played_at);
+            let icon;
+            if (ageMs < FRESH_THRESHOLD_MS) icon = echoIconFresh;
+            else if (ageMs < STABLE_THRESHOLD_MS) icon = echoIconStable;
+            else icon = echoIconFading;
+            const marker = L.marker([echo.lat, echo.lng], { icon: icon });
+            marker.echoData = echo;
+            marker.bindPopup(createEchoPopup(echo));
+            echoMarkersMap.set(echo.id, marker);
+            markers.addLayer(marker);
+        }
+    });
+}
+
 function onLocationUpdate(position) {
     currentUserPosition = { lat: position.coords.latitude, lng: position.coords.longitude };
     const latLng = [currentUserPosition.lat, currentUserPosition.lng];
-
     if (userMarker) {
         userMarker.setLatLng(latLng);
     } else {
         userMarker = L.marker(latLng, { icon: userLocationIcon, interactive: false, zIndexOffset: 1000 }).addTo(map);
     }
-    
     if (document.hasFocus()) {
-      updateStatus('Location updated.', 'info', 1500);
+        updateStatus('Location updated.', 'info', 1500);
     }
-
     const latStr = currentUserPosition.lat.toFixed(4);
     const lngStr = currentUserPosition.lng.toFixed(4);
     currentBucketKey = `sq_${latStr}_${lngStr}`;
@@ -98,9 +114,7 @@ function onLocationError(error) {
 }
 
 function startLocationWatcher() {
-    if (locationWatcherId) {
-        navigator.geolocation.clearWatch(locationWatcherId);
-    }
+    if (locationWatcherId) navigator.geolocation.clearWatch(locationWatcherId);
     if ("geolocation" in navigator) {
         const options = { enableHighAccuracy: true, timeout: 27000, maximumAge: 30000 };
         locationWatcherId = navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, options);
@@ -109,9 +123,7 @@ function startLocationWatcher() {
 
 function handleFindMeClick() {
     updateStatus("Locating your position...", "info");
-    if (!("geolocation" in navigator)) {
-        return updateStatus("Geolocation is not supported.", "error", 3000);
-    }
+    if (!("geolocation" in navigator)) return updateStatus("Geolocation is not supported.", "error", 3000);
     const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
     navigator.geolocation.getCurrentPosition(position => {
         onLocationUpdate(position);
@@ -128,9 +140,7 @@ async function handleRecordClick() {
         return;
     }
     updateStatus("Getting your precise location...", "info");
-    if (!('geolocation' in navigator)) {
-        return updateStatus("Geolocation is not supported.", "error", 3000);
-    }
+    if (!('geolocation' in navigator)) return updateStatus("Geolocation is not supported.", "error", 3000);
     const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
     navigator.geolocation.getCurrentPosition(
         position => {
@@ -176,14 +186,12 @@ function updateStatus(message, type = 'info', duration = 0) {
     if (!statusMessageEl) return;
     statusMessageEl.textContent = message;
     statusMessageEl.className = type;
-    if (duration > 0) {
-        setTimeout(() => {
-            if (statusMessageEl.textContent === message) {
-                statusMessageEl.textContent = '';
-                statusMessageEl.className = '';
-            }
-        }, duration);
-    }
+    if (duration > 0) setTimeout(() => {
+        if (statusMessageEl.textContent === message) {
+            statusMessageEl.textContent = '';
+            statusMessageEl.className = '';
+        }
+    }, duration);
 }
 
 function setupEventListeners() {
@@ -228,9 +236,7 @@ async function handleAuthFormSubmit(e) {
             body: JSON.stringify({ username, password })
         });
         const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.error || "An unknown error occurred.");
-        }
+        if (!response.ok) throw new Error(data.error || "An unknown error occurred.");
         if (mode === 'register') {
             modalError.textContent = "Registration successful! Please log in.";
             authForm.reset();
@@ -268,10 +274,8 @@ function handleLogout() {
     userToken = null;
     loggedInUser = null;
     updateUIAfterLogout();
-    if (locationWatcherId) {
-        navigator.geolocation.clearWatch(locationWatcherId);
-        locationWatcherId = null;
-    }
+    if (locationWatcherId) navigator.geolocation.clearWatch(locationWatcherId);
+    locationWatcherId = null;
 }
 
 function updateUIAfterLogin() {
@@ -290,9 +294,6 @@ function updateUIAfterLogout() {
     updateInfoPanelText();
 }
 
-// ===================
-//  MODIFIED FUNCTION
-// ===================
 function handleClusterClick(a) {
     const childMarkers = a.layer.getAllChildMarkers();
     const echoes = childMarkers.map(marker => marker.echoData);
@@ -301,12 +302,8 @@ function handleClusterClick(a) {
     echoes.forEach(echo => {
         const item = document.createElement("div");
         item.className = "echo-item";
-        
         const author = echo.username ? `<span class="echo-author">by ${echo.username}</span>` : `<span class="echo-author">by an anonymous user</span>`;
         const date = `<span class="echo-date">Recorded: ${new Date(echo.created_at).toLocaleDateString()}</span>`;
-        
-        // FIX: Added preload="none" to the audio tag to prevent the Android "chime" issue.
-        // Also using the new HTML structure for better styling.
         item.innerHTML = `
             <div class="echo-info">
                 ${author}
@@ -340,23 +337,8 @@ async function fetchAllEchoes(position) {
     }
 }
 
-function renderEchoesOnMap(echoes) {
-    echoes.forEach(echo => {
-        if (echo.lat && echo.lng) {
-            const age = new Date() - new Date(echo.last_played_at);
-            let icon = age < 1728e5 ? echoIconFresh : (age < 1296e6 ? echoIconStable : echoIconFading);
-            const marker = L.marker([echo.lat, echo.lng], { icon: icon });
-            marker.echoData = echo;
-            marker.bindPopup(createEchoPopup(echo));
-            echoMarkersMap.set(echo.id, marker);
-            markers.addLayer(marker);
-        }
-    });
-}
-
 function createEchoPopup(echo) {
     const author = echo.username ? `by ${echo.username}` : "by an anonymous user";
-    // FIX: Added preload="none" here too, just in case.
     return `<h3>Echo Location</h3><p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p><audio controls preload="none" onplay="keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>`;
 }
 
@@ -364,9 +346,7 @@ window.keepEchoAlive = async (id) => {
     try {
         fetch(`${API_URL}/api/echoes/${id}/play`, { method: "POST" });
         const marker = echoMarkersMap.get(id);
-        if (marker) {
-            marker.setIcon(echoIconFresh);
-        }
+        if (marker) marker.setIcon(echoIconFresh);
     } catch (err) {
         console.error("Failed to send keep-alive ping:", err);
     }
@@ -393,7 +373,6 @@ async function uploadAndSaveEcho() {
     recordBtn.disabled = true;
     updateStatus("Processing...", "info");
     clearTimeout(recordingTimer);
-
     if (audioChunks.length === 0) {
         updateStatus("Recording too short.", "error", 3000);
         recordBtn.disabled = false;
@@ -401,7 +380,6 @@ async function uploadAndSaveEcho() {
     }
     const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
     const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
-
     try {
         updateStatus("Preparing upload...", "info");
         const presignedResponse = await fetch(`${API_URL}/presigned-url`, {
@@ -411,7 +389,6 @@ async function uploadAndSaveEcho() {
         });
         if (!presignedResponse.ok) throw new Error(`Presigned URL failed: ${await presignedResponse.text()}`);
         const { url: uploadUrl } = await presignedResponse.json();
-
         updateStatus("Uploading...", "info");
         const uploadResponse = await fetch(uploadUrl, {
             method: "PUT",
@@ -419,7 +396,6 @@ async function uploadAndSaveEcho() {
             headers: { "Content-Type": audioBlob.type }
         });
         if (!uploadResponse.ok) throw new Error("Upload to R2 failed");
-
         const audioUrl = `${R2_PUBLIC_URL_BASE}/${fileName}`;
         updateStatus("Saving...", "info");
         const saveResponse = await fetch(`${API_URL}/echoes`, {
@@ -434,11 +410,9 @@ async function uploadAndSaveEcho() {
         });
         if (!saveResponse.ok) throw new Error(`Save metadata failed: ${await saveResponse.text()}`);
         const newEcho = await saveResponse.json();
-        
         updateStatus("Echo saved successfully!", "success", 3000);
         newEcho.username = loggedInUser;
         renderEchoesOnMap([newEcho]);
-
     } catch (err) {
         console.error("Full echo process failed:", err);
         updateStatus(`Error: ${err.message}`, "error", 5000);

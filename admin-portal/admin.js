@@ -1,9 +1,8 @@
-// admin-portal/admin.js - WITH SEEDING FUNCTIONALITY
+// admin-portal/admin.js - FINAL WITH PRUNING FUNCTIONALITY
 
 const API_URL = 'https://echoes-server.onrender.com';
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Existing element variables ---
     const adminLoginForm = document.getElementById('admin-login-form');
     const adminLoginError = document.getElementById('admin-login-error');
     const adminLoginSection = document.getElementById('admin-login-section');
@@ -12,8 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const echoesTableBody = document.querySelector('#echoes-table tbody');
     const usersTableBody = document.getElementById('users-table-body');
     const adminMapContainer = document.getElementById('admin-map');
-    
-    // --- NEW Seeding Form Elements ---
     const seedForm = document.getElementById('seed-echo-form');
     const seedLatInput = document.getElementById('seed-lat');
     const seedLngInput = document.getElementById('seed-lng');
@@ -21,10 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const seedFileInput = document.getElementById('seed-audio-file');
     const seedStatusEl = document.getElementById('seed-status');
     const seedSubmitBtn = document.getElementById('seed-submit-btn');
+    const pruneBtn = document.getElementById('prune-echoes-btn');
+    const pruneStatusEl = document.getElementById('prune-status');
 
     let adminMap;
     let adminMarkers;
-    let locationSelectionMarker; // For the temporary marker
+    let locationSelectionMarker;
     let adminToken = localStorage.getItem('echoes_admin_token');
 
     function updateAdminUI() {
@@ -50,7 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
             adminLoginError.textContent = '';
             const username = document.getElementById('admin-username').value;
             const password = document.getElementById('admin-password').value;
-
             try {
                 const response = await fetch(`${API_URL}/api/users/login`, {
                     method: 'POST',
@@ -59,13 +57,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || 'Login failed');
-
                 const adminCheckResponse = await fetch(`${API_URL}/admin/api/echoes`, {
                     headers: { 'Authorization': `Bearer ${data.token}` }
                 });
                 if (adminCheckResponse.status === 403) throw new Error('Not authorized for admin access.');
                 if (!adminCheckResponse.ok) throw new Error('Admin verification failed.');
-                
                 localStorage.setItem('echoes_admin_token', data.token);
                 adminToken = data.token;
                 updateAdminUI();
@@ -83,6 +79,35 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (pruneBtn) {
+        pruneBtn.addEventListener('click', async () => {
+            const confirmation = prompt("This is a destructive action. To confirm, type 'PRUNE' in the box below.");
+            if (confirmation !== 'PRUNE') {
+                alert('Pruning cancelled.');
+                return;
+            }
+            pruneStatusEl.textContent = 'Pruning in progress...';
+            pruneStatusEl.className = 'status';
+            pruneBtn.disabled = true;
+            try {
+                const response = await fetch(`${API_URL}/admin/api/echoes/prune`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${adminToken}` },
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Pruning failed');
+                pruneStatusEl.textContent = result.msg;
+                pruneStatusEl.className = 'status success';
+                fetchAllEchoesForAdmin();
+            } catch (error) {
+                pruneStatusEl.textContent = `Error: ${error.message}`;
+                pruneStatusEl.className = 'status error';
+            } finally {
+                pruneBtn.disabled = false;
+            }
+        });
+    }
+
     function initializeAdminMap() {
         if (!adminMapContainer || adminMap) return;
         adminMap = L.map(adminMapContainer).setView([20, 0], 2);
@@ -91,7 +116,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }).addTo(adminMap);
         adminMarkers = L.markerClusterGroup();
         adminMap.addLayer(adminMarkers);
-
         const search = new GeoSearch.GeoSearchControl({
             provider: new GeoSearch.OpenStreetMapProvider(),
             style: 'bar',
@@ -99,11 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
             keepResult: true,
         });
         adminMap.addControl(search);
-
-        adminMap.on('click', (e) => {
-            updateLocationSelection(e.latlng);
-        });
-
+        adminMap.on('click', (e) => updateLocationSelection(e.latlng));
         adminMap.on('geosearch/showlocation', (result) => {
             const latLng = { lat: result.location.y, lng: result.location.x };
             updateLocationSelection(latLng, result.location.label);
@@ -113,10 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateLocationSelection(latLng, label = '') {
         seedLatInput.value = latLng.lat.toFixed(7);
         seedLngInput.value = latLng.lng.toFixed(7);
-        if (label && !seedNameInput.value) {
-            seedNameInput.value = label.split(',')[0];
-        }
-
+        if (label && !seedNameInput.value) seedNameInput.value = label.split(',')[0];
         if (locationSelectionMarker) {
             locationSelectionMarker.setLatLng(latLng);
         } else {
@@ -130,20 +147,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         adminMap.panTo(latLng);
     }
-    
+
     if (seedForm) {
         seedForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             seedStatusEl.textContent = 'Uploading... Please wait.';
             seedStatusEl.className = 'status';
             seedSubmitBtn.disabled = true;
-
             const formData = new FormData();
             formData.append('lat', seedLatInput.value);
             formData.append('lng', seedLngInput.value);
             formData.append('w3w_address', seedNameInput.value);
             formData.append('audioFile', seedFileInput.files[0]);
-
             try {
                 const response = await fetch(`${API_URL}/admin/api/echoes/seed`, {
                     method: 'POST',
@@ -152,12 +167,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.error || 'Failed to create echo.');
-
                 seedStatusEl.textContent = 'Echo seeded successfully!';
                 seedStatusEl.className = 'status success';
                 seedForm.reset();
                 fetchAllEchoesForAdmin();
-
             } catch (error) {
                 seedStatusEl.textContent = `Error: ${error.message}`;
                 seedStatusEl.className = 'status error';
@@ -197,9 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lngNum = parseFloat(echo.lng);
             row.innerHTML = `<td>${echo.id}</td><td>${echo.username||"Anon"}</td><td>${echo.w3w_address}</td><td>${!isNaN(latNum)?latNum.toFixed(4):"N/A"}</td><td>${!isNaN(lngNum)?lngNum.toFixed(4):"N/A"}</td><td>${new Date(echo.created_at).toLocaleString()}</td><td>${echo.play_count}</td><td><audio controls src="${echo.audio_url}"></audio></td><td><button class="delete-echo-btn" data-id="${echo.id}">Delete</button></td>`;
         });
-        document.querySelectorAll('.delete-echo-btn').forEach(btn => {
-            btn.addEventListener('click', handleDeleteEcho);
-        });
+        document.querySelectorAll('.delete-echo-btn').forEach(btn => btn.addEventListener('click', handleDeleteEcho));
     }
 
     function renderEchoesOnAdminMap(echoes) {
@@ -257,9 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const row = usersTableBody.insertRow();
             row.innerHTML = `<td>${user.id}</td><td>${user.username}</td><td>${new Date(user.created_at).toLocaleString()}</td><td>${user.is_admin}</td><td><button class="toggle-admin-btn" data-id="${user.id}" data-isadmin="${user.is_admin}">${user.is_admin ? "Remove Admin" : "Make Admin"}</button></td>`;
         });
-        document.querySelectorAll('.toggle-admin-btn').forEach(btn => {
-            btn.addEventListener('click', handleToggleAdmin);
-        });
+        document.querySelectorAll('.toggle-admin-btn').forEach(btn => btn.addEventListener('click', handleToggleAdmin));
     }
 
     async function handleToggleAdmin(e) {

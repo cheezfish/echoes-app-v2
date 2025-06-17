@@ -3,18 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <title>Echoes Admin</title>
-    <!-- Leaflet & MarkerCluster CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-    <!-- NEW: Leaflet Geosearch CSS for location search bar -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-geosearch@3.11.0/dist/geosearch.css" />
     <link rel="stylesheet" href="admin.css">
 </head>
 <body>
     <div class="container">
         <h1>Echoes Admin Portal</h1>
-
         <div id="admin-login-section">
             <h2>Admin Login</h2>
             <form id="admin-login-form">
@@ -24,11 +21,16 @@
                 <p id="admin-login-error" class="error"></p>
             </form>
         </div>
-
         <div id="admin-dashboard-section" style="display:none;">
             <p>Welcome, Admin! <button id="admin-logout-btn">Logout</button></p>
             
-            <!-- NEW: Seeding Section -->
+            <div class="admin-actions-container">
+                <h2>Site Maintenance</h2>
+                <button id="prune-echoes-btn">Prune Expired Echoes</button>
+                <p id="prune-status" class="status"></p>
+                <p class="description">This will permanently delete all echoes that have not been played in over 20 days.</p>
+            </div>
+
             <div class="seeding-container">
                 <h2>Seed New Echo</h2>
                 <p>Use the search bar on the map or click a location directly. Then fill out the form and upload an audio file.</p>
@@ -48,7 +50,6 @@
             
             <h2>Global Echoes Map</h2>
             <div id="admin-map"></div>
-            
             <h2>All Echoes (Table View)</h2>
             <table id="echoes-table">
                 <thead>
@@ -59,7 +60,6 @@
                 </thead>
                 <tbody></tbody>
             </table>
-            
             <h2>All Users</h2>
             <table id="users-table">
                 <thead>
@@ -71,10 +71,8 @@
             </table>
         </div>
     </div>
-    <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <!-- NEW: Leaflet Geosearch JS -->
     <script src="https://unpkg.com/leaflet-geosearch@3.11.0/dist/geosearch.umd.js"></script>
     <script src="admin.js"></script>
 </body>

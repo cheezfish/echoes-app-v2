@@ -1,54 +1,43 @@
 /* client/style.css - FINAL CLEANED VERSION */
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-header { flex-shrink: 0; background-color: #333; color: white; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background-color: #222; color: #eee; }
+header { flex-shrink: 0; background-color: #333; color: white; position: relative; z-index: 1001; /* Above map controls */ }
 h1 { text-align: center; padding: 0.75rem; font-size: 1.25rem; }
-main { flex-grow: 1; display: flex; flex-direction: column; position: relative; /* For Find Me button */ }
-
-/* === CRITICAL: Give map explicit height === */
-#map { height: 65%; /* Or whatever percentage you prefer */ width: 100%; background-color: #333; /* Dark background for dark map */ }
-
-#info-panel { flex-shrink: 0; padding: 1rem; text-align: center; background-color: #f8f9fa; border-top: 1px solid #ddd; height: 35%; overflow-y: auto; }
-#info-panel h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #333; }
-button { font-size: 1rem; padding: 0.6em 1.2em; margin: 0.3em; border-radius: 6px; border: none; cursor: pointer; background-color: #007bff; color: white; font-weight: bold; transition: transform 0.1s ease; }
-button:active { transform: scale(0.98); }
-#user-auth-container { position: absolute; top: 10px; right: 10px; z-index: 1000; } /* Ensure on top */
+main { flex-grow: 1; display: flex; flex-direction: column; position: relative; }
+#map { height: 70%; width: 100%; background-color: #1a1a1a; }
+#info-panel { flex-shrink: 0; padding: 1rem; text-align: center; background-color: #333; border-top: 1px solid #444; height: 30%; overflow-y: auto; color: #ccc; }
+#info-panel h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #eee; }
+button { font-size: 1rem; padding: 0.6em 1.2em; margin: 0.3em; border-radius: 6px; border: none; cursor: pointer; background-color: #007bff; color: white; font-weight: bold; transition: background-color 0.2s ease, transform 0.1s ease; }
+button:disabled { background-color: #555; cursor: not-allowed; }
+button:hover:not(:disabled) { background-color: #0056b3; }
+button:active:not(:disabled) { transform: scale(0.98); }
+#user-auth-container { position: absolute; top: 50%; transform: translateY(-50%); right: 10px; }
 .auth-btn { padding: 5px 10px; font-size: 14px; margin-left: 5px; }
-#welcome-message { margin-right: 10px; font-weight: bold; color: white; /* If header is dark */ }
-
-/* Modal styles */
-.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.6);display:flex;justify-content:center;align-items:center;z-index:1001}
-.modal-content{background-color:#fff;padding:2rem;border-radius:8px;width:90%;max-width:400px;position:relative;box-shadow:0 5px 15px rgba(0,0,0,.3)}
+#welcome-message { margin-right: 10px; font-weight: bold; color: white; }
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:flex;justify-content:center;align-items:center;z-index:1005}
+.modal-content{background-color:#444;color:#eee;padding:2rem;border-radius:8px;width:90%;max-width:400px;position:relative;box-shadow:0 5px 15px rgba(0,0,0,.5)}
 .close-btn{position:absolute;top:10px;right:15px;font-size:28px;font-weight:700;border:none;background:0 0;cursor:pointer;color:#aaa}
-.close-btn:hover{color:#333}
+.close-btn:hover{color:#fff}
 .form-group{margin-bottom:1rem}
 .form-group label{display:block;margin-bottom:.5rem}
-.form-group input{width:100%;padding:.5rem;font-size:1rem;border:1px solid #ccc;border-radius:4px}
+.form-group input{width:100%;padding:.5rem;font-size:1rem;border:1px solid #555;border-radius:4px;background-color:#555;color:#eee;}
 #modal-submit-btn{width:100%;margin-top:1rem}
-.error-message{color:#dc3545;margin-top:1rem;text-align:center;min-height:1em}
-
-/* Status Message */
+.error-message{color:#ffc107;margin-top:1rem;text-align:center;min-height:1em}
 #status-message{min-height:1.2em;margin:.5rem 0;font-weight:500;transition:color .3s ease}
-#status-message.info{color:#555}
+#status-message.info{color:#bbb}
 #status-message.success{color:#28a745}
 #status-message.error{color:#dc3545}
-
-/* Recording Button */
-.is-recording{animation:pulse 1.5s infinite}
+.is-recording{animation:pulse 1.5s infinite; background-color: #dc3545 !important;}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(220,53,69,.7)}70%{box-shadow:0 0 0 10px rgba(220,53,69,0)}100%{box-shadow:0 0 0 0 rgba(220,53,69,0)}}
-
-/* Radar Beacon */
 .js-radar-beacon{stroke:#007bff;stroke-width:2;stroke-opacity:.8;fill:#007bff;fill-opacity:.2;pointer-events:none}
-
-/* Refresh & Find Me Buttons */
-#refresh-radar-btn, #find-me-btn { padding: 8px; line-height: 0; border-radius: 50%; background-color: #007bff; border: 1px solid white; }
-#refresh-radar-btn img, #find-me-btn img { width: 24px; height: 24px; vertical-align: middle; }
-#find-me-btn { position: absolute; top: 10px; right: 10px; z-index: 999; }
-#refresh-radar-btn { position: absolute; bottom: 10px; right: 10px; z-index: 999; }
-
-/* Cluster List Modal */
-#cluster-echo-list .echo-item{border-bottom:1px solid #eee;padding:10px 0}
+#find-me-btn { position: absolute; top: 10px; right: 10px; z-index: 999; padding: 8px; line-height: 0; border-radius: 50%; background-color: rgba(0, 123, 255, 0.7); border: 1px solid rgba(255, 255, 255, 0.7); }
+#find-me-btn img { width: 24px; height: 24px; vertical-align: middle; }
+#cluster-echo-list .echo-item{border-bottom:1px solid #555;padding:10px 0}
 #cluster-echo-list .echo-item:last-child{border-bottom:none}
-#cluster-echo-list p{margin:5px 0;font-size:14px;color:#666}
+#cluster-echo-list p{margin:5px 0;font-size:14px;color:#ccc}
 #cluster-echo-list audio{width:100%;margin-top:10px}
+
+/* Ensure Leaflet controls are visible on dark background */
+.leaflet-control-zoom a { background-color: #444 !important; color: #eee !important; border-color: #555 !important; }
+.leaflet-control-attribution { background: rgba(51, 51, 51, 0.7) !important; color: #ccc !important; }
+.leaflet-control-attribution a { color: #87cefa !important; }

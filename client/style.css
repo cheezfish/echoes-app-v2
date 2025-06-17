@@ -23,8 +23,8 @@ header {
 }
 
 h1 {
-    grid-column: 2 / 3; /* Changed to center align correctly */
-    justify-self: center; 
+    grid-column: 1 / 3; /* Changed to center align correctly */
+    justify-self: left; 
     margin: 0;
     font-size: 1.25rem;
 }

@@ -1,18 +1,23 @@
-// server/index.js - FINAL, BULLETPROOF VERSION
+// server/index.js - CORRECTED ORDER
 
 require('dotenv').config();
+
+// First, require the core modules that don't depend on our local files
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const authMiddleware = require('./middleware/auth');
-const adminAuthMiddleware = require('./middleware/adminauth'); // New middleware
 
-// New way in server/index.js
-const pool = require('./db'); // Requires db.js from the same (server) folder
+// SECOND, require and initialize our database pool.
+// This ensures 'pool' is created and exported from db.js BEFORE anything else tries to use it.
+const pool = require('./db'); 
+
+// THIRD, now that pool exists, we can safely require our middleware
+// that might depend on it (like adminAuth.js).
+const authMiddleware = require('./middleware/auth');
+const adminAuthMiddleware = require('./middleware/adminauth');
 
 const app = express();
 app.use(cors());

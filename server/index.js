@@ -108,6 +108,48 @@ app.delete('/admin/api/echoes/:id', adminAuthMiddleware, async (req, res) => {
     }
 });
 
+// <<< THIS IS THE ENDPOINT WE NEED TO VERIFY >>>
+app.get('/admin/api/users', adminAuthMiddleware, async (req, res) => {
+    console.log("Admin request for ALL users"); // Check Render logs for this message
+    try {
+        // Ensure your 'users' table has 'id', 'username', 'created_at', 'is_admin'
+        const query = `SELECT id, username, created_at, is_admin FROM users ORDER BY created_at DESC;`;
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Admin: Error fetching all users:', err); // Check Render logs for this
+        res.status(500).json({ error: 'Failed to fetch users due to server error.' }); // Send a JSON error
+    }
+});
+
+// <<< THIS IS ALSO CRITICAL FOR THE "TOGGLE ADMIN" BUTTON >>>
+app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, res) => {
+    const { id } = req.params;
+    if (parseInt(req.user.id) === parseInt(id)) {
+         const adminCountResult = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = TRUE');
+         if (parseInt(adminCountResult.rows[0].count) <= 1) {
+            return res.status(403).json({ error: "Cannot remove admin status from the only admin." });
+         }
+    }
+    console.log(`Admin request to TOGGLE admin status for user ID: ${id}`);
+    try {
+        const query = `
+            UPDATE users 
+            SET is_admin = NOT is_admin 
+            WHERE id = $1 
+            RETURNING id, username, is_admin;
+        `;
+        const result = await pool.query(query, [id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "User not found." });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(`Admin: Error toggling admin status for user ${id}:`, err);
+        res.status(500).json({ error: 'Failed to toggle admin status due to server error.' });
+    }
+});
+
 // --- ECHOES ROUTES ---
 app.get('/echoes', async (req, res) => {
     const { lat, lng } = req.query;

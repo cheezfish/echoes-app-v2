@@ -72,12 +72,17 @@ function createEchoPopup(echo) {
     `;
 }
 
-// <<< NEW: The "Heartbeat" Function >>>
-// This needs to be a global function so the HTML string can call it
+// The new code
 window.keepEchoAlive = async (echoId) => {
     console.log(`Sending keep-alive for echo ID: ${echoId}`);
     try {
         await fetch(`${API_URL}/api/echoes/${echoId}/play`, { method: 'POST' });
+        
+        // <<< THIS IS THE FIX >>>
+        // After successfully telling the server we played an echo,
+        // immediately re-fetch and re-draw all markers to reflect the change.
+        fetchAllEchoes();
+
     } catch (error) {
         console.error("Failed to send keep-alive ping:", error);
     }

@@ -9,6 +9,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('./middleware/auth');
+const adminAuthMiddleware = require('./middleware/adminauth'); // New middleware
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -52,6 +53,55 @@ app.post('/api/users/login', async (req, res) => {
     } catch (err) {
         console.error("Login DB Error:", err);
         res.status(500).json({ error: 'Server error during login.' });
+    }
+});
+
+// === ADMIN API ROUTES ===
+
+// Admin Login (could be the same as user login, but checks is_admin after successful login)
+// For simplicity now, we'll assume admin uses the normal /api/users/login
+// The adminAuth middleware will then protect admin-specific routes.
+
+// GET ALL echoes for admin
+app.get('/admin/api/echoes', adminAuthMiddleware, async (req, res) => {
+    console.log("Admin request for ALL echoes");
+    try {
+        const query = `
+            SELECT e.*, u.username 
+            FROM echoes e
+            LEFT JOIN users u ON e.user_id = u.id 
+            ORDER BY e.created_at DESC;
+        `;
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Admin: Error fetching all echoes:', err);
+        res.status(500).send('Server Error');
+    }
+});
+
+// DELETE an echo (Admin only)
+app.delete('/admin/api/echoes/:id', adminAuthMiddleware, async (req, res) => {
+    const { id } = req.params;
+    console.log(`Admin request to DELETE echo ID: ${id}`);
+    try {
+        // First, you might want to delete the file from R2 (more complex, add later)
+        // For now, just delete from DB:
+        const deleteQuery = 'DELETE FROM echoes WHERE id = $1 RETURNING *;';
+        const result = await pool.query(deleteQuery, [id]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "Echo not found to delete." });
+        }
+        // Optionally, delete the file from R2 here
+        // const s3 = new S3Client(...);
+        // await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: result.rows[0].audio_url.split('/').pop() }));
+
+
+        res.json({ msg: 'Echo deleted successfully', deletedEcho: result.rows[0] });
+    } catch (err) {
+        console.error(`Admin: Error deleting echo ${id}:`, err);
+        res.status(500).send('Server Error');
     }
 });
 

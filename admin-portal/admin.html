@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Echoes Admin</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Echoes Admin Portal</h1>
+
+        <div id="admin-login-section">
+            <h2>Admin Login</h2>
+            <form id="admin-login-form">
+                <input type="text" id="admin-username" placeholder="Username" required><br>
+                <input type="password" id="admin-password" placeholder="Password" required><br>
+                <button type="submit">Login</button>
+                <p id="admin-login-error" class="error"></p>
+            </form>
+        </div>
+
+        <div id="admin-dashboard-section" style="display:none;">
+            <p>Welcome, Admin! <button id="admin-logout-btn">Logout</button></p>
+            <h2>All Echoes</h2>
+            <table id="echoes-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Author</th>
+                        <th>Location Key</th>
+                        <th>Created</th>
+                        <th>Plays</th>
+                        <th>Audio</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Echoes will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script src="admin.js"></script>
+</body>
+</html>

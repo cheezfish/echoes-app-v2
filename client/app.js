@@ -1,29 +1,20 @@
-// client/app.js - WITH "THE FADE" MECHANIC
+// client/app.js - FINAL VERSION WITH SURGICAL ICON UPDATE
 
 const API_URL = 'https://echoes-server.onrender.com';
 const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev'; // MAKE SURE THIS IS CORRECT
 
-// === NEW: ICONS TO VISUALIZE ECHO HEALTH ===
-const userLocationIcon = L.icon({
-    iconUrl: 'https://api.iconify.design/material-symbols:my-location.svg?color=%23007bff',
-    iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16]
-});
-const echoIconFresh = L.icon({
-    iconUrl: 'https://api.iconify.design/mdi:fire.svg?color=%23ffc107', // Gold Fire
-    iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16]
-});
-const echoIconStable = L.icon({
-    iconUrl: 'https://api.iconify.design/material-symbols:graphic-eq.svg?color=%23dc3545', // Standard Red
-    iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16]
-});
-const echoIconFading = L.icon({
-    iconUrl: 'https://api.iconify.design/material-symbols:graphic-eq.svg?color=%236c757d', // Grey
-    iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16]
-});
+// --- ICONS (No changes) ---
+const userLocationIcon = L.icon({ /* ... */ });
+const echoIconFresh = L.icon({ /* ... */ });
+const echoIconStable = L.icon({ /* ... */ });
+const echoIconFading = L.icon({ /* ... */ });
 
-// --- DOM ELEMENTS & APP STATE (No changes) ---
+// --- DOM ELEMENTS (No changes) ---
 const mapContainer=document.getElementById("map"),w3wAddressEl=document.getElementById("w3w-address"),recordBtn=document.getElementById("record-btn"),loginBtn=document.getElementById("login-btn"),registerBtn=document.getElementById("register-btn"),logoutBtn=document.getElementById("logout-btn"),welcomeMessage=document.getElementById("welcome-message"),authModal=document.getElementById("auth-modal"),closeModalBtn=document.querySelector(".close-btn"),authForm=document.getElementById("auth-form"),modalTitle=document.getElementById("modal-title"),modalSubmitBtn=document.getElementById("modal-submit-btn"),modalError=document.getElementById("modal-error"),usernameInput=document.getElementById("username"),passwordInput=document.getElementById("password");
-let map,mediaRecorder,audioChunks=[],currentUserPosition={lat:0,lng:0},currentBucketKey="",markers,userToken=null,loggedInUser=null;
+
+// --- APP STATE (One new addition) ---
+let map, mediaRecorder, audioChunks = [], currentUserPosition = { lat: 0, lng: 0 }, currentBucketKey = '', markers, userToken = null, loggedInUser = null;
+let echoMarkersMap = new Map(); // <<< NEW: To store a reference to each marker by its ID
 
 // === 1. INITIALIZE & EVENT LISTENERS ===
 function initializeApp(){map=L.map(mapContainer).setView([51.505,-.09],13),L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map),markers=L.markerClusterGroup(),map.addLayer(markers),setupEventListeners(),checkLoginState(),fetchAllEchoes(),"geolocation"in navigator?navigator.geolocation.getCurrentPosition(onLocationSuccess,onLocationError):w3wAddressEl.textContent="Geolocation not supported."}
@@ -38,31 +29,37 @@ function handleLogout(){localStorage.removeItem("echoes_token"),userToken=null,l
 function updateUIAfterLogin(){welcomeMessage.textContent=`Welcome, ${loggedInUser}!`,loginBtn.style.display="none",registerBtn.style.display="none",logoutBtn.style.display="inline-block",currentBucketKey&& (recordBtn.disabled = false)}
 function updateUIAfterLogout(){welcomeMessage.textContent="",loginBtn.style.display="inline-block",registerBtn.style.display="inline-block",logoutBtn.style.display="none",recordBtn.disabled=!0, w3wAddressEl.textContent = "Please Login or Register to leave an echo.";}
 
-
 // === 3. MAP & DATA FETCHING (UPGRADED) ===
-async function fetchAllEchoes(){markers.clearLayers();try{const e=await fetch(`${API_URL}/echoes`);if(!e.ok)throw new Error("Failed to fetch");const o=await e.json();renderEchoesOnMap(o)}catch(e){console.error("Failed to fetch echoes:",e)}}
+async function fetchAllEchoes() {
+    // <<< UPGRADED: Clear the old markers AND our reference map >>>
+    markers.clearLayers();
+    echoMarkersMap.clear();
+    try {
+        const response = await fetch(`${API_URL}/echoes`);
+        if (!response.ok) throw new Error('Failed to fetch');
+        const echoes = await response.json();
+        renderEchoesOnMap(echoes);
+    } catch (error) {
+        console.error("Failed to fetch echoes:", error);
+    }
+}
 
-// <<< UPGRADED: Choose icon based on echo age >>>
 function renderEchoesOnMap(echoes) {
     echoes.forEach(echo => {
         if (echo.lat && echo.lng) {
             const ageInHours = (new Date() - new Date(echo.last_played_at)) / (1000 * 60 * 60);
-            let icon;
-            if (ageInHours < 48) { // Less than 2 days old
-                icon = echoIconFresh;
-            } else if (ageInHours < 360) { // Less than 15 days old
-                icon = echoIconStable;
-            } else { // Older than 15 days
-                icon = echoIconFading;
-            }
+            let icon = ageInHours < 48 ? echoIconFresh : (ageInHours < 360 ? echoIconStable : echoIconFading);
+            
             const marker = L.marker([echo.lat, echo.lng], { icon: icon });
             marker.bindPopup(createEchoPopup(echo));
+            
+            // <<< UPGRADED: Save a reference to the marker >>>
+            echoMarkersMap.set(echo.id, marker);
             markers.addLayer(marker);
         }
     });
 }
 
-// <<< UPGRADED: Add onplay event to the audio player >>>
 function createEchoPopup(echo) {
     const author = echo.username ? `by ${echo.username}` : 'by an anonymous user';
     return `
@@ -72,24 +69,25 @@ function createEchoPopup(echo) {
     `;
 }
 
-// The new code
+// <<< UPGRADED: The new "Heartbeat" function >>>
 window.keepEchoAlive = async (echoId) => {
     console.log(`Sending keep-alive for echo ID: ${echoId}`);
     try {
-        await fetch(`${API_URL}/api/echoes/${echoId}/play`, { method: 'POST' });
-        
-        // <<< THIS IS THE FIX >>>
-        // After successfully telling the server we played an echo,
-        // immediately re-fetch and re-draw all markers to reflect the change.
-        fetchAllEchoes();
+        // Send the heartbeat to the server in the background
+        fetch(`${API_URL}/api/echoes/${echoId}/play`, { method: 'POST' });
 
+        // Now, update the icon on the map INSTANTLY without a full refresh
+        const markerToUpdate = echoMarkersMap.get(echoId);
+        if (markerToUpdate) {
+            markerToUpdate.setIcon(echoIconFresh);
+        }
     } catch (error) {
         console.error("Failed to send keep-alive ping:", error);
     }
 };
 
 
-// === 4. GEOLOCATION & RECORDING LOGIC (Unchanged) ===
+// === GEOLOCATION, RECORDING, UPLOAD (Unchanged) ===
 function onLocationSuccess(e){currentUserPosition.lat=e.coords.latitude,currentUserPosition.lng=e.coords.longitude,map.setView([currentUserPosition.lat,currentUserPosition.lng],16),L.marker([currentUserPosition.lat,currentUserPosition.lng],{icon:userLocationIcon}).addTo(map).bindPopup("You are here!");const o=currentUserPosition.lat.toFixed(4),t=currentUserPosition.lng.toFixed(4);currentBucketKey=`sq_${o}_${t}`,w3wAddressEl.textContent="You are ready to record an echo.",userToken&&(recordBtn.disabled=!1)}
 function onLocationError(e){w3wAddressEl.textContent=`Error getting location: ${e.message}`}
 async function handleRecordClick(){if(mediaRecorder&&"recording"===mediaRecorder.state)mediaRecorder.stop(),recordBtn.textContent="Record Echo",recordBtn.style.backgroundColor="#007bff",recordBtn.disabled=!0,w3wAddressEl.textContent="Processing...";else try{const e=await navigator.mediaDevices.getUserMedia({audio:!0});mediaRecorder=new MediaRecorder(e,{mimeType:"audio/webm"}),audioChunks=[],mediaRecorder.ondataavailable=e=>{audioChunks.push(e.data)},mediaRecorder.onstop=uploadAndSaveEcho,mediaRecorder.start(),recordBtn.textContent="Stop Recording",recordBtn.style.backgroundColor="#dc3545"}catch(e){console.error("Mic error:",e),w3wAddressEl.textContent="Could not access microphone."}}

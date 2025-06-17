@@ -12,7 +12,7 @@ body { display: flex; flex-direction: column; height: 100vh; }
 /* --- ROBUST HEADER FIX (CSS GRID) --- */
 header {
     flex-shrink: 0;
-    background-color: #333;
+    background-color: #000000;
     color: white;
     z-index: 1001;
     padding: 0.5rem 1rem;

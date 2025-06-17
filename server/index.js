@@ -1,4 +1,4 @@
-// server/index.js - FINAL, HARDENED & SIMPLIFIED
+// server/index.js - FINAL, BULLETPROOF VERSION
 
 require('dotenv').config();
 const express = require('express');
@@ -75,7 +75,7 @@ app.get('/echoes', async (req, res) => {
     }
 });
 
-// <<< THIS IS THE CORRECTED, SIMPLIFIED, AND ROBUST VERSION >>>
+// <<< THIS IS THE NEW, BULLETPROOF VERSION >>>
 app.post('/echoes', authMiddleware, async (req, res) => {
     const { w3w_address, audio_url, lat, lng } = req.body;
     const user_id = req.user.id;
@@ -84,31 +84,36 @@ app.post('/echoes', authMiddleware, async (req, res) => {
     }
 
     try {
-        // We use a single, powerful query with a CTE (Common Table Expression)
-        // This is atomic and safe. It first inserts the data, then uses the returned ID
-        // to fetch the full record with the username joined.
-        const query = `
-            WITH new_echo AS (
-                INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, geog)
-                VALUES ($1, $2, $3, $4, $5, ST_SetSRID(ST_MakePoint($4, $3), 4326))
-                RETURNING *
-            )
-            SELECT ne.*, u.username
-            FROM new_echo ne
-            JOIN users u ON ne.user_id = u.id;
+        // Step 1: Insert the basic data, returning the ID of the new row.
+        const insertQuery = `
+            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id) 
+            VALUES ($1, $2, $3, $4, $5) 
+            RETURNING id;
         `;
-        const values = [w3w_address, audio_url, lat, lng, user_id];
-        const result = await pool.query(query, values);
-        
-        // The result of the query is the final, complete record
-        res.status(201).json(result.rows[0]);
+        const insertValues = [w3w_address, audio_url, lat, lng, user_id];
+        const insertResult = await pool.query(insertQuery, insertValues);
+        const newEchoId = insertResult.rows[0].id;
+
+        // Step 2: Now, run a separate, simple UPDATE to set the geography.
+        const updateQuery = `UPDATE echoes SET geog = ST_MakePoint($1, $2) WHERE id = $3;`;
+        await pool.query(updateQuery, [lng, lat, newEchoId]);
+
+        // Step 3: Fetch the complete record with the username to send back.
+        const finalQuery = `
+            SELECT e.*, u.username 
+            FROM echoes e LEFT JOIN users u ON e.user_id = u.id 
+            WHERE e.id = $1;
+        `;
+        const finalResult = await pool.query(finalQuery, [newEchoId]);
+
+        res.status(201).json(finalResult.rows[0]);
 
     } catch (err) {
-        console.error('Create Echo DB Error:', err.message);
+        console.error('Create Echo DB Error:', err);
         res.status(500).json({ error: 'Failed to save echo to database.' });
     }
 });
-// <<< =============================================== >>>
+// <<< ======================================= >>>
 
 app.post('/api/echoes/:id/play', async (req, res) => {
     const { id } = req.params;

@@ -28,23 +28,38 @@ app.post('/api/users/login', async (req, res) => { /* ... no change ... */ });
 
 // --- ECHOES ROUTES (UPGRADED) ---
 
-// 1. GET all "living" echoes, now with author's username
+// GET echoes near a specific location
 app.get('/echoes', async (req, res) => {
-    console.log("Received request for GET /echoes (living only)");
+    // We now expect the user's location in the query string
+    // e.g., /echoes?lat=51.5&lng=-0.1
+    const { lat, lng } = req.query;
+
+    if (!lat || !lng) {
+        return res.status(400).json({ error: "Latitude and longitude are required." });
+    }
+
+    console.log(`Fetching echoes near lat=${lat}, lng=${lng}`);
     try {
-        // <<< THE FADE LOGIC >>>
-        // Only select echoes that have been played in the last 30 days.
+        // This is the PostGIS magic.
+        // ST_DWithin checks for points within a certain distance (in meters).
         const query = `
             SELECT echoes.*, users.username 
             FROM echoes 
             LEFT JOIN users ON echoes.user_id = users.id 
-            WHERE echoes.last_played_at > NOW() - INTERVAL '30 days'
+            WHERE ST_DWithin(
+                geog,
+                ST_MakePoint($2, $1)::geography,
+                100 -- The distance in meters (100m is about half a city block)
+            )
             ORDER BY echoes.created_at DESC;
         `;
-        const result = await pool.query(query);
+        // Note: PostGIS uses (lng, lat), so $1 is lat and $2 is lng
+        const values = [lat, lng];
+        const result = await pool.query(query, values);
         res.json(result.rows);
+
     } catch (err) {
-        console.error('Error fetching living echoes:', err);
+        console.error('Error fetching nearby echoes:', err);
         res.status(500).send('Server Error');
     }
 });

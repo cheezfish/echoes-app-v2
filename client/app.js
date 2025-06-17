@@ -1,7 +1,7 @@
-// client/app.js - FINAL VERSION WITH SURGICAL ICON UPDATE
+// client/app.js - WITH PROXIMITY FILTERING
 
 const API_URL = 'https://echoes-server.onrender.com';
-const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev'; // MAKE SURE THIS IS CORRECT
+const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev'; // Your URL is here
 
 // === ICONS ===
 const userLocationIcon = L.icon({
@@ -40,7 +40,7 @@ const passwordInput = document.getElementById('password');
 
 // --- APP STATE ---
 let map, mediaRecorder, audioChunks = [], currentUserPosition = { lat: 0, lng: 0 }, currentBucketKey = '', markers, userToken = null, loggedInUser = null;
-let echoMarkersMap = new Map(); // To store a reference to each marker by its ID
+let echoMarkersMap = new Map();
 
 // === 1. INITIALIZE & EVENT LISTENERS ===
 function initializeApp() {
@@ -50,11 +50,8 @@ function initializeApp() {
     }).addTo(map);
     markers = L.markerClusterGroup();
     map.addLayer(markers);
-
     setupEventListeners();
     checkLoginState();
-    fetchAllEchoes();
-
     if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError);
     } else {
@@ -72,7 +69,7 @@ function setupEventListeners() {
     recordBtn.addEventListener('click', handleRecordClick);
 }
 
-// === 2. AUTHENTICATION (Modal, State, Forms) ===
+// === 2. AUTHENTICATION ===
 function openModal(mode) {
     modalError.textContent = '';
     authForm.reset();
@@ -164,16 +161,16 @@ function updateUIAfterLogout() {
 }
 
 // === 3. MAP & DATA FETCHING ===
-async function fetchAllEchoes() {
+async function fetchAllEchoes(position) {
     markers.clearLayers();
     echoMarkersMap.clear();
     try {
-        const response = await fetch(`${API_URL}/echoes`);
+        const response = await fetch(`${API_URL}/echoes?lat=${position.lat}&lng=${position.lng}`);
         if (!response.ok) throw new Error('Failed to fetch');
         const echoes = await response.json();
         renderEchoesOnMap(echoes);
     } catch (error) {
-        console.error("Failed to fetch echoes:", error);
+        console.error("Failed to fetch nearby echoes:", error);
     }
 }
 
@@ -214,23 +211,31 @@ window.keepEchoAlive = async (echoId) => {
     }
 };
 
-// === 4. GEOLOCATION & RECORDING LOGIC ===
+// === 4. GEOLOCATION ===
 function onLocationSuccess(position) {
     currentUserPosition.lat = position.coords.latitude;
     currentUserPosition.lng = position.coords.longitude;
     map.setView([currentUserPosition.lat, currentUserPosition.lng], 16);
     L.marker([currentUserPosition.lat, currentUserPosition.lng], { icon: userLocationIcon }).addTo(map).bindPopup("You are here!");
+    
+    fetchAllEchoes(currentUserPosition);
+
     const latRounded = currentUserPosition.lat.toFixed(4);
     const lngRounded = currentUserPosition.lng.toFixed(4);
     currentBucketKey = `sq_${latRounded}_${lngRounded}`;
-    w3wAddressEl.textContent = "You are ready to record an echo.";
-    if (userToken) recordBtn.disabled = false;
+    if (userToken) {
+        w3wAddressEl.textContent = "You are ready to record an echo.";
+        recordBtn.disabled = false;
+    } else {
+        w3wAddressEl.textContent = "Please Login or Register to leave an echo.";
+    }
 }
 
 function onLocationError(error) {
     w3wAddressEl.textContent = `Error getting location: ${error.message}`;
 }
 
+// === 5. RECORDING & UPLOAD FLOW ===
 async function handleRecordClick() {
     if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
@@ -255,7 +260,6 @@ async function handleRecordClick() {
     }
 }
 
-// === 5. UPLOAD & SAVE FLOW ===
 async function uploadAndSaveEcho() {
     if (audioChunks.length === 0) {
         w3wAddressEl.textContent = 'You are ready to record an echo.';
@@ -272,12 +276,12 @@ async function uploadAndSaveEcho() {
         });
         if (!presignedUrlRes.ok) throw new Error(`Presigned URL failed: ${await presignedUrlRes.text()}`);
         const { url: uploadUrl } = await presignedUrlRes.json();
-
+        
         const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: audioBlob, headers: { 'Content-Type': audioBlob.type } });
         if (!uploadRes.ok) throw new Error('Upload to R2 failed');
-
+        
         const audio_url = `${R2_PUBLIC_URL_BASE}/${fileName}`;
-
+        
         const saveEchoRes = await fetch(`${API_URL}/echoes`, {
             method: 'POST',
             headers: {
@@ -298,7 +302,6 @@ async function uploadAndSaveEcho() {
         w3wAddressEl.textContent = `You are ready to record an echo.`;
         newEcho.username = loggedInUser; 
         renderEchoesOnMap([newEcho]);
-
     } catch (error) {
         console.error('Full echo process failed:', error);
         alert('An error occurred. Check console.');

@@ -11,10 +11,8 @@ const jwt = require('jsonwebtoken');
 const authMiddleware = require('./middleware/auth');
 const adminAuthMiddleware = require('./middleware/adminauth'); // New middleware
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
+// New way in server/index.js
+const pool = require('./db'); // Requires db.js from the same (server) folder
 
 const app = express();
 app.use(cors());

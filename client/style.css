@@ -249,3 +249,23 @@ button:active {
     width: 100%;
     margin-top: 10px;
 }
+
+/* === ADD THIS NEW CSS AT THE END === */
+
+/* Find Me Button Styling */
+#find-me-btn {
+    position: absolute;
+    top: 90px; /* Adjust as needed */
+    right: 10px;
+    z-index: 999; /* Ensure it's above the map tiles */
+    padding: 8px;
+    line-height: 0;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+#find-me-btn img {
+    width: 24px;
+    height: 24px;
+}

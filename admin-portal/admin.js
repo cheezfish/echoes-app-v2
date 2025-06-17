@@ -1,9 +1,9 @@
-// admin-portal/admin.js - BULLETPROOF LOGIN
+// admin-portal/admin.js - WITH SEEDING FUNCTIONALITY
 
 const API_URL = 'https://echoes-server.onrender.com';
 
-// Wait for the DOM to be fully loaded before trying to access elements
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Existing element variables ---
     const adminLoginForm = document.getElementById('admin-login-form');
     const adminLoginError = document.getElementById('admin-login-error');
     const adminLoginSection = document.getElementById('admin-login-section');
@@ -13,15 +13,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const usersTableBody = document.getElementById('users-table-body');
     const adminMapContainer = document.getElementById('admin-map');
     
+    // --- NEW Seeding Form Elements ---
+    const seedForm = document.getElementById('seed-echo-form');
+    const seedLatInput = document.getElementById('seed-lat');
+    const seedLngInput = document.getElementById('seed-lng');
+    const seedNameInput = document.getElementById('seed-w3w-address');
+    const seedFileInput = document.getElementById('seed-audio-file');
+    const seedStatusEl = document.getElementById('seed-status');
+    const seedSubmitBtn = document.getElementById('seed-submit-btn');
+
     let adminMap;
     let adminMarkers;
+    let locationSelectionMarker; // For the temporary marker
     let adminToken = localStorage.getItem('echoes_admin_token');
 
     function updateAdminUI() {
         if (adminToken) {
             adminLoginSection.style.display = 'none';
             adminDashboardSection.style.display = 'block';
-            if (!adminMap) initializeAdminMap(); // Initialize map only if it doesn't exist
+            if (!adminMap) initializeAdminMap();
             fetchAllEchoesForAdmin();
             fetchAllUsersForAdmin();
         } else {
@@ -36,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (adminLoginForm) {
         adminLoginForm.addEventListener('submit', async (e) => {
-            e.preventDefault(); // <<< CRITICAL: PREVENT DEFAULT FORM SUBMISSION
+            e.preventDefault();
             adminLoginError.textContent = '';
             const username = document.getElementById('admin-username').value;
             const password = document.getElementById('admin-password').value;
@@ -50,26 +60,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || 'Login failed');
 
-                // Verify admin status by trying to fetch admin-only data
-                try {
-                    const adminCheckResponse = await fetch(`${API_URL}/admin/api/echoes`, { // Or /admin/api/users
-                        headers: { 'Authorization': `Bearer ${data.token}` }
-                    });
-                    if (adminCheckResponse.status === 403) throw new Error('Not authorized for admin access.');
-                    if (!adminCheckResponse.ok) throw new Error('Admin verification failed.');
-                    
-                    localStorage.setItem('echoes_admin_token', data.token);
-                    adminToken = data.token;
-                    updateAdminUI();
-                } catch (adminCheckError) {
-                    adminLoginError.textContent = adminCheckError.message;
-                }
+                const adminCheckResponse = await fetch(`${API_URL}/admin/api/echoes`, {
+                    headers: { 'Authorization': `Bearer ${data.token}` }
+                });
+                if (adminCheckResponse.status === 403) throw new Error('Not authorized for admin access.');
+                if (!adminCheckResponse.ok) throw new Error('Admin verification failed.');
+                
+                localStorage.setItem('echoes_admin_token', data.token);
+                adminToken = data.token;
+                updateAdminUI();
             } catch (error) {
                 adminLoginError.textContent = error.message;
             }
         });
-    } else {
-        console.error("Admin login form not found!");
     }
 
     if (adminLogoutBtn) {
@@ -88,6 +91,80 @@ document.addEventListener('DOMContentLoaded', () => {
         }).addTo(adminMap);
         adminMarkers = L.markerClusterGroup();
         adminMap.addLayer(adminMarkers);
+
+        const search = new GeoSearch.GeoSearchControl({
+            provider: new GeoSearch.OpenStreetMapProvider(),
+            style: 'bar',
+            autoClose: true,
+            keepResult: true,
+        });
+        adminMap.addControl(search);
+
+        adminMap.on('click', (e) => {
+            updateLocationSelection(e.latlng);
+        });
+
+        adminMap.on('geosearch/showlocation', (result) => {
+            const latLng = { lat: result.location.y, lng: result.location.x };
+            updateLocationSelection(latLng, result.location.label);
+        });
+    }
+
+    function updateLocationSelection(latLng, label = '') {
+        seedLatInput.value = latLng.lat.toFixed(7);
+        seedLngInput.value = latLng.lng.toFixed(7);
+        if (label && !seedNameInput.value) {
+            seedNameInput.value = label.split(',')[0];
+        }
+
+        if (locationSelectionMarker) {
+            locationSelectionMarker.setLatLng(latLng);
+        } else {
+            locationSelectionMarker = L.marker(latLng, { draggable: true }).addTo(adminMap);
+            locationSelectionMarker.bindPopup("Drag me to adjust location!").openPopup();
+            locationSelectionMarker.on('dragend', (e) => {
+                const newLatLng = e.target.getLatLng();
+                seedLatInput.value = newLatLng.lat.toFixed(7);
+                seedLngInput.value = newLatLng.lng.toFixed(7);
+            });
+        }
+        adminMap.panTo(latLng);
+    }
+    
+    if (seedForm) {
+        seedForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            seedStatusEl.textContent = 'Uploading... Please wait.';
+            seedStatusEl.className = 'status';
+            seedSubmitBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('lat', seedLatInput.value);
+            formData.append('lng', seedLngInput.value);
+            formData.append('w3w_address', seedNameInput.value);
+            formData.append('audioFile', seedFileInput.files[0]);
+
+            try {
+                const response = await fetch(`${API_URL}/admin/api/echoes/seed`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${adminToken}` },
+                    body: formData,
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Failed to create echo.');
+
+                seedStatusEl.textContent = 'Echo seeded successfully!';
+                seedStatusEl.className = 'status success';
+                seedForm.reset();
+                fetchAllEchoesForAdmin();
+
+            } catch (error) {
+                seedStatusEl.textContent = `Error: ${error.message}`;
+                seedStatusEl.className = 'status error';
+            } finally {
+                seedSubmitBtn.disabled = false;
+            }
+        });
     }
 
     async function fetchAllEchoesForAdmin() {
@@ -95,13 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         echoesTableBody.innerHTML = '<tr><td colspan="9">Loading echoes...</td></tr>';
         if (adminMarkers) adminMarkers.clearLayers();
         try {
-            const searchUserInput = document.getElementById('search-user-input'); // Assuming you add these later
-            const searchLocationInput = document.getElementById('search-location-input');
-            let query = '';
-            if (searchUserInput && searchUserInput.value) query += `&searchUser=${encodeURIComponent(searchUserInput.value)}`;
-            if (searchLocationInput && searchLocationInput.value) query += `&searchLocation=${encodeURIComponent(searchLocationInput.value)}`;
-            
-            const response = await fetch(`${API_URL}/admin/api/echoes?${query.substring(1)}`, {
+            const response = await fetch(`${API_URL}/admin/api/echoes`, {
                 headers: { 'Authorization': `Bearer ${adminToken}` }
             });
             if (!response.ok) throw new Error('Failed to fetch echoes');
@@ -138,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const lngNum = parseFloat(echo.lng);
             if (!isNaN(latNum) && !isNaN(lngNum)) {
                 const marker = L.marker([latNum, lngNum]);
-                marker.bindPopup(`<b>ID:</b> ${echo.id}<br><b>Author:</b> ${echo.username||"Anon"}<br><b>Location:</b> ${echo.w3w_address}<br><a href="${echo.audio_url}" target="_blank">Play</a>`);
+                marker.bindPopup(`<b>ID:</b> ${echo.id}<br><b>Author:</b> ${echo.username||"Anon"}<br><b>Location:</b> ${echo.w3w_address}<br><a href="${echo.audio_url}" target="_blank">Play Audio</a>`);
                 adminMarkers.addLayer(marker);
             }
         });
@@ -146,14 +217,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleDeleteEcho(e) {
         const echoId = e.target.dataset.id;
-        if (!confirm(`Delete echo ID ${echoId}?`)) return;
+        if (!confirm(`Are you sure you want to delete echo ID ${echoId}? This cannot be undone.`)) return;
         try {
             const response = await fetch(`${API_URL}/admin/api/echoes/${echoId}`, {
                 method: 'DELETE', headers: { 'Authorization': `Bearer ${adminToken}` }
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || data.msg || 'Failed to delete');
-            alert(data.msg || 'Echo deleted.');
+            alert(data.msg || 'Echo deleted successfully.');
             fetchAllEchoesForAdmin();
         } catch (error) {
             alert(`Error: ${error.message}`);
@@ -202,11 +273,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Failed to toggle admin status');
             alert(`User admin status updated.`);
-            fetchAllUsersForAdmin(); // Refresh users table
+            fetchAllUsersForAdmin();
         } catch (error) {
             alert(`Error: ${error.message}`);
         }
     }
 
-    updateAdminUI(); // Initial check
+    updateAdminUI();
 });

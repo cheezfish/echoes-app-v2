@@ -3,29 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <title>Echoes Admin</title>
+    <!-- Leaflet & MarkerCluster CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <!-- NEW: Leaflet Geosearch CSS for location search bar -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-geosearch@3.11.0/dist/geosearch.css" />
     <link rel="stylesheet" href="admin.css">
 </head>
 <body>
     <div class="container">
         <h1>Echoes Admin Portal</h1>
 
-        <div id="admin-login-section"> <!-- This section is shown/hidden -->
+        <div id="admin-login-section">
             <h2>Admin Login</h2>
-            <form id="admin-login-form"> <!-- Make sure this ID is correct -->
+            <form id="admin-login-form">
                 <input type="text" id="admin-username" placeholder="Username" required><br>
                 <input type="password" id="admin-password" placeholder="Password" required><br>
-                <button type="submit">Login</button> <!-- type="submit" is correct -->
+                <button type="submit">Login</button>
                 <p id="admin-login-error" class="error"></p>
             </form>
         </div>
 
-        <div id="admin-dashboard-section" style="display:none;"> <!-- Shown after login -->
+        <div id="admin-dashboard-section" style="display:none;">
             <p>Welcome, Admin! <button id="admin-logout-btn">Logout</button></p>
+            
+            <!-- NEW: Seeding Section -->
+            <div class="seeding-container">
+                <h2>Seed New Echo</h2>
+                <p>Use the search bar on the map or click a location directly. Then fill out the form and upload an audio file.</p>
+                <form id="seed-echo-form">
+                    <label for="seed-lat">Latitude:</label>
+                    <input type="text" id="seed-lat" name="lat" readonly required>
+                    <label for="seed-lng">Longitude:</label>
+                    <input type="text" id="seed-lng" name="lng" readonly required>
+                    <label for="seed-w3w-address">Location Name (e.g., "Eiffel Tower"):</label>
+                    <input type="text" id="seed-w3w-address" name="w3w_address" placeholder="A descriptive name for the location" required>
+                    <label for="seed-audio-file">Audio File (MP3, WAV, WEBM):</label>
+                    <input type="file" id="seed-audio-file" name="audioFile" accept="audio/*" required>
+                    <button type="submit" id="seed-submit-btn">Create Seeded Echo</button>
+                    <p id="seed-status" class="status"></p>
+                </form>
+            </div>
+            
             <h2>Global Echoes Map</h2>
             <div id="admin-map"></div>
+            
             <h2>All Echoes (Table View)</h2>
             <table id="echoes-table">
                 <thead>
@@ -36,6 +59,7 @@
                 </thead>
                 <tbody></tbody>
             </table>
+            
             <h2>All Users</h2>
             <table id="users-table">
                 <thead>
@@ -47,8 +71,11 @@
             </table>
         </div>
     </div>
+    <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <!-- NEW: Leaflet Geosearch JS -->
+    <script src="https://unpkg.com/leaflet-geosearch@3.11.0/dist/geosearch.umd.js"></script>
     <script src="admin.js"></script>
 </body>
 </html>

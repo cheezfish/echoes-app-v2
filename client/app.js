@@ -1,4 +1,4 @@
-// client/app.js - Using Plus Codes
+// client/app.js - FINAL, SIMPLIFIED VERSION
 
 const API_URL = 'https://echoes-server.onrender.com'; // Your Render server URL
 
@@ -12,14 +12,12 @@ let map;
 let mediaRecorder;
 let audioChunks = [];
 let currentUserPosition = { lat: 0, lng: 0 };
-let currentW3WAddress = ''; // We'll keep the variable name for simplicity
+let currentBucketKey = ''; // This is our new, simple key
 
 // === 1. INITIALIZE ===
 function initializeApp() {
     map = L.map(mapContainer).setView([51.505, -0.09], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError);
@@ -28,14 +26,14 @@ function initializeApp() {
     }
 
     recordBtn.addEventListener('click', handleRecordClick);
-    fetchAllEchoes(); // Fetch existing echoes on load
+    fetchAllEchoes();
 }
 
 // === 2. MAP & DATA FETCHING ===
 async function fetchAllEchoes() {
     try {
         const response = await fetch(`${API_URL}/echoes`);
-        if (!response.ok) throw new Error('Failed to fetch echoes from server');
+        if (!response.ok) throw new Error('Failed to fetch');
         const echoes = await response.json();
         renderEchoesOnMap(echoes);
     } catch (error) {
@@ -45,7 +43,6 @@ async function fetchAllEchoes() {
 
 function renderEchoesOnMap(echoes) {
     echoes.forEach(echo => {
-        // Only render if it has valid coordinates
         if (echo.lat && echo.lng) {
             L.marker([echo.lat, echo.lng])
              .addTo(map)
@@ -55,37 +52,29 @@ function renderEchoesOnMap(echoes) {
 }
 
 function createEchoPopup(echo) {
-    // Use the w3w_address which now stores the Plus Code
+    // We'll just show "Echo" since the grid key isn't user-friendly
     return `
-        <h3>+${echo.w3w_address}</h3>
+        <h3>Echo Location</h3>
         <p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()}</p>
         <audio controls src="${echo.audio_url}"></audio>
     `;
 }
 
-// === 3. GEOLOCATION & PLUS CODES ===
-async function onLocationSuccess(position) {
+// === 3. GEOLOCATION & BUCKETING ===
+function onLocationSuccess(position) {
     currentUserPosition.lat = position.coords.latitude;
     currentUserPosition.lng = position.coords.longitude;
     
     map.setView([currentUserPosition.lat, currentUserPosition.lng], 16);
     L.marker([currentUserPosition.lat, currentUserPosition.lng]).addTo(map).bindPopup("You are here!").openPopup();
 
-    try {
-        // Use the Plus Codes library, which is now loaded correctly
-        const plusCode = OpenLocationCode.encode(currentUserPosition.lat, currentUserPosition.lng);
-
-        if (plusCode) {
-            currentW3WAddress = plusCode;
-            w3wAddressEl.textContent = `+${currentW3WAddress}`; // Display with a +
-            recordBtn.disabled = false;
-        } else {
-            throw new Error("Could not generate Plus Code.");
-        }
-    } catch (error) {
-        console.error("Plus Code error:", error);
-        w3wAddressEl.textContent = "Error generating location code.";
-    }
+    // The new, simple "rounding" method to create a bucket key
+    const latRounded = currentUserPosition.lat.toFixed(4);
+    const lngRounded = currentUserPosition.lng.toFixed(4);
+    currentBucketKey = `sq_${latRounded}_${lngRounded}`;
+    
+    w3wAddressEl.textContent = "You are ready to record an echo.";
+    recordBtn.disabled = false;
 }
 
 function onLocationError(error) {
@@ -94,6 +83,7 @@ function onLocationError(error) {
 
 // === 4. RECORDING & UPLOAD FLOW ===
 async function handleRecordClick() {
+    // This function remains the same
     if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
         recordBtn.textContent = 'Record Echo';
@@ -120,7 +110,8 @@ async function handleRecordClick() {
 async function uploadAndSaveEcho() {
     if (audioChunks.length === 0) return;
     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-    const fileName = `echo_${currentW3WAddress.replace(/\+/g, '-')}_${Date.now()}.webm`;
+    // Use our simple bucket key for the filename
+    const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
 
     try {
         const presignedUrlRes = await fetch(`${API_URL}/presigned-url`, {
@@ -128,7 +119,7 @@ async function uploadAndSaveEcho() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fileName, fileType: audioBlob.type })
         });
-        if (!presignedUrlRes.ok) throw new Error(`Presigned URL fetch failed: ${await presignedUrlRes.text()}`);
+        if (!presignedUrlRes.ok) throw new Error(`Presigned URL failed: ${await presignedUrlRes.text()}`);
         const { url: uploadUrl } = await presignedUrlRes.json();
 
         const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: audioBlob, headers: { 'Content-Type': audioBlob.type } });
@@ -139,23 +130,23 @@ async function uploadAndSaveEcho() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                w3w_address: currentW3WAddress, // Storing the Plus Code here
+                w3w_address: currentBucketKey, // The server just sees this as a string key
                 audio_url: audio_url,
                 lat: currentUserPosition.lat,
                 lng: currentUserPosition.lng
             })
         });
-        if (!saveEchoRes.ok) throw new Error('Save echo metadata failed');
+        if (!saveEchoRes.ok) throw new Error('Save metadata failed');
         
         const newEcho = await saveEchoRes.json();
         alert(`Success! Echo saved.`);
-        w3wAddressEl.textContent = `+${currentW3WAddress}`;
+        w3wAddressEl.textContent = `You are ready to record an echo.`;
         renderEchoesOnMap([newEcho]);
 
     } catch (error) {
         console.error('Full echo process failed:', error);
         alert('An error occurred. Check console.');
-        w3wAddressEl.textContent = `+${currentW3WAddress}`;
+        w3wAddressEl.textContent = `You are ready to record an echo.`;
     } finally {
         recordBtn.disabled = false;
     }

@@ -23,8 +23,8 @@ header {
 }
 
 h1 {
-    grid-column: 2 / 3; /* Place h1 in the center column */
-    justify-self: center; /* Center it within the column */
+    grid-column: 1 / 3; /* Place h1 in the center column */
+    justify-self: left; /* Center it within the column */
     margin: 0;
     font-size: 1.25rem;
 }

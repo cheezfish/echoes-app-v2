@@ -1,44 +1,39 @@
-/* client/style.css - FINAL CLEANED VERSION WITH ALL FIXES */
+/* client/style.css - FINAL ROBUST VERSION WITH GRID HEADER & CUSTOM ICON */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body { 
+body, main { 
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-    display: flex; 
-    flex-direction: column; 
-    height: 100vh; 
     overflow: hidden; 
-    background-color: #000; /* FIX: True black background */
+    background-color: #000 !important; /* FIX: Force true black background */
     color: #eee; 
 }
+body { display: flex; flex-direction: column; height: 100vh; }
 
-/* --- HEADER FIX --- */
+/* --- ROBUST HEADER FIX (CSS GRID) --- */
 header {
     flex-shrink: 0;
     background-color: #333;
     color: white;
-    position: relative; /* Needed for absolute positioning of h1 */
     z-index: 1001;
-    display: flex; /* Enable flexbox for alignment */
-    align-items: center; /* Vertically center items */
-    justify-content: space-between; /* Pushes children to edges */
-    padding: 0.5rem 1rem; /* Consistent padding */
-    min-height: 50px; /* Ensure header has a minimum height */
+    padding: 0.5rem 1rem;
+    min-height: 50px;
+    display: grid; /* Use Grid for layout */
+    grid-template-columns: 1fr auto 1fr; /* Left space, Title, Right space */
+    align-items: center;
 }
 
-/* FIX: Absolute positioning to perfectly center the title, avoiding overlap */
 h1 {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    margin: 0; /* Remove default margins */
+    grid-column: 2 / 3; /* Place h1 in the center column */
+    justify-self: center; /* Center it within the column */
+    margin: 0;
     font-size: 1.25rem;
 }
 
-/* FIX: Remove absolute positioning, let flexbox handle placement */
 #user-auth-container {
-    display: flex; /* align its own children */
+    grid-column: 3 / 4; /* Place auth in the right column */
+    justify-self: end; /* Align it to the far right */
+    display: flex;
     align-items: center;
-    margin-left: auto; /* Push this container to the far right */
 }
 /* --- END HEADER FIX --- */
 
@@ -47,15 +42,48 @@ main {
     display: flex;
     flex-direction: column;
     position: relative; 
-    overflow: hidden; 
 }
 
 #map {
     flex-grow: 1;  
     width: 100%;
-    background-color: #000; /* FIX: True black for map background */
+    background-color: #000 !important; /* FIX: Force true black map background */
     position: relative; 
 }
+
+/* --- USER LOCATION ICON & PULSE FIX --- */
+/* This combines the icon and pulse into one element for perfect centering */
+.user-location-marker {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.user-location-marker img {
+    /* The icon itself */
+    z-index: 2;
+    width: 32px;
+    height: 32px;
+}
+.user-location-marker .pulse {
+    /* The pulse animation behind the icon */
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: rgba(0, 123, 255, 0.7);
+    animation: pulse-beacon 2s infinite ease-out;
+    z-index: 1;
+}
+
+@keyframes pulse-beacon {
+    0% { transform: scale(0.5); opacity: 0.8; }
+    80% { transform: scale(2.5); opacity: 0; }
+    100% { opacity: 0; }
+}
+
+/* We no longer need .js-radar-beacon as it's replaced by the above */
+/* --- END ICON FIX --- */
 
 #info-panel {
     flex-shrink: 0; 
@@ -67,8 +95,8 @@ main {
     overflow-y: auto;
     color: #ccc;
 }
-
 #info-panel h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #eee; }
+
 button { font-size: 1rem; padding: 0.6em 1.2em; margin: 0.3em; border-radius: 6px; border: none; cursor: pointer; background-color: #007bff; color: white; font-weight: bold; transition: background-color 0.2s ease, transform 0.1s ease; }
 button:disabled { background-color: #555; cursor: not-allowed; }
 button:hover:not(:disabled) { background-color: #0056b3; }
@@ -77,10 +105,9 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .auth-btn { padding: 5px 10px; font-size: 14px; margin-left: 5px; }
 #welcome-message { margin-right: 10px; font-weight: bold; color: white; }
 
-/* --- FIND ME BUTTON FIX --- */
 #find-me-btn { 
     position: absolute; 
-    bottom: 20px; /* FIX: Moved from top to bottom */
+    bottom: 20px; 
     right: 10px; 
     z-index: 999; 
     padding: 8px; 
@@ -90,7 +117,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
     border: 1px solid rgba(255, 255, 255, 0.7); 
 }
 #find-me-btn img { width: 24px; height: 24px; vertical-align: middle; }
-/* --- END FIND ME BUTTON FIX --- */
 
 .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:flex;justify-content:center;align-items:center;z-index:1005}
 .modal-content{background-color:#444;color:#eee;padding:2rem;border-radius:8px;width:90%;max-width:400px;position:relative;box-shadow:0 5px 15px rgba(0,0,0,.5)}
@@ -107,14 +133,11 @@ button:active:not(:disabled) { transform: scale(0.98); }
 #status-message.error{color:#dc3545}
 .is-recording{animation:pulse 1.5s infinite; background-color: #dc3545 !important;}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(220,53,69,.7)}70%{box-shadow:0 0 0 10px rgba(220,53,69,0)}100%{box-shadow:0 0 0 0 rgba(220,53,69,0)}}
-.js-radar-beacon{stroke:#007bff;stroke-width:2;stroke-opacity:.8;fill:#007bff;fill-opacity:.2;pointer-events:none}
 
 #cluster-echo-list .echo-item{border-bottom:1px solid #555;padding:10px 0}
 #cluster-echo-list .echo-item:last-child{border-bottom:none}
 #cluster-echo-list p{margin:5px 0;font-size:14px;color:#ccc}
 #cluster-echo-list audio{width:100%;margin-top:10px}
 .leaflet-control-zoom a { background-color: #444 !important; color: #eee !important; border-color: #555 !important; }
-
-/* FIX: The attribution control will now be styled correctly in any corner */
 .leaflet-control-attribution { background: rgba(0, 0, 0, 0.6) !important; color: #ccc !important; }
 .leaflet-control-attribution a { color: #87cefa !important; }

@@ -5,13 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Echoes</title>
 
-    <script src="https://cdn.jsdelivr.net/npm/open-location-code@2.0.0/openlocationcode.min.js"></script>
-
-    <!-- This is the official CSS for the Leaflet map library -->
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-    <!-- This links to your own stylesheet -->
+    <!-- Your Custom CSS -->
     <link rel="stylesheet" href="style.css">
+
+    <!-- === THIS IS THE CORRECTED SCRIPT TAG === -->
+    <script src="https://unpkg.com/open-location-code@2.0.0/dist/open-location-code.min.js"></script>
+    
 </head>
 <body>
 
@@ -20,27 +22,18 @@
     </header>
 
     <main>
-        <!-- This div is where the Leaflet map will be placed by the JavaScript -->
         <div id="map"></div>
-
-        <!-- This is the control panel at the bottom -->
         <div id="info-panel">
             <h2 id="w3w-address">Locating your position...</h2>
-            
             <button id="record-btn">Record Echo</button>
-            
-            <!-- The button for our current test -->
-            <button id="test-create-btn" style="background-color: #ffc107; color: #333;">Create FAKE Echo</button>
-            
-            <!-- This div will be used later to display the list of echoes -->
             <div id="echo-list"></div>
         </div>
     </main>
 
-    <!-- This is the official JavaScript for the Leaflet map library -->
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
-    <!-- This links to your own application's JavaScript -->
+    <!-- Your App's JavaScript -->
     <script src="app.js"></script>
 
 </body>

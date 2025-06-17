@@ -1,7 +1,6 @@
-// client/app.js - THE FULL MONTY
+// client/app.js - Using Plus Codes
 
 const API_URL = 'https://echoes-server.onrender.com'; // Your Render server URL
-const W3W_API_KEY = 'GLHHZA8C'; // <-- PASTE YOUR KEY HERE
 
 // --- DOM ELEMENTS ---
 const mapContainer = document.getElementById('map');
@@ -13,12 +12,14 @@ let map;
 let mediaRecorder;
 let audioChunks = [];
 let currentUserPosition = { lat: 0, lng: 0 };
-let currentW3WAddress = '';
+let currentW3WAddress = ''; // We'll keep the variable name for simplicity
 
 // === 1. INITIALIZE ===
 function initializeApp() {
     map = L.map(mapContainer).setView([51.505, -0.09], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
 
     if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError);
@@ -34,6 +35,7 @@ function initializeApp() {
 async function fetchAllEchoes() {
     try {
         const response = await fetch(`${API_URL}/echoes`);
+        if (!response.ok) throw new Error('Failed to fetch echoes from server');
         const echoes = await response.json();
         renderEchoesOnMap(echoes);
     } catch (error) {
@@ -43,6 +45,7 @@ async function fetchAllEchoes() {
 
 function renderEchoesOnMap(echoes) {
     echoes.forEach(echo => {
+        // Only render if it has valid coordinates
         if (echo.lat && echo.lng) {
             L.marker([echo.lat, echo.lng])
              .addTo(map)
@@ -52,13 +55,15 @@ function renderEchoesOnMap(echoes) {
 }
 
 function createEchoPopup(echo) {
+    // Use the w3w_address which now stores the Plus Code
     return `
-        <h3>${echo.w3w_address}</h3>
+        <h3>+${echo.w3w_address}</h3>
         <p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()}</p>
         <audio controls src="${echo.audio_url}"></audio>
     `;
 }
 
+// === 3. GEOLOCATION & PLUS CODES ===
 async function onLocationSuccess(position) {
     currentUserPosition.lat = position.coords.latitude;
     currentUserPosition.lng = position.coords.longitude;
@@ -67,12 +72,12 @@ async function onLocationSuccess(position) {
     L.marker([currentUserPosition.lat, currentUserPosition.lng]).addTo(map).bindPopup("You are here!").openPopup();
 
     try {
-        // Use the Plus Codes library (it's available globally now)
+        // Use the Plus Codes library, which is now loaded correctly
         const plusCode = OpenLocationCode.encode(currentUserPosition.lat, currentUserPosition.lng);
 
         if (plusCode) {
-            currentW3WAddress = plusCode; // We'll keep the variable name for simplicity
-            w3wAddressEl.textContent = `+${currentW3WAddress}`; // Display it like a Plus Code
+            currentW3WAddress = plusCode;
+            w3wAddressEl.textContent = `+${currentW3WAddress}`; // Display with a +
             recordBtn.disabled = false;
         } else {
             throw new Error("Could not generate Plus Code.");
@@ -115,7 +120,7 @@ async function handleRecordClick() {
 async function uploadAndSaveEcho() {
     if (audioChunks.length === 0) return;
     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-    const fileName = `echo_${currentW3WAddress.replace(/\./g, '-')}_${Date.now()}.webm`;
+    const fileName = `echo_${currentW3WAddress.replace(/\+/g, '-')}_${Date.now()}.webm`;
 
     try {
         const presignedUrlRes = await fetch(`${API_URL}/presigned-url`, {
@@ -126,11 +131,7 @@ async function uploadAndSaveEcho() {
         if (!presignedUrlRes.ok) throw new Error(`Presigned URL fetch failed: ${await presignedUrlRes.text()}`);
         const { url: uploadUrl } = await presignedUrlRes.json();
 
-        const uploadRes = await fetch(uploadUrl, {
-            method: 'PUT',
-            body: audioBlob,
-            headers: { 'Content-Type': audioBlob.type }
-        });
+        const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: audioBlob, headers: { 'Content-Type': audioBlob.type } });
         if (!uploadRes.ok) throw new Error('Upload to R2 failed');
         const audio_url = uploadUrl.split('?')[0];
 
@@ -138,7 +139,7 @@ async function uploadAndSaveEcho() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                w3w_address: currentW3WAddress,
+                w3w_address: currentW3WAddress, // Storing the Plus Code here
                 audio_url: audio_url,
                 lat: currentUserPosition.lat,
                 lng: currentUserPosition.lng
@@ -148,14 +149,13 @@ async function uploadAndSaveEcho() {
         
         const newEcho = await saveEchoRes.json();
         alert(`Success! Echo saved.`);
-        w3wAddressEl.textContent = `///${currentW3WAddress}`;
-        // Add the new echo to the map immediately
+        w3wAddressEl.textContent = `+${currentW3WAddress}`;
         renderEchoesOnMap([newEcho]);
 
     } catch (error) {
         console.error('Full echo process failed:', error);
         alert('An error occurred. Check console.');
-        w3wAddressEl.textContent = `///${currentW3WAddress}`;
+        w3wAddressEl.textContent = `+${currentW3WAddress}`;
     } finally {
         recordBtn.disabled = false;
     }

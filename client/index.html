@@ -4,25 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Echoes</title>
-
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-    <!-- === ADD THE MARKER CLUSTER CSS HERE === -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-    <!-- ======================================= -->
-
-    <!-- Your Custom CSS -->
     <link rel="stylesheet" href="style.css">
-    
-    <!-- Plus Codes / Open Location Code Library -->
     <script src="https://unpkg.com/open-location-code@2.0.0/dist/open-location-code.min.js"></script>
-    
 </head>
 <body>
 
-    <header><h1>Echoes</h1></header>
+    <header>
+        <h1>Echoes</h1>
+        <!-- === NEW: User Auth Area === -->
+        <div id="user-auth-container">
+            <span id="welcome-message"></span>
+            <button id="login-btn" class="auth-btn">Login</button>
+            <button id="register-btn" class="auth-btn">Register</button>
+            <button id="logout-btn" class="auth-btn" style="display: none;">Logout</button>
+        </div>
+        <!-- ========================== -->
+    </header>
+
     <main>
         <div id="map"></div>
         <div id="info-panel">
@@ -31,15 +32,30 @@
             <div id="echo-list"></div>
         </div>
     </main>
-
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <!-- === ADD THE MARKER CLUSTER JS HERE === -->
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <!-- ==================================== -->
     
-    <!-- Your App's JavaScript -->
+    <!-- === NEW: The Auth Modal (hidden by default) === -->
+    <div id="auth-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button class="close-btn">×</button>
+            <h2 id="modal-title">Login</h2>
+            <form id="auth-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" id="modal-submit-btn">Login</button>
+                <p id="modal-error" class="error-message"></p>
+            </form>
+        </div>
+    </div>
+    <!-- ============================================= -->
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="app.js"></script>
 
 </body>

@@ -9,3 +9,11 @@ table { width: 100%; border-collapse: collapse; margin-top: 20px; }
 th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
 th { background-color: #007bff; color: white; }
 audio { width: 200px; }
+/* === ADD THIS NEW CSS FOR THE ADMIN MAP === */
+#admin-map {
+    height: 500px; /* Or whatever height you prefer */
+    width: 100%;
+    margin-bottom: 30px;
+    border: 1px solid #ccc;
+}
+/* ======================================== */

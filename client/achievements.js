@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        userAuthContainer.innerHTML = `<span id="welcome-message">Achievements for: ${payload.user.username}</span>`;
+        userAuthContainer.innerHTML = `<span id="welcome-message">${payload.user.username}</span>`;
     } catch (e) {
         localStorage.removeItem('echoes_token');
         window.location.href = 'index.html';

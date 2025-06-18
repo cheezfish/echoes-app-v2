@@ -124,37 +124,56 @@ app.get('/api/achievements', authMiddleware, async (req, res) => {
 });
 
 
-// --- HELPER FUNCTION for Spotify Auth ---
+// --- HELPER FUNCTION for Spotify Auth with DETAILED LOGGING ---
 let spotifyToken = { value: null, expires: 0 };
 
 async function getSpotifyToken() {
+    // Check if token is still valid (with a 5-minute buffer)
     if (spotifyToken.value && spotifyToken.expires > Date.now()) {
+        console.log('[Spotify Auth] Using existing, valid token.');
         return spotifyToken.value;
     }
 
-    console.log('[Spotify] Token expired or missing. Requesting new token...');
-    const credentials = Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString('base64');
+    console.log('[Spotify Auth] Token is missing or expired. Requesting a new one...');
     
-    const response = await fetch('https://accounts.spotify.com/api/token', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Authorization': `Basic ${credentials}`,
-        },
-        body: 'grant_type=client_credentials',
-    });
-
-    if (!response.ok) {
-        throw new Error('Failed to get Spotify token');
+    // Check if credentials are set
+    const clientId = process.env.SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+        console.error('CRITICAL ERROR: SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET is not set in environment variables.');
+        throw new Error('Spotify API credentials are not configured on the server.');
     }
+    
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    
+    try {
+        const response = await fetch('https://accounts.spotify.com/api/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': `Basic ${credentials}`,
+            },
+            body: 'grant_type=client_credentials',
+        });
 
-    const data = await response.json();
-    spotifyToken = {
-        value: data.access_token,
-        expires: Date.now() + (data.expires_in - 300) * 1000, // Refresh 5 mins early
-    };
-    console.log('[Spotify] New token acquired.');
-    return spotifyToken.value;
+        const data = await response.json();
+
+        if (!response.ok) {
+            console.error('[Spotify Auth] FAILED to get token. Spotify responded with:', data);
+            throw new Error(data.error_description || 'Could not authenticate with Spotify.');
+        }
+
+        spotifyToken = {
+            value: data.access_token,
+            expires: Date.now() + (data.expires_in - 300) * 1000, 
+        };
+        console.log('[Spotify Auth] Successfully acquired new access token.');
+        return spotifyToken.value;
+
+    } catch (error) {
+        console.error('[Spotify Auth] Catastrophic failure during token request:', error);
+        throw error; // Re-throw the error to be caught by the search route
+    }
 }
 
 
@@ -186,43 +205,47 @@ app.get('/api/medley/drops', async (req, res) => {
     }
 });
 
-// GET /api/medley/search - Searches Spotify for tracks/playlists
-// In server/index.js
-
-// ... (all other routes and helper functions)
-
-// --- THIS IS THE CORRECTED SEARCH ROUTE ---
+// GET /api/medley/search - HARDENED with extreme logging
 app.get('/api/medley/search', async (req, res) => {
     const { q } = req.query;
+    console.log(`[Medley Search] Received search request for: "${q}"`);
     if (!q) {
         return res.status(400).json({ error: 'Search query "q" is required.' });
     }
 
+    let token;
     try {
-        const token = await getSpotifyToken();
+        token = await getSpotifyToken();
+    } catch (error) {
+        // If getting the token fails, we can't proceed.
+        return res.status(500).json({ error: `Authentication with Spotify failed: ${error.message}` });
+    }
 
-        // THE FIX: We pass the query parameter `q` directly to Spotify's API.
-        // We do NOT use encodeURIComponent() here because the initial request from
-        // the client browser already encodes it correctly.
-        const searchUrl = `https://api.spotify.com/v1/search?q=${q}&type=track,playlist&limit=10`;
+    try {
+        const properlyEncodedQuery = encodeURIComponent(q);
+        const searchUrl = `https://api.spotify.com/v1/search?q=${properlyEncodedQuery}&type=track,playlist&limit=10`;
         
-        console.log(`[Medley] Forwarding search to Spotify: ${searchUrl}`);
-
+        console.log(`[Medley Search] Making request to Spotify with URL: ${searchUrl}`);
+        
         const response = await fetch(searchUrl, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
+        console.log(`[Medley Search] Spotify responded with status: ${response.status}`);
+
         if (!response.ok) {
             const errorBody = await response.json();
-            console.error("[Medley] Spotify search failed:", errorBody);
-            throw new Error('Spotify search failed');
+            console.error("[Medley Search] Spotify API returned an error:", errorBody);
+            throw new Error(errorBody.error.message || 'Spotify search failed with a non-200 status.');
         }
 
         const data = await response.json();
+        console.log(`[Medley Search] Successfully received data from Spotify. Returning ${data.tracks?.items?.length || 0} tracks.`);
         res.json(data);
+
     } catch (err) {
-        console.error("[Medley] Spotify Search Error:", err.message);
-        res.status(500).send('Server Error');
+        console.error("[Medley Search] Full Search Error during fetch:", err.message);
+        res.status(500).json({ error: `Search failed: ${err.message}` });
     }
 });
 

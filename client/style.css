@@ -1,4 +1,4 @@
-/* client/style.css - FINAL WITH PERSISTENT LIST LAYOUT */
+/* client/style.css - FINAL WITH RESPONSIVE LAYOUT AND NEW UI ELEMENTS */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -32,33 +32,105 @@ h1 {
     font-size: 1.25rem;
 }
 
+/* === MODIFIED: USER AUTH & NEW MENU === */
 #user-auth-container {
     grid-column: 3 / 4;
     justify-self: end;
-    display: flex;
-    align-items: center;
+    position: relative;
 }
 
-/* === NEW MAIN LAYOUT: CSS GRID === */
+.auth-btn {
+    background: none;
+    border: 1px solid #555;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: white;
+    font-weight: normal;
+    font-size: 0.9rem;
+    margin-left: 5px;
+}
+
+.auth-btn:hover {
+    background-color: #333;
+}
+
+#user-menu-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#user-menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 120%;
+    right: 0;
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 6px;
+    min-width: 160px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    z-index: 1002;
+    padding: 4px 0;
+}
+
+#user-menu-dropdown a {
+    color: white;
+    text-decoration: none;
+    display: block;
+    padding: 10px 15px;
+    font-size: 0.9rem;
+}
+
+#user-menu-dropdown a:hover {
+    background-color: #007bff;
+}
+
+#user-menu-dropdown a:first-child {
+    border-bottom: 1px solid #444;
+}
+/* === END USER MENU === */
+
+
+/* === NEW: GLOBAL STATUS BAR === */
+#global-status-bar {
+    flex-shrink: 0;
+    background-color: #1a1a1a;
+    color: #ccc;
+    text-align: center;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    min-height: 32px;
+    transition: background-color 0.3s, color 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#global-status-bar.info { background-color: #004085; color: white; }
+#global-status-bar.success { background-color: #155724; color: white; }
+#global-status-bar.error { background-color: #721c24; color: white; }
+
+
+/* === MODIFIED: MAIN LAYOUT === */
 #main-content-grid {
     display: grid;
     grid-template-columns: 1fr; 
-    grid-template-rows: 60vh 1fr; /* Map takes 60% height on mobile */
+    grid-template-rows: 60vh 1fr;
     flex-grow: 1;
     overflow: hidden;
 }
 
-/* On desktop, switch to a two-column layout */
 @media (min-width: 768px) {
     #main-content-grid {
-        grid-template-columns: 1fr 400px; /* Map | Sidebar */
-        grid-template-rows: 1fr; /* Reset rows to take full height */
+        grid-template-columns: 1fr 400px;
+        grid-template-rows: 1fr;
     }
 }
 
 #map-container {
     position: relative;
-    display: flex; /* This ensures the map inside fills the container */
+    display: flex;
 }
 
 #map {
@@ -67,23 +139,14 @@ h1 {
     background-color: #000 !important;
 }
 
-/* === NEW NEARBY ECHOES PANEL === */
 #nearby-echoes-panel {
     background-color: #121212;
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* Important for containing scrolling children */
+    overflow: hidden;
 }
-@media (min-width: 768px) {
-    #nearby-echoes-panel {
-        border-left: 1px solid #333; /* Separator on desktop */
-    }
-}
-@media (max-width: 767px) {
-    #nearby-echoes-panel {
-        border-top: 1px solid #333; /* Separator on mobile */
-    }
-}
+@media (min-width: 768px) { #nearby-echoes-panel { border-left: 1px solid #333; } }
+@media (max-width: 767px) { #nearby-echoes-panel { border-top: 1px solid #333; } }
 
 .panel-header {
     display: flex;
@@ -94,74 +157,49 @@ h1 {
     flex-shrink: 0;
     border-bottom: 1px solid #333;
 }
-
-.panel-header h2 {
-    margin: 0;
-    font-size: 1.1rem;
-}
-
-#status-message {
-    padding: 0.5rem 1rem;
-    background-color: #1f1f1f;
-    font-style: italic;
-    color: #aaa;
-    flex-shrink: 0;
-    min-height: 2.2em;
-    display: flex;
-    align-items: center;
-}
-#status-message.info { color: #bbb; }
-#status-message.success { color: #28a745; }
-#status-message.error { color: #dc3545; }
+.panel-header h2 { margin: 0; font-size: 1.1rem; }
 
 #nearby-echoes-list {
     overflow-y: auto;
     flex-grow: 1;
     padding: 0 0.5rem;
 }
-
-/* We re-use .my-echo-item styles from my-echoes.css */
-/* Add highlight style for interactivity */
 #nearby-echoes-list .my-echo-item {
-    cursor: pointer;
-    transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
-    margin: 0.75rem 0.5rem;
+    cursor: pointer; transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out; margin: 0.75rem 0.5rem;
 }
-
-#nearby-echoes-list .my-echo-item:hover {
-    background-color: #2a2a2a;
-    border-color: #555;
-}
-
-#nearby-echoes-list .my-echo-item.highlighted {
-    background-color: #007bff;
-    border-color: #0056b3;
-    color: white !important;
-}
+#nearby-echoes-list .my-echo-item:hover { background-color: #2a2a2a; border-color: #555; }
+#nearby-echoes-list .my-echo-item.highlighted { background-color: #007bff; border-color: #0056b3; color: white !important; }
 #nearby-echoes-list .my-echo-item.highlighted .date-info,
-#nearby-echoes-list .my-echo-item.highlighted .location-name {
-    color: white;
+#nearby-echoes-list .my-echo-item.highlighted .location-name,
+#nearby-echoes-list .my-echo-item.highlighted .actions-row span { color: white; }
+
+/* === NEW: CONTEXTUAL ACTION BUTTON === */
+#context-action-btn {
+    position: absolute; bottom: 20px; right: 20px; z-index: 401;
+    min-width: 56px; height: 56px; border-radius: 28px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 16px; border: none;
+    font-size: 1rem; font-weight: bold; color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
+#context-action-btn img { width: 24px; height: 24px; }
+#context-action-btn span { margin-left: 8px; }
+#context-action-btn.find-me { background-color: #007bff; }
+#context-action-btn.find-me:hover { background-color: #0056b3; }
+#context-action-btn.record { background-color: #dc3545; }
+#context-action-btn.record:hover { background-color: #c82333; }
+#context-action-btn.is-recording { animation: pulse-record 1.5s infinite; }
+@keyframes pulse-record{0%{box-shadow:0 0 0 0 rgba(220,53,69,.7)}70%{box-shadow:0 0 0 10px rgba(220,53,69,0)}100%{box-shadow:0 0 0 0 rgba(220,53,69,0)}}
 
-/* --- OTHER STYLES (Unchanged but included for completeness) --- */
-.auth-btn { padding: 5px 10px; font-size: 14px; margin-left: 5px; }
-#welcome-message { margin-right: 10px; font-weight: bold; color: white; }
-button { font-size: 1rem; padding: 0.6em 1.2em; margin: 0.3em; border-radius: 6px; border: none; cursor: pointer; background-color: #007bff; color: white; font-weight: bold; transition: background-color 0.2s ease, transform 0.1s ease; }
-button:disabled { background-color: #555; cursor: not-allowed; }
-button:hover:not(:disabled) { background-color: #0056b3; }
-button:active:not(:disabled) { transform: scale(0.98); }
-
-#find-me-btn { 
-    position: absolute; bottom: 20px; right: 10px; z-index: 401; padding: 8px; line-height: 0; border-radius: 50%; background-color: rgba(0, 123, 255, 0.7); border: 1px solid rgba(255, 255, 255, 0.7); 
-}
-#find-me-btn img { width: 24px; height: 24px; vertical-align: middle; }
-
+/* --- GENERIC & LEAFLET STYLES --- */
 .user-location-marker { position: relative; display: flex; justify-content: center; align-items: center; }
 .user-location-marker img { z-index: 2; width: 32px; height: 32px; }
 .user-location-marker .pulse { position: absolute; width: 32px; height: 32px; border-radius: 50%; background-color: rgba(0, 123, 255, 0.7); animation: pulse-beacon 2s infinite ease-out; z-index: 1; }
 @keyframes pulse-beacon { 0% { transform: scale(0.5); opacity: 0.8; } 80% { transform: scale(2.5); opacity: 0; } 100% { opacity: 0; } }
 
-.health-icon-container { position: relative; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; transition: transform 0.2s ease-in-out; }
+.health-icon-container { position: relative; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; transition: all 0.2s ease-in-out; }
 .health-icon-container:hover { transform: scale(1.2); }
 .health-icon-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
 .health-icon-svg circle { fill: none; stroke-width: 3; }
@@ -176,11 +214,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .form-group{margin-bottom:1rem}
 .form-group label{display:block;margin-bottom:.5rem}
 .form-group input{width:100%;padding:.5rem;font-size:1rem;border:1px solid #555;border-radius:4px;background-color:#555;color:#eee;}
-#modal-submit-btn{width:100%;margin-top:1rem}
+#modal-submit-btn{width:100%;margin-top:1rem;font-size: 1rem; padding: 0.6em 1.2em;}
 .error-message{color:#ffc107;margin-top:1rem;text-align:center;min-height:1em}
-
-.is-recording{animation:pulse-record 1.5s infinite; background-color: #dc3545 !important;}
-@keyframes pulse-record{0%{box-shadow:0 0 0 0 rgba(220,53,69,.7)}70%{box-shadow:0 0 0 10px rgba(220,53,69,0)}100%{box-shadow:0 0 0 0 rgba(220,53,69,0)}}
 
 .leaflet-control-zoom a { background-color: #444 !important; color: #eee !important; border-color: #555 !important; }
 .leaflet-control-attribution { background: rgba(0, 0, 0, 0.6) !important; color: #ccc !important; }

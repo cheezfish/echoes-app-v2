@@ -8,42 +8,51 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <link rel="stylesheet" href="style.css">
-    <!-- Link to my-echoes.css to reuse styles for the list items -->
     <link rel="stylesheet" href="my-echoes.css"> 
 </head>
 <body>
     <header>
         <h1>Echoes</h1>
         <div id="user-auth-container">
-            <span id="welcome-message"></span>
-            <a href="my-echoes.html" id="my-echoes-btn" class="auth-btn" style="display: none;">My Echoes</a>
-            <button id="login-btn" class="auth-btn">Login</button>
-            <button id="register-btn" class="auth-btn">Register</button>
-            <button id="logout-btn" class="auth-btn" style="display: none;">Logout</button>
+            <!-- Logged out users see this -->
+            <div id="logged-out-view" style="display: none;">
+                <button id="login-btn" class="auth-btn">Login</button>
+                <button id="register-btn" class="auth-btn">Register</button>
+            </div>
+            <!-- Logged in users see this -->
+            <div id="logged-in-view" style="display: none;">
+                <div id="user-menu-button" class="auth-btn">
+                    <span id="welcome-message"></span> ▾ <!-- Down arrow character -->
+                </div>
+                <div id="user-menu-dropdown" style="display: none;">
+                    <a href="my-echoes.html">My Echoes</a>
+                    <a href="#" id="logout-btn">Logout</a>
+                </div>
+            </div>
         </div>
     </header>
+
+    <!-- NEW Global Status Bar -->
+    <div id="global-status-bar"></div>
 
     <div id="main-content-grid">
         <main id="map-container">
             <div id="map"></div>
-            <button id="find-me-btn" title="Find My Location">
-                <img src="https://api.iconify.design/material-symbols:my-location.svg?color=%23ffffff" alt="Find Me">
-            </button>
+            <!-- NEW Single, Contextual Action Button -->
+            <button id="context-action-btn" title="Find My Location"></button>
         </main>
     
         <aside id="nearby-echoes-panel">
             <div class="panel-header">
                 <h2>Nearby Echoes</h2>
-                <button id="record-btn" disabled>Record Echo</button>
             </div>
-            <div id="status-message" class="info">Click 'Find Me' to start exploring</div>
             <div id="nearby-echoes-list">
                 <!-- Echoes will be dynamically inserted here -->
             </div>
         </aside>
     </div>
     
-    <!-- AUTH MODAL - FULLY RESTORED -->
+    <!-- Auth Modal (contents are essential) -->
     <div id="auth-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <button class="close-btn">×</button>
@@ -62,7 +71,6 @@
             </form>
         </div>
     </div>
-    <!-- END OF AUTH MODAL -->
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>

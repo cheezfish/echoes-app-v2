@@ -273,3 +273,31 @@ h1 {
 .leaflet-control-zoom a { background-color: #444 !important; color: #eee !important; border-color: #555 !important; }
 .leaflet-control-attribution { background: rgba(0, 0, 0, 0.6) !important; color: #ccc !important; }
 .leaflet-control-attribution a { color: #87cefa !important; }
+
+/* In client/style.css */
+
+/* === NEW: STYLES FOR DISTANT ECHOES === */
+
+/* Target the container of a distant echo's icon */
+.distant-echo .health-icon-container {
+    filter: grayscale(100%) opacity(0.6);
+    transition: filter 0.3s ease-in-out;
+}
+
+/* On hover, make them slightly more visible to indicate they are clickable */
+.distant-echo:hover .health-icon-container {
+    filter: grayscale(80%) opacity(0.8);
+}
+
+/* Style for the popup of a distant echo */
+.distant-popup .message {
+    font-weight: bold;
+    color: #ffc107;
+    text-align: center;
+}
+.distant-popup .distance {
+    font-size: 0.9em;
+    color: #ccc;
+    text-align: center;
+    margin-top: 5px;
+}

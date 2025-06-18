@@ -5,6 +5,7 @@ const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev'
 
 // --- CONFIG & ICONS ---
 const MAX_RECORDING_SECONDS = 60;
+const INTERACTION_RANGE_METERS = 100; // The close-range for listening
 const ECHO_LIFESPAN_MS = 20 * 24 * 60 * 60 * 1000;
 const centralEchoIconUrl = "https://api.iconify.design/material-symbols:graphic-eq.svg";
 const userLocationIcon = L.divIcon({
@@ -346,34 +347,85 @@ async function fetchEchoesForCurrentView() {
 }
 
 function renderNearbyList(echoes) {
-    nearbyEchoesList.innerHTML = '';
-    if (echoes.length === 0) {
-        nearbyEchoesList.innerHTML = `<p id="empty-message" style="text-align:center; padding: 2rem;">No echoes found in the current map view.</p>`;
+    // 1. FILTER the list to only include echoes within interaction range
+    const nearbyEchoes = echoes.filter(echo => echo.distance_meters <= INTERACTION_RANGE_METERS);
+
+    nearbyEchoesList.innerHTML = ''; // Clear the list
+
+    if (nearbyEchoes.length === 0) {
+        nearbyEchoesList.innerHTML = `<p id="empty-message" style="text-align:center; padding: 2rem;">No echoes are close enough to listen to. Move closer to a signal.</p>`;
         return;
     }
-    echoes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    echoes.forEach(echo => {
+    
+    // The server already sorts by distance, so the closest will be first.
+    
+    // 2. RENDER only the filtered list
+    nearbyEchoes.forEach(echo => {
         const item = document.createElement('div');
-        item.className = 'my-echo-item';
+        item.className = 'my-echo-item'; // Use the same compact style
         item.dataset.echoId = echo.id;
+        
         const recordedDateTime = new Date(echo.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         const locationDisplayName = echo.location_name || 'A Discovered Place';
-        item.innerHTML = `<div class="info-row"><span class="location-name">${locationDisplayName}</span><span class="date-info">by ${echo.username || 'anonymous'}</span></div><audio controls preload="metadata" src="${echo.audio_url}" onplay="window.keepEchoAlive(${echo.id})"></audio><div class="actions-row"><span class="date-info">Recorded: ${recordedDateTime}</span></div>`;
+
+        // Since these are all nearby, the audio player is always active.
+        item.innerHTML = `
+            <div class="info-row">
+                <span class="location-name">${locationDisplayName}</span>
+                <span class="author-info">by ${echo.username || 'anonymous'}</span>
+            </div>
+            <audio controls preload="metadata" src="${echo.audio_url}" onplay="window.keepEchoAlive(${echo.id})"></audio>
+            <div class="meta-row">
+                <span>${formattedDateTime}</span>
+            </div>
+        `;
+        
         item.addEventListener('click', (e) => {
-            if (e.target.tagName !== 'AUDIO' && !e.target.closest('audio')) handleListItemClick(echo.id);
+            if (e.target.tagName !== 'AUDIO' && !e.target.closest('audio')) {
+                handleListItemClick(echo.id);
+            }
         });
         nearbyEchoesList.appendChild(item);
     });
 }
 
+// --- Find and replace the entire renderMapMarkers function ---
+
 function renderMapMarkers(echoes) {
     markers.clearLayers();
     echoMarkersMap.clear();
+
     echoes.forEach(echo => {
+        if (!echo.lat || !echo.lng) return;
+
+        const isWithinInteractionRange = echo.distance_meters <= INTERACTION_RANGE_METERS;
+
+        let popupContent;
+        if (isWithinInteractionRange) {
+            // Normal, interactive popup for nearby echoes
+            const author = echo.username ? `by ${echo.username}` : "by an anonymous user";
+            const locationName = echo.location_name || 'An Echo';
+            popupContent = `<h3>${locationName}</h3><p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p><audio controls preload="none" onplay="window.keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>`;
+        } else {
+            // "Too far" message for distant echoes
+            const distanceKm = (echo.distance_meters / 1000).toFixed(1);
+            popupContent = `<div class="distant-popup"><div class="message">Too far to hear...</div><div class="distance">Get within 100m to listen. (Currently ${distanceKm} km away)</div></div>`;
+        }
+
         const ageMs = new Date() - new Date(echo.last_played_at);
         let healthPercent = Math.max(0, 100 * (1 - (ageMs / ECHO_LIFESPAN_MS)));
         const healthIcon = createHealthIcon(healthPercent, echo.id === highlightedEchoId);
+
         const marker = L.marker([echo.lat, echo.lng], { icon: healthIcon });
+        marker.bindPopup(popupContent);
+
+        // Add a special class to the icon for distant echoes for styling
+        if (!isWithinInteractionRange) {
+            marker.on('add', function() {
+                 if (this._icon) L.DomUtil.addClass(this._icon, 'distant-echo');
+            });
+        }
+        
         marker.on('click', () => handleMarkerClick(echo.id));
         echoMarkersMap.set(echo.id, marker);
         markers.addLayer(marker);

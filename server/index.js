@@ -235,17 +235,26 @@ app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, re
 });
 
 // --- ECHOES ROUTES ---
+
 app.get('/echoes', async (req, res) => {
     const { lat, lng } = req.query;
     if (!lat || !lng) return res.status(400).json({ error: "Latitude and longitude are required." });
+    
+    const DETECTION_RADIUS_METERS = 3000;
     const EXPIRATION_PERIOD = '20 days'; 
+
     try {
         const query = `
-            SELECT e.*, u.username 
-            FROM echoes e LEFT JOIN users u ON e.user_id = u.id 
-            WHERE ST_DWithin(geog, ST_MakePoint($2, $1)::geography, 100)
-              AND e.last_played_at >= NOW() - INTERVAL '${EXPIRATION_PERIOD}'
-            ORDER BY e.created_at DESC;`;
+            SELECT e.*, u.username,
+                   -- This line is CRUCIAL
+                   ST_Distance(geog, ST_MakePoint($2, $1)::geography) as distance_meters
+            FROM echoes e 
+            LEFT JOIN users u ON e.user_id = u.id 
+            WHERE 
+                ST_DWithin(geog, ST_MakePoint($2, $1)::geography, ${DETECTION_RADIUS_METERS})
+                AND e.last_played_at >= NOW() - INTERVAL '${EXPIRATION_PERIOD}'
+            ORDER BY distance_meters ASC;
+        `;
         const result = await pool.query(query, [lat, lng]);
         res.json(result.rows);
     } catch (err) {

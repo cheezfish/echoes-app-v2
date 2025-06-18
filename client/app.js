@@ -164,22 +164,50 @@ async function fetchEchoesForCurrentView() {
     }
 }
 
+// In client/app.js, find the renderNearbyList function and replace it
+
 function renderNearbyList(echoes) {
     nearbyEchoesList.innerHTML = '';
     if (echoes.length === 0) {
         nearbyEchoesList.innerHTML = `<p id="empty-message" style="text-align:center; padding: 2rem;">No echoes found in the current map view.</p>`;
         return;
     }
+    
     echoes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
     echoes.forEach(echo => {
         const item = document.createElement('div');
         item.className = 'my-echo-item';
         item.dataset.echoId = echo.id;
-        const recordedDateTime = new Date(echo.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        
+        // NEW: Date formatting for DD/MM/YY HH:MM
+        const d = new Date(echo.created_at);
+        const day = d.getDate().toString().padStart(2, '0');
+        const month = (d.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
+        const year = d.getFullYear().toString().slice(-2);
+        const hours = d.getHours().toString().padStart(2, '0');
+        const minutes = d.getMinutes().toString().padStart(2, '0');
+        const formattedDateTime = `${day}/${month}/${year} ${hours}:${minutes}`;
+
         const locationDisplayName = echo.location_name || 'A Discovered Place';
-        item.innerHTML = `<div class="info-row"><span class="location-name">${locationDisplayName}</span><span class="date-info">by ${echo.username || 'anonymous'}</span></div><audio controls preload="metadata" src="${echo.audio_url}" onplay="window.keepEchoAlive(${echo.id})"></audio><div class="actions-row"><span class="date-info">Recorded: ${recordedDateTime}</span></div>`;
+
+        // --- NEW CONDENSED HTML STRUCTURE ---
+        item.innerHTML = `
+            <div class="info-row">
+                <span class="location-name">${locationDisplayName}</span>
+                <span class="author-info">by ${echo.username || 'anonymous'}</span>
+            </div>
+            <audio controls preload="metadata" src="${echo.audio_url}" onplay="window.keepEchoAlive(${echo.id})"></audio>
+            <div class="meta-row">
+                <span>${formattedDateTime}</span>
+            </div>
+        `;
+        
         item.addEventListener('click', (e) => {
-            if (e.target.tagName !== 'AUDIO' && !e.target.closest('audio')) handleListItemClick(echo.id);
+            // Prevent click-through when interacting with the audio player
+            if (e.target.tagName !== 'AUDIO' && !e.target.closest('audio')) {
+                handleListItemClick(echo.id);
+            }
         });
         nearbyEchoesList.appendChild(item);
     });

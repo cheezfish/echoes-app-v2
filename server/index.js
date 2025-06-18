@@ -32,7 +32,16 @@ const adminAuthMiddleware = require('./middleware/adminauth');
 const { checkAndAwardAchievements } = require('./services/achievements');
 
 const app = express();
-app.use(cors());
+// =======================================================
+// THE FIX: A MORE EXPLICIT AND ROBUST CORS CONFIGURATION
+// =======================================================
+// Replace the simple `app.use(cors());` with this block.
+const corsOptions = {
+  origin: 'https://echoes-app.netlify.app', // Allow requests ONLY from your Netlify app
+  optionsSuccessStatus: 200 // For legacy browser compatibility
+};
+app.use(cors(corsOptions));
+// =======================================================
 // Increase the limit to allow for Base64 audio data
 app.use(express.json({ limit: '10mb' }));
 

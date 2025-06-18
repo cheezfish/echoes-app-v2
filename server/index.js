@@ -1,4 +1,4 @@
-// server/index.js - FINAL WITH ECHO LIFECYCLE & PRUNING
+// server/index.js - COMPLETE AND UNABRIDGED
 
 require('dotenv').config();
 
@@ -9,6 +9,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
+const https = require('https'); // Required for making API calls
 
 const s3 = new S3Client({
     region: 'auto',
@@ -70,31 +71,27 @@ app.post('/api/users/login', async (req, res) => {
 
 // --- USER-SPECIFIC ROUTES (Protected) ---
 
-// NEW: Endpoint to get all echoes for the currently logged-in user
 app.get('/api/users/my-echoes', authMiddleware, async (req, res) => {
     const userId = req.user.id;
-    console.log(`Fetching echoes for user ID: ${userId}`);
-
     try {
         const query = `
-            SELECT id, w3w_address, audio_url, created_at, play_count
+            SELECT id, w3w_address, audio_url, created_at, last_played_at, play_count, location_name
             FROM echoes
             WHERE user_id = $1
             ORDER BY created_at DESC;
         `;
         const result = await pool.query(query, [userId]);
         res.json(result.rows);
-
     } catch (err) {
         console.error(`Error fetching echoes for user ${userId}:`, err);
         res.status(500).json({ error: 'Server error while fetching your echoes.' });
     }
 });
 
+
 // === ADMIN API ROUTES ===
 
 app.get('/admin/api/echoes', adminAuthMiddleware, async (req, res) => {
-    console.log("Admin request for ALL echoes");
     try {
         const query = `
             SELECT e.*, u.username, 
@@ -113,7 +110,6 @@ app.get('/admin/api/echoes', adminAuthMiddleware, async (req, res) => {
 
 app.delete('/admin/api/echoes/:id', adminAuthMiddleware, async (req, res) => {
     const { id } = req.params;
-    console.log(`Admin request to DELETE echo ID: ${id}`);
     try {
         const deleteQuery = 'DELETE FROM echoes WHERE id = $1 RETURNING *;';
         const result = await pool.query(deleteQuery, [id]);
@@ -129,7 +125,6 @@ app.delete('/admin/api/echoes/:id', adminAuthMiddleware, async (req, res) => {
 
 app.post('/admin/api/echoes/prune', adminAuthMiddleware, async (req, res) => {
     const EXPIRATION_PERIOD = '20 days'; 
-    console.log(`Admin request to PRUNE echoes older than ${EXPIRATION_PERIOD}`);
     try {
         const deleteQuery = `
             DELETE FROM echoes 
@@ -150,7 +145,6 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
     const { lat, lng, w3w_address } = req.body;
     const admin_user_id = req.user.id;
     const file = req.file;
-
     if (!lat || !lng || !w3w_address || !file) {
         return res.status(400).json({ error: 'Latitude, Longitude, Location Name, and an audio file are required.' });
     }
@@ -165,20 +159,16 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
         await s3.send(putCommand);
         const audio_url = `${process.env.R2_PUBLIC_URL_BASE}/${fileName}`;
         const insertQuery = `
-            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at) 
-            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) 
+            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at, location_name) 
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6) 
             RETURNING id;
         `;
-        const insertValues = [w3w_address, audio_url, lat, lng, admin_user_id];
+        const insertValues = [w3w_address, audio_url, lat, lng, admin_user_id, w3w_address]; // Use w3w_address as location_name for seeded echoes
         const insertResult = await pool.query(insertQuery, insertValues);
         const newEchoId = insertResult.rows[0].id;
         const updateQuery = `UPDATE echoes SET geog = ST_MakePoint($1, $2) WHERE id = $3;`;
         await pool.query(updateQuery, [lng, lat, newEchoId]);
-        const finalQuery = `
-            SELECT e.*, u.username 
-            FROM echoes e LEFT JOIN users u ON e.user_id = u.id 
-            WHERE e.id = $1;
-        `;
+        const finalQuery = `SELECT e.*, u.username FROM echoes e LEFT JOIN users u ON e.user_id = u.id WHERE e.id = $1;`;
         const finalResult = await pool.query(finalQuery, [newEchoId]);
         res.status(201).json(finalResult.rows[0]);
     } catch (err) {
@@ -207,12 +197,7 @@ app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, re
          }
     }
     try {
-        const query = `
-            UPDATE users 
-            SET is_admin = NOT is_admin 
-            WHERE id = $1 
-            RETURNING id, username, is_admin;
-        `;
+        const query = `UPDATE users SET is_admin = NOT is_admin WHERE id = $1 RETURNING id, username, is_admin;`;
         const result = await pool.query(query, [id]);
         if (result.rowCount === 0) {
             return res.status(404).json({ error: "User not found." });
@@ -225,10 +210,10 @@ app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, re
 });
 
 // --- ECHOES ROUTES ---
+
 app.get('/echoes', async (req, res) => {
     const { lat, lng } = req.query;
     if (!lat || !lng) return res.status(400).json({ error: "Latitude and longitude are required." });
-    
     const EXPIRATION_PERIOD = '20 days'; 
     try {
         const query = `
@@ -254,30 +239,63 @@ app.post('/echoes', authMiddleware, async (req, res) => {
     if (!w3w_address || !audio_url || lat === undefined || lng === undefined) {
         return res.status(400).json({ error: 'All fields are required' });
     }
+
+    let friendlyLocationName = 'An unknown location';
+    try {
+        const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${process.env.OPENCAGE_API_KEY}&no_annotations=1&limit=1`;
+        const geoData = await new Promise((resolve, reject) => {
+            https.get(geocodeUrl, (apiRes) => {
+                let data = '';
+                apiRes.on('data', chunk => data += chunk);
+                apiRes.on('end', () => resolve(JSON.parse(data)));
+            }).on('error', err => reject(err));
+        });
+
+        if (geoData && geoData.results && geoData.results.length > 0) {
+            const components = geoData.results[0].components;
+            friendlyLocationName = components.road || components.neighbourhood || components.suburb || components.city || components.state || 'A discovered place';
+        }
+    } catch (geoErr) {
+        console.error("Reverse geocoding failed, using default name:", geoErr);
+    }
+
     try {
         const insertQuery = `
-            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at) 
-            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) 
+            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at, location_name) 
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6) 
             RETURNING id;
         `;
-        const insertValues = [w3w_address, audio_url, lat, lng, user_id];
+        const insertValues = [w3w_address, audio_url, lat, lng, user_id, friendlyLocationName];
         const insertResult = await pool.query(insertQuery, insertValues);
         const newEchoId = insertResult.rows[0].id;
 
         const updateQuery = `UPDATE echoes SET geog = ST_MakePoint($1, $2) WHERE id = $3;`;
         await pool.query(updateQuery, [lng, lat, newEchoId]);
 
-        const finalQuery = `
-            SELECT e.*, u.username 
-            FROM echoes e LEFT JOIN users u ON e.user_id = u.id 
-            WHERE e.id = $1;
-        `;
+        const finalQuery = `SELECT e.*, u.username FROM echoes e LEFT JOIN users u ON e.user_id = u.id WHERE e.id = $1;`;
         const finalResult = await pool.query(finalQuery, [newEchoId]);
 
         res.status(201).json(finalResult.rows[0]);
     } catch (err) {
         console.error('Create Echo DB Error:', err);
         res.status(500).json({ error: 'Failed to save echo to database.' });
+    }
+});
+
+// NEW route for user to delete their own echo
+app.delete('/api/echoes/:id', authMiddleware, async (req, res) => {
+    const echoId = req.params.id;
+    const userId = req.user.id;
+    try {
+        const deleteQuery = 'DELETE FROM echoes WHERE id = $1 AND user_id = $2 RETURNING *;';
+        const result = await pool.query(deleteQuery, [echoId, userId]);
+        if (result.rowCount === 0) {
+            return res.status(403).json({ error: "Action not permitted." });
+        }
+        res.json({ message: "Echo deleted successfully." });
+    } catch (err) {
+        console.error(`Error deleting echo ${echoId} by user ${userId}:`, err);
+        res.status(500).json({ error: "Server error while deleting echo." });
     }
 });
 

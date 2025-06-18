@@ -1,6 +1,5 @@
 /* Styles for the "My Echoes" page */
 
-/* Ensure the background is black, overriding any defaults */
 body {
     background-color: #000 !important;
 }
@@ -10,9 +9,8 @@ body {
     max-width: 800px;
     margin: 0 auto;
     width: 100%;
-    /* Allow this page to scroll if the list is long */
     overflow-y: auto;
-    height: calc(100vh - 50px); /* Full height minus header */
+    height: calc(100vh - 50px);
 }
 
 .page-header {
@@ -75,4 +73,46 @@ body {
     font-size: 1.2rem;
     color: #888;
     padding: 3rem 0;
+}
+
+.my-echo-item .details-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #999;
+    border-top: 1px solid #333;
+    padding-top: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.expiry-info {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.expiry-info img {
+    width: 16px;
+    height: 16px;
+}
+
+.delete-btn {
+    background: none;
+    border: 1px solid #d9534f;
+    color: #d9534f;
+    padding: 0.3em 0.8em;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+.delete-btn:hover {
+    background: #d9534f;
+    color: white;
+}
+.delete-btn:disabled {
+    border-color: #555;
+    color: #555;
+    background: none;
+    cursor: not-allowed;
 }

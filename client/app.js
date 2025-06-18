@@ -29,13 +29,63 @@ let isUserInVicinity = false;
 // --- NEW: DYNAMIC PROMPT STATE ---
 let promptInterval = null;
 const promptMessages = [
-    "What does your street sound like right now?", "Capture the sound of the wind.", "Record the quietest place you can find.",
-    "Find a unique sound nobody has heard.", "What does happiness sound like?", "Record the sound of your commute.",
-    "Capture the ambience of a local cafe.", "What is the sound of nature near you?"
+    // --- The Direct Invitation ---
+    "Leave a message for the next person who stands here.",
+    "What do you want to tell the world today?",
+    "Your voice can travel through time. What will it say?",
+    "Someone, somewhere, will hear this. Speak to them.",
+    "This is your mark on the world. Make it count.",
+
+    // --- The Introspective & Vulnerable ---
+    "Share a thought. A secret. A hope.",
+    "What's a piece of advice you wish you'd received?",
+    "Admit a small, harmless truth.",
+    "What's on your mind in this exact moment?",
+    "Whisper a dream you've never said out loud.",
+
+    // --- The Creative & Playful ---
+    "Sing the first line of a song that's in your head.",
+    "Tell a one-sentence story about this place.",
+    "Describe the color of the sky without using its name.",
+    "Recite a line from your favorite poem or movie.",
+    "Make a sound that represents your current mood.",
+
+    // --- The Kind & Uplifting ---
+    "Turn a stranger's day around. Leave some kindness.",
+    "Offer a word of encouragement to whoever finds this.",
+    "Remind someone that they're doing a good job.",
+    "Share something that made you smile today.",
+    "Leave a message of hope.",
+
+    // --- The Philosophical & Grand ---
+    "Leave a piece of your story in this place.",
+    "If you could ask the future one question, what would it be?",
+    "What does it mean to be here, right now?",
+    "Add your voice to the history of this spot.",
+    "What is a truth you've learned the hard way?"
 ];
 const recordingMessages = [
-    "Great sound...", "Keep it steady.", "Listen closely.", "You're capturing a unique moment.",
-    "A perfect echo.", "What a vibe...", "This is a good one."
+    // --- Confirmation & Connection ---
+    "They're listening...",
+    "Your voice, traveling.",
+    "Someone will find this.",
+    "A perfect transmission.",
+    "Sending it out into the world.",
+    "Message received.",
+
+    // --- Affirmation & Value ---
+    "This is a gift.",
+    "Leaving your mark.",
+    "A true echo.",
+    "This is a good one.",
+    "A future memory.",
+    
+    // --- Poetic & Abstract ---
+    "A message in a bottle for the future.",
+    "Etching this into time.",
+    "The aether is listening.",
+    "A beautiful waveform.",
+    "History is being recorded."
 ];
 
 // --- UI ELEMENT CACHE ---

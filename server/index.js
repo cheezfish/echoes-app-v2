@@ -139,13 +139,14 @@ app.post('/admin/api/echoes/prune', adminAuthMiddleware, async (req, res) => {
     }
 });
 
-// --- THIS IS THE CORRECTED SEEDING ENDPOINT ---
+// In server/index.js
+
+// --- THIS IS THE FINAL, CORRECTED SEEDING ENDPOINT ---
 app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile'), async (req, res) => {
-    const { lat, lng, w3w_address: location_name } = req.body;
+    // The name of the location from the form
+    const { lat, lng, w3w_address: location_name } = req.body; 
     const admin_user_id = req.user.id;
     const file = req.file;
-
-    console.log('[SEED] Received request to seed echo:', { location_name, lat, lng });
 
     if (!lat || !lng || !location_name || !file) {
         return res.status(400).json({ error: 'All fields are required.' });
@@ -153,11 +154,9 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
 
     let duration = 0;
     try {
-        console.log(`[SEED] Analyzing duration for: ${file.originalname}`);
         const metadata = await mm.parseBuffer(file.buffer, file.mimetype);
         duration = Math.round(metadata.format.duration || 0);
         if (duration === 0) throw new Error('Failed to extract a valid duration.');
-        console.log(`[SEED] Detected duration: ${duration} seconds.`);
     } catch (err) {
         console.error('[SEED] ERROR during metadata analysis:', err);
         return res.status(500).json({ error: 'Failed to process audio file metadata.' });
@@ -165,36 +164,30 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
 
     try {
         const fileName = `seeded_echo_${Date.now()}_${file.originalname.replace(/\s/g, '_')}`;
-        console.log(`[SEED] Uploading to R2 as: ${fileName}`);
         const putCommand = new PutObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME, Key: fileName, Body: file.buffer, ContentType: file.mimetype,
         });
         await s3.send(putCommand);
-
-        // =========================================================================
-        //  THE CRITICAL FIX IS HERE
-        // =========================================================================
-        // Instead of relying on a potentially problematic process.env variable,
-        // we use the known, correct, hardcoded public URL base, just like the client does.
+        
         const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev';
         const audio_url = `${R2_PUBLIC_URL_BASE}/${fileName}`;
-        // =========================================================================
         
-        console.log(`[SEED] R2 Upload successful. Constructed URL: ${audio_url}`);
-
-        console.log('[SEED] Inserting record into database...');
         const insertQuery = `
             INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at, location_name, duration_seconds) 
             VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7) 
             RETURNING id;
         `;
-        const w3w_placeholder = `seeded_at_${lat}_${lng}`;
-        const insertValues = [w3w_placeholder, audio_url, lat, lng, admin_user_id, location_name, duration];
+        
+        // =========================================================================
+        //  THE CRITICAL FIX IS HERE
+        // =========================================================================
+        // We now save the human-readable `location_name` to BOTH columns to ensure it always displays correctly.
+        const insertValues = [location_name, audio_url, lat, lng, admin_user_id, location_name, duration];
+        // =========================================================================
+
         const insertResult = await pool.query(insertQuery, insertValues);
         const newEchoId = insertResult.rows[0].id;
         
-        console.log(`[SEED] Database insert successful. New Echo ID: ${newEchoId}`);
-
         const updateQuery = `UPDATE echoes SET geog = ST_MakePoint($1, $2) WHERE id = $3;`;
         await pool.query(updateQuery, [lng, lat, newEchoId]);
         
@@ -208,7 +201,6 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
         res.status(500).json({ error: 'Failed to save echo due to a server error.' });
     }
 });
-
 
 app.get('/admin/api/users', adminAuthMiddleware, async (req, res) => {
     try {

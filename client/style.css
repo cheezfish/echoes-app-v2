@@ -1,18 +1,20 @@
-/* client/style.css - FINAL ROBUST VERSION WITH GRID HEADER & CUSTOM ICON */
+/* client/style.css - FINAL WITH PERSISTENT LIST LAYOUT */
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body, main { 
+body { 
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+    display: flex; 
+    flex-direction: column; 
+    height: 100vh; 
     overflow: hidden; 
-    background-color: #000 !important; /* FIX: Force true black background */
+    background-color: #000 !important;
     color: #eee; 
 }
-body { display: flex; flex-direction: column; height: 100vh; }
 
-/* --- ROBUST HEADER FIX (CSS GRID) --- */
 header {
     flex-shrink: 0;
-    background-color: #000000;
+    background-color: #111;
     color: white;
     z-index: 1001;
     padding: 0.5rem 1rem;
@@ -20,11 +22,12 @@ header {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
+    border-bottom: 1px solid #333;
 }
 
 h1 {
-    grid-column: 1 / 3; /* Changed to center align correctly */
-    justify-self: left; 
+    grid-column: 2 / 3;
+    justify-self: center; 
     margin: 0;
     font-size: 1.25rem;
 }
@@ -35,91 +38,139 @@ h1 {
     display: flex;
     align-items: center;
 }
-/* --- END HEADER FIX --- */
 
-main {
-    flex-grow: 1; 
-    display: flex;
-    flex-direction: column;
-    position: relative; 
+/* === NEW MAIN LAYOUT: CSS GRID === */
+#main-content-grid {
+    display: grid;
+    grid-template-columns: 1fr; 
+    grid-template-rows: 60vh 1fr; /* Map takes 60% height on mobile */
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+/* On desktop, switch to a two-column layout */
+@media (min-width: 768px) {
+    #main-content-grid {
+        grid-template-columns: 1fr 400px; /* Map | Sidebar */
+        grid-template-rows: 1fr; /* Reset rows to take full height */
+    }
+}
+
+#map-container {
+    position: relative;
+    display: flex; /* This ensures the map inside fills the container */
 }
 
 #map {
     flex-grow: 1;  
     width: 100%;
     background-color: #000 !important;
-    position: relative; 
 }
 
-/* --- USER LOCATION ICON & PULSE FIX --- */
-.user-location-marker {
-    position: relative;
+/* === NEW NEARBY ECHOES PANEL === */
+#nearby-echoes-panel {
+    background-color: #121212;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    overflow: hidden; /* Important for containing scrolling children */
+}
+@media (min-width: 768px) {
+    #nearby-echoes-panel {
+        border-left: 1px solid #333; /* Separator on desktop */
+    }
+}
+@media (max-width: 767px) {
+    #nearby-echoes-panel {
+        border-top: 1px solid #333; /* Separator on mobile */
+    }
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background-color: #1a1a1a;
+    flex-shrink: 0;
+    border-bottom: 1px solid #333;
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+#status-message {
+    padding: 0.5rem 1rem;
+    background-color: #1f1f1f;
+    font-style: italic;
+    color: #aaa;
+    flex-shrink: 0;
+    min-height: 2.2em;
+    display: flex;
     align-items: center;
 }
-.user-location-marker img {
-    z-index: 2;
-    width: 32px;
-    height: 32px;
-}
-.user-location-marker .pulse {
-    position: absolute;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background-color: rgba(0, 123, 255, 0.7);
-    animation: pulse-beacon 2s infinite ease-out;
-    z-index: 1;
-}
+#status-message.info { color: #bbb; }
+#status-message.success { color: #28a745; }
+#status-message.error { color: #dc3545; }
 
-@keyframes pulse-beacon {
-    0% { transform: scale(0.5); opacity: 0.8; }
-    80% { transform: scale(2.5); opacity: 0; }
-    100% { opacity: 0; }
-}
-/* --- END ICON FIX --- */
-
-#info-panel {
-    flex-shrink: 0; 
-    height: 220px; 
-    padding: 1rem;
-    text-align: center;
-    background-color: #000000;
-    border-top: 1px solid #ffffff;
+#nearby-echoes-list {
     overflow-y: auto;
-    color: #ccc;
+    flex-grow: 1;
+    padding: 0 0.5rem;
 }
-#info-panel h2 { font-size: 1.1rem; margin-bottom: 0.5rem; color: #eee; }
 
+/* We re-use .my-echo-item styles from my-echoes.css */
+/* Add highlight style for interactivity */
+#nearby-echoes-list .my-echo-item {
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+    margin: 0.75rem 0.5rem;
+}
+
+#nearby-echoes-list .my-echo-item:hover {
+    background-color: #2a2a2a;
+    border-color: #555;
+}
+
+#nearby-echoes-list .my-echo-item.highlighted {
+    background-color: #007bff;
+    border-color: #0056b3;
+    color: white !important;
+}
+#nearby-echoes-list .my-echo-item.highlighted .date-info,
+#nearby-echoes-list .my-echo-item.highlighted .location-name {
+    color: white;
+}
+
+/* --- OTHER STYLES (Unchanged but included for completeness) --- */
+.auth-btn { padding: 5px 10px; font-size: 14px; margin-left: 5px; }
+#welcome-message { margin-right: 10px; font-weight: bold; color: white; }
 button { font-size: 1rem; padding: 0.6em 1.2em; margin: 0.3em; border-radius: 6px; border: none; cursor: pointer; background-color: #007bff; color: white; font-weight: bold; transition: background-color 0.2s ease, transform 0.1s ease; }
 button:disabled { background-color: #555; cursor: not-allowed; }
 button:hover:not(:disabled) { background-color: #0056b3; }
 button:active:not(:disabled) { transform: scale(0.98); }
 
-.auth-btn { padding: 5px 10px; font-size: 14px; margin-left: 5px; }
-#welcome-message { margin-right: 10px; font-weight: bold; color: white; }
-
 #find-me-btn { 
-    position: absolute; 
-    bottom: 20px; 
-    right: 10px; 
-    z-index: 999; 
-    padding: 8px; 
-    line-height: 0; 
-    border-radius: 50%; 
-    background-color: rgba(0, 123, 255, 0.7); 
-    border: 1px solid rgba(255, 255, 255, 0.7); 
+    position: absolute; bottom: 20px; right: 10px; z-index: 401; padding: 8px; line-height: 0; border-radius: 50%; background-color: rgba(0, 123, 255, 0.7); border: 1px solid rgba(255, 255, 255, 0.7); 
 }
 #find-me-btn img { width: 24px; height: 24px; vertical-align: middle; }
 
-.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:flex;justify-content:center;align-items:center;z-index:1005; padding: 1rem;}
-.modal-content{background-color:#3a3a3a;color:#eee;padding:1.5rem;border-radius:8px;width:90%;max-width:500px;position:relative;box-shadow:0 5px 15px rgba(0,0,0,.5);
-    /* FIX: Set max-height and use flexbox to prepare for scrolling */
-    max-height: 85vh;
-    display: flex;
-    flex-direction: column;
-}
+.user-location-marker { position: relative; display: flex; justify-content: center; align-items: center; }
+.user-location-marker img { z-index: 2; width: 32px; height: 32px; }
+.user-location-marker .pulse { position: absolute; width: 32px; height: 32px; border-radius: 50%; background-color: rgba(0, 123, 255, 0.7); animation: pulse-beacon 2s infinite ease-out; z-index: 1; }
+@keyframes pulse-beacon { 0% { transform: scale(0.5); opacity: 0.8; } 80% { transform: scale(2.5); opacity: 0; } 100% { opacity: 0; } }
+
+.health-icon-container { position: relative; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; transition: transform 0.2s ease-in-out; }
+.health-icon-container:hover { transform: scale(1.2); }
+.health-icon-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.health-icon-svg circle { fill: none; stroke-width: 3; }
+.health-ring-bg { stroke: rgba(255, 255, 255, 0.2); }
+.health-ring-fg { stroke-linecap: round; transition: stroke-dashoffset 0.5s ease-out, stroke 0.5s ease-out; }
+.health-icon-inner { width: 28px; height: 28px; position: relative; z-index: 1; }
+
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:flex;justify-content:center;align-items:center;z-index:1005}
+.modal-content{background-color:#3a3a3a;color:#eee;padding:1.5rem;border-radius:8px;width:90%;max-width:500px;position:relative;box-shadow:0 5px 15px rgba(0,0,0,.5); display: flex; flex-direction: column; }
 .close-btn{position:absolute;top:10px;right:15px;font-size:28px;font-weight:700;border:none;background:0 0;cursor:pointer;color:#aaa}
 .close-btn:hover{color:#fff}
 .form-group{margin-bottom:1rem}
@@ -127,113 +178,10 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .form-group input{width:100%;padding:.5rem;font-size:1rem;border:1px solid #555;border-radius:4px;background-color:#555;color:#eee;}
 #modal-submit-btn{width:100%;margin-top:1rem}
 .error-message{color:#ffc107;margin-top:1rem;text-align:center;min-height:1em}
-#status-message{min-height:1.2em;margin:.5rem 0;font-weight:500;transition:color .3s ease}
-#status-message.info{color:#bbb}
-#status-message.success{color:#28a745}
-#status-message.error{color:#dc3545}
-.is-recording{animation:pulse 1.5s infinite; background-color: #dc3545 !important;}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(220,53,69,.7)}70%{box-shadow:0 0 0 10px rgba(220,53,69,0)}100%{box-shadow:0 0 0 0 rgba(220,53,69,0)}}
 
-/* --- CLUSTER MODAL FIXES --- */
-#cluster-modal-title {
-    margin-bottom: 1rem; /* Add space below title */
-    flex-shrink: 0; /* Prevent title from shrinking */
-}
-
-#cluster-echo-list {
-    /* FIX: This makes the list scrollable */
-    overflow-y: auto;
-    flex-grow: 1; /* Allow list to fill available space */
-    padding-right: 10px; /* Space for the scrollbar */
-}
-
-.echo-item {
-    /* FIX: Better styling for each item */
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem; /* Space between info and audio player */
-    padding: 1rem 0;
-    border-bottom: 1px solid #555;
-}
-
-.echo-item:first-child {
-    padding-top: 0;
-}
-
-.echo-item:last-child {
-    border-bottom: none;
-}
-
-.echo-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9rem;
-}
-
-.echo-author {
-    font-weight: bold;
-    color: #fff;
-}
-
-.echo-date {
-    color: #ccc;
-    font-size: 0.8rem;
-}
-
-#cluster-echo-list audio {
-    width: 100%;
-}
-/* --- END CLUSTER MODAL FIXES --- */
-
+.is-recording{animation:pulse-record 1.5s infinite; background-color: #dc3545 !important;}
+@keyframes pulse-record{0%{box-shadow:0 0 0 0 rgba(220,53,69,.7)}70%{box-shadow:0 0 0 10px rgba(220,53,69,0)}100%{box-shadow:0 0 0 0 rgba(220,53,69,0)}}
 
 .leaflet-control-zoom a { background-color: #444 !important; color: #eee !important; border-color: #555 !important; }
 .leaflet-control-attribution { background: rgba(0, 0, 0, 0.6) !important; color: #ccc !important; }
 .leaflet-control-attribution a { color: #87cefa !important; }
-
-/* === NEW: ECHO HEALTH RING ICON STYLES === */
-
-.health-icon-container {
-    position: relative;
-    width: 40px;  /* Increased size for visibility */
-    height: 40px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    transition: transform 0.2s ease-in-out;
-}
-
-.health-icon-container:hover {
-    transform: scale(1.2);
-}
-
-.health-icon-svg {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    transform: rotate(-90deg); /* Start the circle from the top */
-    overflow: visible; /* Prevent clipping of stroke */
-}
-
-.health-icon-svg circle {
-    fill: none;
-    stroke-width: 3; /* Thickness of the ring */
-}
-
-.health-ring-bg {
-    stroke: rgba(255, 255, 255, 0.2); /* The faint background track */
-}
-
-.health-ring-fg {
-    stroke-linecap: round; /* Makes the ends of the health bar rounded */
-    transition: stroke-dashoffset 0.5s ease-out, stroke 0.5s ease-out;
-}
-
-.health-icon-inner {
-    width: 28px;  /* The inner icon (sound wave) */
-    height: 28px;
-    position: relative;
-    z-index: 1;
-}

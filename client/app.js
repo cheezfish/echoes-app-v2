@@ -346,29 +346,33 @@ async function fetchEchoesForCurrentView() {
     }
 }
 
+// --- Find and replace the renderNearbyList function ---
 function renderNearbyList(echoes) {
-    // 1. FILTER the list to only include echoes within interaction range
+    // 1. FILTER the list based on the new, accurate distance_meters property
+    //    that was added in renderMapMarkers.
     const nearbyEchoes = echoes.filter(echo => echo.distance_meters <= INTERACTION_RANGE_METERS);
 
-    nearbyEchoesList.innerHTML = ''; // Clear the list
+    nearbyEchoesList.innerHTML = '';
 
     if (nearbyEchoes.length === 0) {
-        nearbyEchoesList.innerHTML = `<p id="empty-message" style="text-align:center; padding: 2rem;">No echoes are close enough to listen to. Move closer to a signal.</p>`;
+        const message = currentUserPosition ? "No echoes are within listening range. Move closer to a signal." : "Click the compass to find echoes near you.";
+        nearbyEchoesList.innerHTML = `<p id="empty-message" style="text-align:center; padding: 2rem;">${message}</p>`;
         return;
     }
     
-    // The server already sorts by distance, so the closest will be first.
+    // Sort the listenable echoes by their actual distance to the user
+    nearbyEchoes.sort((a, b) => a.distance_meters - b.distance_meters);
     
     // 2. RENDER only the filtered list
     nearbyEchoes.forEach(echo => {
         const item = document.createElement('div');
-        item.className = 'my-echo-item'; // Use the same compact style
+        item.className = 'my-echo-item';
         item.dataset.echoId = echo.id;
         
         const recordedDateTime = new Date(echo.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         const locationDisplayName = echo.location_name || 'A Discovered Place';
-
-        // Since these are all nearby, the audio player is always active.
+        
+        // The audio player is always active here because we've already filtered.
         item.innerHTML = `
             <div class="info-row">
                 <span class="location-name">${locationDisplayName}</span>
@@ -391,35 +395,49 @@ function renderNearbyList(echoes) {
 
 // --- Find and replace the entire renderMapMarkers function ---
 
+// --- Find and replace the renderMapMarkers function ---
 function renderMapMarkers(echoes) {
     markers.clearLayers();
     echoMarkersMap.clear();
 
+    if (!currentUserPosition) {
+        // If we don't know the user's location, we can't calculate distance.
+        // Treat all echoes as distant for now.
+        console.warn("Cannot calculate true distance; currentUserPosition is not set.");
+    }
+    const userLatLng = currentUserPosition ? L.latLng(currentUserPosition.lat, currentUserPosition.lng) : null;
+
     echoes.forEach(echo => {
         if (!echo.lat || !echo.lng) return;
 
-        const isWithinInteractionRange = echo.distance_meters <= INTERACTION_RANGE_METERS;
+        const echoLatLng = L.latLng(echo.lat, echo.lng);
+        
+        // --- NEW: Client-side distance calculation ---
+        // Calculate distance from the USER's actual position, not the map center.
+        const distanceToUser = userLatLng ? userLatLng.distanceTo(echoLatLng) : Infinity;
+        const isWithinInteractionRange = distanceToUser <= INTERACTION_RANGE_METERS;
+        
+        // Add this new property to the echo object for use in the list renderer.
+        echo.distance_meters = distanceToUser;
 
         let popupContent;
         if (isWithinInteractionRange) {
-            // Normal, interactive popup for nearby echoes
             const author = echo.username ? `by ${echo.username}` : "by an anonymous user";
             const locationName = echo.location_name || 'An Echo';
             popupContent = `<h3>${locationName}</h3><p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p><audio controls preload="none" onplay="window.keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>`;
         } else {
-            // "Too far" message for distant echoes
-            const distanceKm = (echo.distance_meters / 1000).toFixed(1);
-            popupContent = `<div class="distant-popup"><div class="message">Too far to hear...</div><div class="distance">Get within 100m to listen. (Currently ${distanceKm} km away)</div></div>`;
+            const distanceDisplay = distanceToUser < 1000 ? `${Math.round(distanceToUser)}m` : `${(distanceToUser / 1000).toFixed(1)}km`;
+            const message = userLatLng ? `Get within 100m to listen. (Currently ${distanceDisplay} away)` : `Find your location to interact with echoes.`;
+            popupContent = `<div class="distant-popup"><div class="message">Too far to hear...</div><div class="distance">${message}</div></div>`;
         }
 
         const ageMs = new Date() - new Date(echo.last_played_at);
         let healthPercent = Math.max(0, 100 * (1 - (ageMs / ECHO_LIFESPAN_MS)));
         const healthIcon = createHealthIcon(healthPercent, echo.id === highlightedEchoId);
 
-        const marker = L.marker([echo.lat, echo.lng], { icon: healthIcon });
+        const marker = L.marker(echoLatLng, { icon: healthIcon });
         marker.bindPopup(popupContent);
 
-        // Add a special class to the icon for distant echoes for styling
         if (!isWithinInteractionRange) {
             marker.on('add', function() {
                  if (this._icon) L.DomUtil.addClass(this._icon, 'distant-echo');

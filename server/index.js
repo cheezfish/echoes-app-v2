@@ -236,25 +236,27 @@ app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, re
 
 // --- ECHOES ROUTES ---
 
+
+// --- REVERTED ECHOES ROUTE ---
 app.get('/echoes', async (req, res) => {
     const { lat, lng } = req.query;
     if (!lat || !lng) return res.status(400).json({ error: "Latitude and longitude are required." });
     
+    // We fetch everything in the large 3km radius of the MAP VIEW.
+    // The client will do the precise distance calculation from the USER's position.
     const DETECTION_RADIUS_METERS = 3000;
     const EXPIRATION_PERIOD = '20 days'; 
 
     try {
         const query = `
-            SELECT e.*, u.username,
-                   -- This line is CRUCIAL
-                   ST_Distance(geog, ST_MakePoint($2, $1)::geography) as distance_meters
+            SELECT e.*, u.username
             FROM echoes e 
             LEFT JOIN users u ON e.user_id = u.id 
             WHERE 
                 ST_DWithin(geog, ST_MakePoint($2, $1)::geography, ${DETECTION_RADIUS_METERS})
-                AND e.last_played_at >= NOW() - INTERVAL '${EXPIRATION_PERIOD}'
-            ORDER BY distance_meters ASC;
+                AND e.last_played_at >= NOW() - INTERVAL '${EXPIRATION_PERIOD}';
         `;
+        // Removed the ORDER BY distance_meters, as it's no longer calculated here.
         const result = await pool.query(query, [lat, lng]);
         res.json(result.rows);
     } catch (err) {

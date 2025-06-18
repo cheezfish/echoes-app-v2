@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Achievements</title>
+    <!-- We link to the main style.css for consistency and add our own -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="my-echoes.css"> <!-- Re-use some styles -->
+    <link rel="stylesheet" href="achievements.css">
+</head>
+<body>
+    <header>
+        <h1>Achievements</h1>
+        <div id="user-auth-container">
+            <!-- This will be populated by achievements.js -->
+        </div>
+    </header>
+
+    <main class="achievements-main">
+        <div class="page-header">
+            <a href="index.html" class="back-link">← Back to Map</a>
+        </div>
+        
+        <div id="achievements-grid-container">
+            <p id="loading-message">Loading your achievements...</p>
+            <!-- Achievement cards will be dynamically inserted here -->
+        </div>
+    </main>
+
+    <script src="achievements.js"></script>
+</body>
+</html>

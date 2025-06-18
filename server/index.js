@@ -29,6 +29,7 @@ const upload = multer({
 const pool = require('./db');
 const authMiddleware = require('./middleware/auth');
 const adminAuthMiddleware = require('./middleware/adminauth');
+const { checkAndAwardAchievements } = require('./services/achievements');
 
 const app = express();
 app.use(cors());
@@ -87,6 +88,38 @@ app.get('/api/users/my-echoes', authMiddleware, async (req, res) => {
     } catch (err) {
         console.error(`Error fetching echoes for user ${userId}:`, err);
         res.status(500).json({ error: 'Server error while fetching your echoes.' });
+    }
+});
+
+// NEW: Endpoint to get ALL possible achievements and which ones the user has unlocked
+app.get('/api/achievements', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        // This query fetches all achievements and LEFT JOINS the user's unlocked achievements.
+        // If a user has an achievement, user_id will be their ID. If not, it will be NULL.
+        const query = `
+            SELECT 
+                a.id, 
+                a.name, 
+                a.description, 
+                a.icon,
+                ua.unlocked_at
+            FROM 
+                achievements a
+            LEFT JOIN 
+                user_achievements ua ON a.id = ua.achievement_id AND ua.user_id = $1
+            ORDER BY
+                ua.unlocked_at DESC, a.id;
+        `;
+        const result = await pool.query(query, [userId]);
+        
+        // The result will be a list of all achievements.
+        // Each will have an `unlocked_at` field which is either a date or null.
+        res.json(result.rows);
+
+    } catch (err) {
+        console.error(`Error fetching achievements for user ${userId}:`, err);
+        res.status(500).json({ error: 'Server error while fetching achievements.' });
     }
 });
 
@@ -322,6 +355,9 @@ app.post('/echoes', authMiddleware, async (req, res) => {
         const finalQuery = `SELECT e.*, u.username FROM echoes e LEFT JOIN users u ON e.user_id = u.id WHERE e.id = $1;`;
         const finalResult = await pool.query(finalQuery, [newEchoId]);
 
+        // NEW: Trigger achievement check in the background
+        checkAndAwardAchievements(user_id, 'LEAVE_ECHO', { newEcho: finalResult.rows[0] });
+
         res.status(201).json(finalResult.rows[0]);
     } catch (err) {
         console.error('Create Echo DB Error:', err);
@@ -345,13 +381,32 @@ app.delete('/api/echoes/:id', authMiddleware, async (req, res) => {
     }
 });
 
-app.post('/api/echoes/:id/play', async (req, res) => {
+// In server/index.js, inside the POST /api/echoes/:id/play route
+
+app.post('/api/echoes/:id/play', authMiddleware, async (req, res) => { // Added authMiddleware here
     const { id } = req.params;
+    const userId = req.user.id; // We need the user's ID to check achievements
     try {
-        const query = `UPDATE echoes SET last_played_at = CURRENT_TIMESTAMP, play_count = play_count + 1 WHERE id = $1 RETURNING id, play_count, last_played_at;`;
+        const query = `
+            UPDATE echoes SET last_played_at = CURRENT_TIMESTAMP, play_count = play_count + 1
+            WHERE id = $1 RETURNING *;
+        `;
         const result = await pool.query(query, [id]);
         if (result.rowCount === 0) return res.status(404).json({ error: "Echo not found." });
-        res.status(200).json(result.rows[0]);
+        
+        const listenedEcho = result.rows[0];
+
+        // NEW: Trigger achievement check in the background
+        // We only check if the user is listening to someone else's echo
+        if (listenedEcho.user_id !== userId) {
+            checkAndAwardAchievements(userId, 'LISTEN_ECHO', { listenedEcho });
+        }
+        
+        // Also check if the original creator has hit the Century Club
+        checkAndAwardAchievements(listenedEcho.user_id, 'LISTEN_ECHO', { listenedEcho });
+
+
+        res.status(200).json(listenedEcho);
     } catch (err) {
         console.error(`Error updating play count for echo ${id}:`, err);
         res.status(500).send("Server Error");

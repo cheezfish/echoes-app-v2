@@ -9,7 +9,8 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
-const https = require('https'); // Required for making API calls
+const https = require('https');
+const mm = require('music-metadata'); // For reading audio duration
 
 const s3 = new S3Client({
     region: 'auto',
@@ -31,7 +32,8 @@ const adminAuthMiddleware = require('./middleware/adminauth');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// Increase the limit to allow for Base64 audio data
+app.use(express.json({ limit: '10mb' }));
 
 // --- USER AUTH ROUTES ---
 app.post('/api/users/register', async (req, res) => {
@@ -69,13 +71,13 @@ app.post('/api/users/login', async (req, res) => {
     }
 });
 
-// --- USER-SPECIFIC ROUTES (Protected) ---
 
+// --- USER-SPECIFIC ROUTES (Protected) ---
 app.get('/api/users/my-echoes', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     try {
         const query = `
-            SELECT id, w3w_address, audio_url, created_at, last_played_at, play_count, location_name
+            SELECT id, w3w_address, audio_url, created_at, last_played_at, play_count, location_name, duration_seconds
             FROM echoes
             WHERE user_id = $1
             ORDER BY created_at DESC;
@@ -90,7 +92,6 @@ app.get('/api/users/my-echoes', authMiddleware, async (req, res) => {
 
 
 // === ADMIN API ROUTES ===
-
 app.get('/admin/api/echoes', adminAuthMiddleware, async (req, res) => {
     try {
         const query = `
@@ -126,10 +127,7 @@ app.delete('/admin/api/echoes/:id', adminAuthMiddleware, async (req, res) => {
 app.post('/admin/api/echoes/prune', adminAuthMiddleware, async (req, res) => {
     const EXPIRATION_PERIOD = '20 days'; 
     try {
-        const deleteQuery = `
-            DELETE FROM echoes 
-            WHERE last_played_at < NOW() - INTERVAL '${EXPIRATION_PERIOD}';
-        `;
+        const deleteQuery = `DELETE FROM echoes WHERE last_played_at < NOW() - INTERVAL '${EXPIRATION_PERIOD}';`;
         const result = await pool.query(deleteQuery);
         res.json({ 
             msg: `Pruning complete. ${result.rowCount} expired echo(es) deleted.`,
@@ -142,28 +140,29 @@ app.post('/admin/api/echoes/prune', adminAuthMiddleware, async (req, res) => {
 });
 
 app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile'), async (req, res) => {
-    const { lat, lng, w3w_address } = req.body;
+    const { lat, lng, w3w_address: location_name } = req.body; // Capture descriptive name
     const admin_user_id = req.user.id;
     const file = req.file;
-    if (!lat || !lng || !w3w_address || !file) {
+    if (!lat || !lng || !location_name || !file) {
         return res.status(400).json({ error: 'Latitude, Longitude, Location Name, and an audio file are required.' });
     }
-    const fileName = `seeded_echo_${Date.now()}_${file.originalname}`;
-    const putCommand = new PutObjectCommand({
-        Bucket: process.env.R2_BUCKET_NAME,
-        Key: fileName,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-    });
     try {
+        const metadata = await mm.parseBuffer(file.buffer, file.mimetype);
+        const duration = Math.round(metadata.format.duration || 0);
+
+        const fileName = `seeded_echo_${Date.now()}_${file.originalname}`;
+        const putCommand = new PutObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME, Key: fileName, Body: file.buffer, ContentType: file.mimetype,
+        });
         await s3.send(putCommand);
         const audio_url = `${process.env.R2_PUBLIC_URL_BASE}/${fileName}`;
+        
         const insertQuery = `
-            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at, location_name) 
-            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6) 
+            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at, location_name, duration_seconds) 
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7) 
             RETURNING id;
         `;
-        const insertValues = [w3w_address, audio_url, lat, lng, admin_user_id, w3w_address]; // Use w3w_address as location_name for seeded echoes
+        const insertValues = [`seeded_at_${lat}_${lng}`, audio_url, lat, lng, admin_user_id, location_name, duration];
         const insertResult = await pool.query(insertQuery, insertValues);
         const newEchoId = insertResult.rows[0].id;
         const updateQuery = `UPDATE echoes SET geog = ST_MakePoint($1, $2) WHERE id = $3;`;
@@ -210,7 +209,6 @@ app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, re
 });
 
 // --- ECHOES ROUTES ---
-
 app.get('/echoes', async (req, res) => {
     const { lat, lng } = req.query;
     if (!lat || !lng) return res.status(400).json({ error: "Latitude and longitude are required." });
@@ -218,13 +216,10 @@ app.get('/echoes', async (req, res) => {
     try {
         const query = `
             SELECT e.*, u.username 
-            FROM echoes e 
-            LEFT JOIN users u ON e.user_id = u.id 
-            WHERE 
-                ST_DWithin(geog, ST_MakePoint($2, $1)::geography, 100)
-                AND e.last_played_at >= NOW() - INTERVAL '${EXPIRATION_PERIOD}'
-            ORDER BY e.created_at DESC;
-        `;
+            FROM echoes e LEFT JOIN users u ON e.user_id = u.id 
+            WHERE ST_DWithin(geog, ST_MakePoint($2, $1)::geography, 100)
+              AND e.last_played_at >= NOW() - INTERVAL '${EXPIRATION_PERIOD}'
+            ORDER BY e.created_at DESC;`;
         const result = await pool.query(query, [lat, lng]);
         res.json(result.rows);
     } catch (err) {
@@ -234,41 +229,51 @@ app.get('/echoes', async (req, res) => {
 });
 
 app.post('/echoes', authMiddleware, async (req, res) => {
-    const { w3w_address, audio_url, lat, lng } = req.body;
+    const { w3w_address, audio_url, lat, lng, audio_blob_base64 } = req.body;
     const user_id = req.user.id;
-    if (!w3w_address || !audio_url || lat === undefined || lng === undefined) {
-        return res.status(400).json({ error: 'All fields are required' });
+    if (!w3w_address || !audio_url || lat === undefined || lng === undefined || !audio_blob_base64) {
+        return res.status(400).json({ error: 'All fields including audio data are required' });
     }
 
     let friendlyLocationName = 'An unknown location';
-    try {
-        const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${process.env.OPENCAGE_API_KEY}&no_annotations=1&limit=1`;
-        const geoData = await new Promise((resolve, reject) => {
-            https.get(geocodeUrl, (apiRes) => {
-                let data = '';
-                apiRes.on('data', chunk => data += chunk);
-                apiRes.on('end', () => resolve(JSON.parse(data)));
-            }).on('error', err => reject(err));
-        });
+    let duration = 0;
 
-        if (geoData && geoData.results && geoData.results.length > 0) {
-            const components = geoData.results[0].components;
-            friendlyLocationName = components.road || components.neighbourhood || components.suburb || components.city || components.state || 'A discovered place';
+    try {
+        const audioBuffer = Buffer.from(audio_blob_base64, 'base64');
+        const metadata = await mm.parseBuffer(audioBuffer, 'audio/webm');
+        duration = Math.round(metadata.format.duration || 0);
+        
+        if (!process.env.OPENCAGE_API_KEY) {
+            console.error("FATAL: OPENCAGE_API_KEY environment variable not set. Reverse geocoding will fail.");
+        } else {
+            const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${process.env.OPENCAGE_API_KEY}&no_annotations=1&limit=1`;
+            const geoData = await new Promise((resolve, reject) => {
+                https.get(geocodeUrl, (apiRes) => {
+                    let data = '';
+                    apiRes.on('data', chunk => data += chunk);
+                    apiRes.on('end', () => resolve(JSON.parse(data)));
+                }).on('error', err => reject(err));
+            });
+
+            if (geoData && geoData.results && geoData.results.length > 0) {
+                const components = geoData.results[0].components;
+                friendlyLocationName = components.road || components.neighbourhood || components.suburb || components.city || components.state || 'A discovered place';
+            }
         }
-    } catch (geoErr) {
-        console.error("Reverse geocoding failed, using default name:", geoErr);
+    } catch (err) {
+        console.error("Error during metadata/geocoding phase:", err);
     }
 
     try {
         const insertQuery = `
-            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at, location_name) 
-            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6) 
+            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at, location_name, duration_seconds) 
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7) 
             RETURNING id;
         `;
-        const insertValues = [w3w_address, audio_url, lat, lng, user_id, friendlyLocationName];
+        const insertValues = [w3w_address, audio_url, lat, lng, user_id, friendlyLocationName, duration];
         const insertResult = await pool.query(insertQuery, insertValues);
         const newEchoId = insertResult.rows[0].id;
-
+        
         const updateQuery = `UPDATE echoes SET geog = ST_MakePoint($1, $2) WHERE id = $3;`;
         await pool.query(updateQuery, [lng, lat, newEchoId]);
 
@@ -282,7 +287,6 @@ app.post('/echoes', authMiddleware, async (req, res) => {
     }
 });
 
-// NEW route for user to delete their own echo
 app.delete('/api/echoes/:id', authMiddleware, async (req, res) => {
     const echoId = req.params.id;
     const userId = req.user.id;
@@ -302,10 +306,7 @@ app.delete('/api/echoes/:id', authMiddleware, async (req, res) => {
 app.post('/api/echoes/:id/play', async (req, res) => {
     const { id } = req.params;
     try {
-        const query = `
-            UPDATE echoes SET last_played_at = CURRENT_TIMESTAMP, play_count = play_count + 1
-            WHERE id = $1 RETURNING id, play_count, last_played_at;
-        `;
+        const query = `UPDATE echoes SET last_played_at = CURRENT_TIMESTAMP, play_count = play_count + 1 WHERE id = $1 RETURNING id, play_count, last_played_at;`;
         const result = await pool.query(query, [id]);
         if (result.rowCount === 0) return res.status(404).json({ error: "Echo not found." });
         res.status(200).json(result.rows[0]);

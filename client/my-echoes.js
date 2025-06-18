@@ -1,4 +1,4 @@
-// client/my-echoes.js - FINAL WITH ALL UPGRADES
+// client/my-echoes.js - COMPLETE AND UNABRIDGED
 
 const API_URL = 'https://echoes-server.onrender.com';
 
@@ -20,10 +20,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = JSON.parse(atob(token.split('.')[1]));
         userAuthContainer.innerHTML = `<span id="welcome-message">Echoes by: ${payload.user.username}</span>`;
     } catch (e) {
+        console.error("Failed to decode token", e);
         localStorage.removeItem('echoes_token');
         window.location.href = 'index.html';
     }
 
+    // Helper function to format seconds into MM:SS
+    const formatTime = (seconds) => {
+        if (seconds === null || isNaN(seconds)) return 'N/A';
+        if (seconds === 0) return '0:00';
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    };
+    
     async function fetchMyEchoes() {
         try {
             const response = await fetch(`${API_URL}/api/users/my-echoes`, {
@@ -56,8 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
             echoItem.className = 'my-echo-item';
             echoItem.dataset.echoId = echo.id;
 
-            const recordedDate = new Date(echo.created_at).toLocaleDateString('en-US', {
-                year: 'numeric', month: 'long', day: 'numeric'
+            const recordedDateTime = new Date(echo.created_at).toLocaleString('en-US', {
+                year: 'numeric', month: 'long', day: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
             });
 
             const lastPlayedDate = new Date(echo.last_played_at);
@@ -71,13 +82,26 @@ document.addEventListener('DOMContentLoaded', () => {
             echoItem.innerHTML = `
                 <div class="info-row">
                     <span class="location-name">${locationDisplayName}</span>
-                    <span class="date-info">Recorded on: ${recordedDate}</span>
+                    <span class="date-info">Recorded: ${recordedDateTime}</span>
                 </div>
+
                 <audio controls preload="metadata" src="${echo.audio_url}"></audio>
-                <div class="details-row">
-                    <span class="expiry-info">
-                        <img src="https://api.iconify.design/material-symbols:hourglass-empty-outline.svg?color=%23999" alt="Expiry">
-                        Expires around: ${expiryDateString}
+                
+                <div class="stats-row">
+                    <span>
+                        <img src="https://api.iconify.design/material-symbols:play-circle-outline.svg?color=%23999" alt="Plays">
+                        Plays: ${echo.play_count}
+                    </span>
+                    <span class="duration-display">
+                        <img src="https://api.iconify.design/material-symbols:timer-outline.svg?color=%23999" alt="Duration">
+                        Duration: ${formatTime(echo.duration_seconds)}
+                    </span>
+                </div>
+
+                <div class="actions-row">
+                    <span>
+                         <img src="https://api.iconify.design/material-symbols:hourglass-empty-outline.svg?color=%23999" alt="Expiry">
+                        Expires: ${expiryDateString}
                     </span>
                     <button class="delete-btn" data-id="${echo.id}">Delete</button>
                 </div>
@@ -94,9 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const button = event.target;
         const echoId = button.dataset.id;
         
-        if (!confirm('Are you sure you want to permanently delete this echo?')) {
-            return;
-        }
+        if (!confirm('Are you sure you want to permanently delete this echo?')) return;
 
         button.textContent = 'Deleting...';
         button.disabled = true;
@@ -104,23 +126,18 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(`${API_URL}/api/echoes/${echoId}`, {
                 method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.error || 'Could not delete echo.');
             }
-
             const itemToRemove = document.querySelector(`.my-echo-item[data-echo-id='${echoId}']`);
             if (itemToRemove) {
                 itemToRemove.style.transition = 'opacity 0.5s ease';
                 itemToRemove.style.opacity = '0';
                 setTimeout(() => itemToRemove.remove(), 500);
             }
-
         } catch (error) {
             alert(`Error: ${error.message}`);
             button.textContent = 'Delete';

@@ -1,13 +1,12 @@
-// client/app.js - FINAL WITH ECHO LIFECYCLE
+// client/app.js - COMPLETE AND UNABRIDGED
 
 const API_URL = 'https://echoes-server.onrender.com';
 const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev';
 
 const MAX_RECORDING_SECONDS = 60;
 
-// NEW: TWEAKABLE CONSTANTS FOR ECHO LIFECYCLE (in milliseconds)
-const FRESH_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;   // 3 days
-const STABLE_THRESHOLD_MS = 10 * 24 * 60 * 60 * 1000; // 10 days
+const FRESH_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
+const STABLE_THRESHOLD_MS = 10 * 24 * 60 * 60 * 1000;
 
 const userLocationIcon = L.divIcon({
     className: 'user-location-marker',
@@ -72,23 +71,6 @@ function initializeApp() {
     markers.on('clusterclick', handleClusterClick);
     map.addLayer(markers);
     updateInfoPanelText();
-}
-
-function renderEchoesOnMap(echoes) {
-    echoes.forEach(echo => {
-        if (echo.lat && echo.lng) {
-            const ageMs = new Date() - new Date(echo.last_played_at);
-            let icon;
-            if (ageMs < FRESH_THRESHOLD_MS) icon = echoIconFresh;
-            else if (ageMs < STABLE_THRESHOLD_MS) icon = echoIconStable;
-            else icon = echoIconFading;
-            const marker = L.marker([echo.lat, echo.lng], { icon: icon });
-            marker.echoData = echo;
-            marker.bindPopup(createEchoPopup(echo));
-            echoMarkersMap.set(echo.id, marker);
-            markers.addLayer(marker);
-        }
-    });
 }
 
 function onLocationUpdate(position) {
@@ -280,23 +262,21 @@ function handleLogout() {
 
 function updateUIAfterLogin() {
     welcomeMessage.textContent = `Welcome, ${loggedInUser}`;
+    const myEchoesBtn = document.getElementById('my-echoes-btn');
+    if (myEchoesBtn) myEchoesBtn.style.display = 'inline-block';
     loginBtn.style.display = "none";
     registerBtn.style.display = "none";
     logoutBtn.style.display = "inline-block";
-    // NEW: Show the "My Echoes" button
-    const myEchoesBtn = document.getElementById('my-echoes-btn');
-    if (myEchoesBtn) myEchoesBtn.style.display = 'inline-block';
     updateInfoPanelText();
 }
 
 function updateUIAfterLogout() {
     welcomeMessage.textContent = "";
+    const myEchoesBtn = document.getElementById('my-echoes-btn');
+    if (myEchoesBtn) myEchoesBtn.style.display = 'none';
     loginBtn.style.display = "inline-block";
     registerBtn.style.display = "inline-block";
     logoutBtn.style.display = "none";
-    // NEW: Hide the "My Echoes" button
-    const myEchoesBtn = document.getElementById('my-echoes-btn');
-    if (myEchoesBtn) myEchoesBtn.style.display = 'none';
     updateInfoPanelText();
 }
 
@@ -343,6 +323,23 @@ async function fetchAllEchoes(position) {
     }
 }
 
+function renderEchoesOnMap(echoes) {
+    echoes.forEach(echo => {
+        if (echo.lat && echo.lng) {
+            const ageMs = new Date() - new Date(echo.last_played_at);
+            let icon;
+            if (ageMs < FRESH_THRESHOLD_MS) icon = echoIconFresh;
+            else if (ageMs < STABLE_THRESHOLD_MS) icon = echoIconStable;
+            else icon = echoIconFading;
+            const marker = L.marker([echo.lat, echo.lng], { icon: icon });
+            marker.echoData = echo;
+            marker.bindPopup(createEchoPopup(echo));
+            echoMarkersMap.set(echo.id, marker);
+            markers.addLayer(marker);
+        }
+    });
+}
+
 function createEchoPopup(echo) {
     const author = echo.username ? `by ${echo.username}` : "by an anonymous user";
     return `<h3>Echo Location</h3><p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p><audio controls preload="none" onplay="keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>`;
@@ -373,6 +370,15 @@ function updateInfoPanelText() {
     }
 }
 
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
 async function uploadAndSaveEcho() {
     recordBtn.textContent = "Record Echo";
     recordBtn.classList.remove("is-recording");
@@ -389,21 +395,23 @@ async function uploadAndSaveEcho() {
     try {
         updateStatus("Preparing upload...", "info");
         const presignedResponse = await fetch(`${API_URL}/presigned-url`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fileName: fileName, fileType: audioBlob.type })
         });
         if (!presignedResponse.ok) throw new Error(`Presigned URL failed: ${await presignedResponse.text()}`);
         const { url: uploadUrl } = await presignedResponse.json();
+        
         updateStatus("Uploading...", "info");
         const uploadResponse = await fetch(uploadUrl, {
-            method: "PUT",
-            body: audioBlob,
-            headers: { "Content-Type": audioBlob.type }
+            method: "PUT", body: audioBlob, headers: { "Content-Type": audioBlob.type }
         });
         if (!uploadResponse.ok) throw new Error("Upload to R2 failed");
+
         const audioUrl = `${R2_PUBLIC_URL_BASE}/${fileName}`;
         updateStatus("Saving...", "info");
+        
+        const audioBase64 = await blobToBase64(audioBlob);
+        
         const saveResponse = await fetch(`${API_URL}/echoes`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${userToken}` },
@@ -411,11 +419,13 @@ async function uploadAndSaveEcho() {
                 w3w_address: currentBucketKey,
                 audio_url: audioUrl,
                 lat: currentUserPosition.lat,
-                lng: currentUserPosition.lng
+                lng: currentUserPosition.lng,
+                audio_blob_base64: audioBase64
             })
         });
         if (!saveResponse.ok) throw new Error(`Save metadata failed: ${await saveResponse.text()}`);
         const newEcho = await saveResponse.json();
+        
         updateStatus("Echo saved successfully!", "success", 3000);
         newEcho.username = loggedInUser;
         renderEchoesOnMap([newEcho]);

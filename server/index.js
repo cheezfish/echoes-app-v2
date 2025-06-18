@@ -187,24 +187,41 @@ app.get('/api/medley/drops', async (req, res) => {
 });
 
 // GET /api/medley/search - Searches Spotify for tracks/playlists
+// In server/index.js
+
+// ... (all other routes and helper functions)
+
+// --- THIS IS THE CORRECTED SEARCH ROUTE ---
 app.get('/api/medley/search', async (req, res) => {
     const { q } = req.query;
-    if (!q) return res.status(400).json({ error: 'Search query "q" is required.' });
+    if (!q) {
+        return res.status(400).json({ error: 'Search query "q" is required.' });
+    }
 
     try {
         const token = await getSpotifyToken();
-        const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track,playlist&limit=10`;
+
+        // THE FIX: We pass the query parameter `q` directly to Spotify's API.
+        // We do NOT use encodeURIComponent() here because the initial request from
+        // the client browser already encodes it correctly.
+        const searchUrl = `https://api.spotify.com/v1/search?q=${q}&type=track,playlist&limit=10`;
         
+        console.log(`[Medley] Forwarding search to Spotify: ${searchUrl}`);
+
         const response = await fetch(searchUrl, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        if (!response.ok) throw new Error('Spotify search failed');
+        if (!response.ok) {
+            const errorBody = await response.json();
+            console.error("[Medley] Spotify search failed:", errorBody);
+            throw new Error('Spotify search failed');
+        }
 
         const data = await response.json();
         res.json(data);
     } catch (err) {
-        console.error("[Medley] Spotify Search Error:", err);
+        console.error("[Medley] Spotify Search Error:", err.message);
         res.status(500).send('Server Error');
     }
 });

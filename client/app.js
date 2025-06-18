@@ -1,12 +1,17 @@
-// client/app.js - COMPLETE AND UNABRIDGED
+// client/app.js - COMPLETE WITH DYNAMIC HEALTH RING ICONS
 
 const API_URL = 'https://echoes-server.onrender.com';
 const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev';
 
 const MAX_RECORDING_SECONDS = 60;
 
-const FRESH_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000;
-const STABLE_THRESHOLD_MS = 10 * 24 * 60 * 60 * 1000;
+// --- REVISED LIFECYCLE & ICON LOGIC ---
+
+// Total lifespan of an echo in milliseconds. This MUST match the server's prune setting.
+const ECHO_LIFESPAN_MS = 20 * 24 * 60 * 60 * 1000; // 20 days
+
+// The central icon that will be inside the health ring
+const centralEchoIconUrl = "https://api.iconify.design/material-symbols:graphic-eq.svg";
 
 const userLocationIcon = L.divIcon({
     className: 'user-location-marker',
@@ -15,15 +20,51 @@ const userLocationIcon = L.divIcon({
     iconAnchor: [16, 16]
 });
 
-const echoIconFresh = L.icon({ iconUrl: "https://api.iconify.design/mdi:fire.svg?color=%23ffc107", iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16] });
-const echoIconStable = L.icon({ iconUrl: "https://api.iconify.design/material-symbols:graphic-eq.svg?color=%23007bff", iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16] });
-const echoIconFading = L.icon({ iconUrl: "https://api.iconify.design/material-symbols:graphic-eq.svg?color=%236c757d", iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16] });
-
 let mapContainer, infoPanelTitle, recordBtn, loginBtn, registerBtn, logoutBtn, welcomeMessage, authModal, closeModalBtn, authForm, modalTitle, modalSubmitBtn, modalError, usernameInput, passwordInput, clusterModal, closeClusterModalBtn, clusterEchoList, findMeBtn, statusMessageEl;
 
 let map, mediaRecorder, audioChunks = [], currentUserPosition = null, currentBucketKey = "", markers, userToken = null, loggedInUser = null, echoMarkersMap = new Map(), userMarker;
 let recordingTimer;
 let locationWatcherId = null;
+
+/**
+ * Creates a dynamic SVG-based Leaflet DivIcon with a "health ring".
+ * @param {number} healthPercent - A number between 0 and 100.
+ * @returns {L.DivIcon} A Leaflet DivIcon instance.
+ */
+function createHealthIcon(healthPercent) {
+    const size = 40;
+    const strokeWidth = 3;
+    const radius = (size / 2) - (strokeWidth / 2);
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (healthPercent / 100) * circumference;
+
+    let ringColor;
+    if (healthPercent > 66) ringColor = '#ffc107';      // Fresh
+    else if (healthPercent > 33) ringColor = '#007bff'; // Stable
+    else ringColor = '#6c757d';                         // Fading
+
+    const html = `
+        <div class="health-icon-container">
+            <svg class="health-icon-svg" viewBox="0 0 ${size} ${size}">
+                <circle class="health-ring-bg" cx="${size/2}" cy="${size/2}" r="${radius}"></circle>
+                <circle class="health-ring-fg" 
+                        cx="${size/2}" cy="${size/2}" r="${radius}" 
+                        stroke="${ringColor}"
+                        stroke-dasharray="${circumference}"
+                        stroke-dashoffset="${offset}">
+                </circle>
+            </svg>
+            <img class="health-icon-inner" src="${centralEchoIconUrl}?color=${ringColor}" alt="Echo">
+        </div>
+    `;
+
+    return L.divIcon({
+        html: html,
+        className: '',
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+    });
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     mapContainer = document.getElementById("map");
@@ -327,11 +368,10 @@ function renderEchoesOnMap(echoes) {
     echoes.forEach(echo => {
         if (echo.lat && echo.lng) {
             const ageMs = new Date() - new Date(echo.last_played_at);
-            let icon;
-            if (ageMs < FRESH_THRESHOLD_MS) icon = echoIconFresh;
-            else if (ageMs < STABLE_THRESHOLD_MS) icon = echoIconStable;
-            else icon = echoIconFading;
-            const marker = L.marker([echo.lat, echo.lng], { icon: icon });
+            let healthPercent = 100 * (1 - (ageMs / ECHO_LIFESPAN_MS));
+            healthPercent = Math.max(0, Math.min(100, healthPercent));
+            const healthIcon = createHealthIcon(healthPercent);
+            const marker = L.marker([echo.lat, echo.lng], { icon: healthIcon });
             marker.echoData = echo;
             marker.bindPopup(createEchoPopup(echo));
             echoMarkersMap.set(echo.id, marker);
@@ -342,14 +382,17 @@ function renderEchoesOnMap(echoes) {
 
 function createEchoPopup(echo) {
     const author = echo.username ? `by ${echo.username}` : "by an anonymous user";
-    return `<h3>Echo Location</h3><p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p><audio controls preload="none" onplay="keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>`;
+    return `<h3>${echo.location_name || 'An Echo'}</h3><p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p><audio controls preload="none" onplay="keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>`;
 }
 
 window.keepEchoAlive = async (id) => {
     try {
         fetch(`${API_URL}/api/echoes/${id}/play`, { method: "POST" });
         const marker = echoMarkersMap.get(id);
-        if (marker) marker.setIcon(echoIconFresh);
+        if (marker) {
+            marker.echoData.last_played_at = new Date().toISOString(); 
+            marker.setIcon(createHealthIcon(100));
+        }
     } catch (err) {
         console.error("Failed to send keep-alive ping:", err);
     }

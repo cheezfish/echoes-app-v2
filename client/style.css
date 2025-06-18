@@ -94,6 +94,7 @@ h1 {
 
 
 /* === NEW: GLOBAL STATUS BAR === */
+/* === GLOBAL STATUS BAR WITH FADING TRANSITIONS === */
 #global-status-bar {
     flex-shrink: 0;
     background-color: #1a1a1a;
@@ -102,10 +103,18 @@ h1 {
     padding: 0.5rem;
     font-size: 0.9rem;
     min-height: 32px;
-    transition: background-color 0.3s, color 0.3s;
     display: flex;
     align-items: center;
     justify-content: center;
+    
+    /* NEW: Smooth transitions for opacity and background color */
+    opacity: 1;
+    transition: opacity 0.5s ease-in-out, background-color 0.5s ease-in-out;
+}
+
+/* NEW: A class to handle the faded-out state */
+#global-status-bar.fade-out {
+    opacity: 0;
 }
 #global-status-bar.info { background-color: #004085; color: white; }
 #global-status-bar.success { background-color: #155724; color: white; }

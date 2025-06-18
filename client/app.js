@@ -29,6 +29,36 @@ let isUserInVicinity = false;
 // --- NEW: DYNAMIC PROMPT STATE ---
 let promptInterval = null;
 const promptMessages = [
+    // --- Direct & Place-Specific ---
+    "What does this specific spot mean to you right now?",
+    "Leave a message for the next person who stands right here.",
+    "Describe what you see from this exact vantage point.",
+    "Add your voice to the history of this place.",
+    "If these walls could talk, what would you want them to say?",
+    "What memory does this location bring to mind?",
+    "Dedicate this echo to this street, this park, this corner.",
+
+    // --- Sensory & Environmental ---
+    "What can you smell? Describe it.",
+    "Close your eyes. What is the most prominent sound you hear?",
+    "Is the energy of this place calm, or chaotic? Capture it.",
+    "Record a message that matches the weather right now.",
+    "Let the sounds of this location be the backing track to your thought.",
+
+    // --- Anonymous Interaction with Place ---
+    "Leave a secret here that only this location will ever know.",
+    "If you were to hide a treasure here, what would it be? Describe it.",
+    "Give this place a new, secret name.",
+    "What advice would you give to someone visiting this spot for the first time?",
+    "Share a hope for the future of this place.",
+
+        // --- Personal & Reflective, Tied to Place ---
+    "How does being here make you feel in one word? Say it.",
+    "What brought you here today?",
+    "Leave a piece of your personal story in this location.",
+    "Imagine you are a ghost tied to this spot. What do you whisper to passersby?",
+    "What's a thought that could only have happened here?",
+
     // --- The Direct Invitation ---
     "Leave a message for the next person who stands here.",
     "What do you want to tell the world today?",
@@ -66,12 +96,10 @@ const promptMessages = [
 ];
 const recordingMessages = [
     // --- Confirmation & Connection ---
-    "They're listening...",
     "Your voice, traveling.",
     "Someone will find this.",
     "A perfect transmission.",
     "Sending it out into the world.",
-    "Message received.",
 
     // --- Affirmation & Value ---
     "This is a gift.",
@@ -85,7 +113,26 @@ const recordingMessages = [
     "Etching this into time.",
     "The aether is listening.",
     "A beautiful waveform.",
-    "History is being recorded."
+    "History is being recorded.",
+    "An echo bound to the earth.",
+    "A memory anchored in time and space.",
+    "Part of the landscape now.",
+
+        // --- Grounding & Locational ---
+    "This spot will remember this.",
+    "Tying your voice to this coordinate.",
+    "This location now holds your echo.",
+    "A perfect location lock.",
+    "Imprinting this moment.",
+    "This place is listening.",
+
+    // --- Connection & Transmission ---
+    "Someone will stand here and listen.",
+    "Sending it out from this point.",
+    "Your mark is being made.",
+    "A future discovery awaits.",
+    "A ghost in the machine.",
+    
 ];
 
 // --- UI ELEMENT CACHE ---
@@ -168,11 +215,13 @@ function updateActionButtonState() {
     contextActionBtn.classList.remove('is-recording');
     let isRecording = mediaRecorder && mediaRecorder.state === 'recording';
     
-    // Stop prompts before determining the new state
-    stopPromptCycling();
+    // Stop prompts before determining the new state, unless we're about to start them again.
+    if (!(isUserInVicinity && userToken && !isRecording)) {
+        stopPromptCycling();
+    }
 
     if (isRecording) {
-        contextActionBtn.className = 'record is-recording';
+        contextActionBtn.className = 'is-recording';
         let secondsLeft = Math.max(0, Math.round((recordingTimer.targetTime - Date.now()) / 1000));
         contextActionBtn.innerHTML = `<span>Stop (${secondsLeft}s)</span>`;
     } else if (isUserInVicinity && userToken) {
@@ -184,11 +233,12 @@ function updateActionButtonState() {
         contextActionBtn.className = 'find-me';
         contextActionBtn.title = 'Find My Location';
         contextActionBtn.innerHTML = `<img src="https://api.iconify.design/material-symbols:my-location.svg?color=white" alt="Find Me">`;
-        // Set a default message if not prompting
+        
+        // MODIFIED: Set the default status using the new fade-in function
         if (loggedInUser) {
-            updateStatus(`Welcome, ${loggedInUser}!`, 'info', 0);
+            updateStatus(`Welcome, ${loggedInUser}!`, '', 0); // Use default style, not 'info'
         } else {
-            updateStatus("Click the compass to explore your area.", 'info', 0);
+            updateStatus("Click the compass to explore your area.", '', 0);
         }
     }
 }
@@ -205,29 +255,71 @@ function handleContextActionClick() {
 
 function toggleUserMenu() { userMenuDropdown.style.display = userMenuDropdown.style.display === 'block' ? 'none' : 'block'; }
 
-function updateStatus(message, type = 'info', duration = 4000) {
+// A global variable to prevent multiple fade cycles from overlapping
+let statusUpdateTimeout = null;
+
+/**
+ * Updates the global status bar with a smooth fade-in/fade-out effect.
+ * @param {string} message - The text to display.
+ * @param {string} type - 'info', 'success', 'error', or '' for default.
+ * @param {number} duration - How long to show the message before reverting. 0 for indefinite.
+ */
+function updateStatus(message, type = '', duration = 4000) {
     if (!globalStatusBar) return;
-    globalStatusBar.textContent = message;
-    globalStatusBar.className = `global-status-bar ${type}`;
-    if (duration > 0) {
-        setTimeout(() => {
-            if (globalStatusBar.textContent === message) {
-                // When a temporary message expires, revert to the default state message
-                updateActionButtonState(); 
-            }
-        }, duration);
+
+    // Clear any pending status update to prevent weird overlaps
+    clearTimeout(statusUpdateTimeout);
+
+    // If the bar is already showing the same message, do nothing.
+    if (globalStatusBar.textContent === message && !globalStatusBar.classList.contains('fade-out')) {
+        return;
     }
+
+    // 1. Start by fading the current message out
+    globalStatusBar.classList.add('fade-out');
+
+    // 2. After the fade-out is complete (500ms), change the content and fade in
+    setTimeout(() => {
+        globalStatusBar.textContent = message;
+        globalStatusBar.className = 'global-status-bar'; // Reset classes
+        if (type) {
+            globalStatusBar.classList.add(type);
+        }
+        globalStatusBar.classList.remove('fade-out'); // Fade back in
+
+        // 3. If it's a temporary message, set a timeout to revert it
+        if (duration > 0) {
+            statusUpdateTimeout = setTimeout(() => {
+                // Fade out the temporary message
+                globalStatusBar.classList.add('fade-out');
+                
+                // After it fades out, restore the default message by calling the state handler
+                setTimeout(() => {
+                    updateActionButtonState(); 
+                }, 500);
+
+            }, duration);
+        }
+    }, 500); // This duration must match the CSS transition time
 }
 
 // --- NEW PROMPT CYCLING FUNCTIONS ---
+/**
+ * Starts cycling through helpful prompts in the status bar.
+ */
 function startPromptCycling() {
     if (promptInterval) return;
+
     let currentIndex = Math.floor(Math.random() * promptMessages.length);
+    
+    // Immediately show the first prompt (will fade in via updateStatus)
     updateStatus(promptMessages[currentIndex], 'info', 0);
+
+    // MODIFIED: Increased interval for slower discovery
     promptInterval = setInterval(() => {
         currentIndex = (currentIndex + 1) % promptMessages.length;
         updateStatus(promptMessages[currentIndex], 'info', 0);
-    }, 10000);
+    }, 15000); // Change prompt every 15 seconds
 }
 
 function stopPromptCycling() {
@@ -410,6 +502,12 @@ async function uploadAndSaveEcho() {
 function checkLoginState() { userToken = localStorage.getItem("echoes_token"); if (userToken) { try { const payload = JSON.parse(atob(userToken.split(".")[1])); loggedInUser = payload.user.username; updateUIAfterLogin(); } catch (err) { console.error("Failed to decode token", err); handleLogout(); } } else { updateUIAfterLogout(); } }
 function handleLogout() { localStorage.removeItem("echoes_token"); userToken = null; loggedInUser = null; if (userMenuDropdown) userMenuDropdown.style.display = 'none'; updateUIAfterLogout(); if (locationWatcherId) { navigator.geolocation.clearWatch(locationWatcherId); locationWatcherId = null; } isUserInVicinity = false; updateActionButtonState(); }
 function updateUIAfterLogin() { loggedOutView.style.display = "none"; loggedInView.style.display = "block"; welcomeMessage.textContent = loggedInUser; updateStatus(`Welcome, ${loggedInUser}!`, 'success', 0); updateActionButtonState(); }
-function updateUIAfterLogout() { loggedInView.style.display = 'none'; loggedOutView.style.display = 'block'; updateStatus("Click the compass to explore your area.", 'info', 0); updateActionButtonState(); }
+function updateUIAfterLogout() {
+    loggedInView.style.display = 'none';
+    loggedOutView.style.display = 'block';
+    // Use the new updateStatus function to set the default logged-out message
+    updateStatus("Click the compass to explore your area.", '', 0);
+    updateActionButtonState();
+}
 function openModal(mode) { modalError.textContent = ""; authForm.reset(); if (mode === 'login') { modalTitle.textContent = "Login"; modalSubmitBtn.textContent = "Login"; authForm.dataset.mode = "login"; } else { modalTitle.textContent = "Register"; modalSubmitBtn.textContent = "Register"; authForm.dataset.mode = "register"; } authModal.style.display = "flex"; }
 async function handleAuthFormSubmit(e) { e.preventDefault(); modalError.textContent = ""; const username = usernameInput.value; const password = passwordInput.value; const mode = authForm.dataset.mode; const endpoint = mode === 'login' ? "/api/users/login" : "/api/users/register"; try { const response = await fetch(`${API_URL}${endpoint}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "An unknown error occurred."); if (mode === 'register') { modalError.textContent = "Registration successful! Please log in."; authForm.reset(); openModal('login'); } else { localStorage.setItem("echoes_token", data.token); checkLoginState(); authModal.style.display = "none"; } } catch (err) { modalError.textContent = err.message; } }

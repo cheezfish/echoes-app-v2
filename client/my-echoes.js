@@ -100,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 <div class="actions-row">
                     <span>
-                         <img src="https://api.iconify.design/material-symbols:hourglass-empty-outline.svg?color=%23999" alt="Expiry">
                         Expires: ${expiryDateString}
                     </span>
                     <button class="delete-btn" data-id="${echo.id}">Delete</button>

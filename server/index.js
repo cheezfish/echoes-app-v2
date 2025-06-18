@@ -139,20 +139,33 @@ app.post('/admin/api/echoes/prune', adminAuthMiddleware, async (req, res) => {
     }
 });
 
+// --- THIS IS THE CORRECTED ROUTE ---
 app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile'), async (req, res) => {
-    const { lat, lng, w3w_address: location_name } = req.body; // Capture descriptive name
+    // The name of the location from the form
+    const { lat, lng, w3w_address: location_name } = req.body; 
     const admin_user_id = req.user.id;
-    const file = req.file;
+    const file = req.file; // The uploaded audio file from multer
+
     if (!lat || !lng || !location_name || !file) {
         return res.status(400).json({ error: 'Latitude, Longitude, Location Name, and an audio file are required.' });
     }
+
     try {
+        // --- NEW: DURATION ANALYSIS LOGIC ---
+        // Use music-metadata to read the duration from the file buffer provided by multer.
+        console.log(`Analyzing duration for uploaded file: ${file.originalname}`);
         const metadata = await mm.parseBuffer(file.buffer, file.mimetype);
         const duration = Math.round(metadata.format.duration || 0);
+        console.log(`   -> Detected duration: ${duration} seconds.`);
+        // --- END OF NEW LOGIC ---
 
+        // The rest of the logic is now guaranteed to have a valid duration
         const fileName = `seeded_echo_${Date.now()}_${file.originalname}`;
         const putCommand = new PutObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME, Key: fileName, Body: file.buffer, ContentType: file.mimetype,
+            Bucket: process.env.R2_BUCKET_NAME,
+            Key: fileName,
+            Body: file.buffer,
+            ContentType: file.mimetype,
         });
         await s3.send(putCommand);
         const audio_url = `${process.env.R2_PUBLIC_URL_BASE}/${fileName}`;
@@ -162,19 +175,26 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
             VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7) 
             RETURNING id;
         `;
-        const insertValues = [`seeded_at_${lat}_${lng}`, audio_url, lat, lng, admin_user_id, location_name, duration];
+        // Create a placeholder w3w_address since it's not the primary display name anymore
+        const w3w_placeholder = `seeded_at_${lat}_${lng}`;
+        const insertValues = [w3w_placeholder, audio_url, lat, lng, admin_user_id, location_name, duration];
         const insertResult = await pool.query(insertQuery, insertValues);
         const newEchoId = insertResult.rows[0].id;
+        
         const updateQuery = `UPDATE echoes SET geog = ST_MakePoint($1, $2) WHERE id = $3;`;
         await pool.query(updateQuery, [lng, lat, newEchoId]);
+        
         const finalQuery = `SELECT e.*, u.username FROM echoes e LEFT JOIN users u ON e.user_id = u.id WHERE e.id = $1;`;
         const finalResult = await pool.query(finalQuery, [newEchoId]);
+        
         res.status(201).json(finalResult.rows[0]);
+
     } catch (err) {
         console.error('Admin Seeding Error:', err);
         res.status(500).json({ error: 'Failed to seed echo due to a server error.' });
     }
 });
+
 
 app.get('/admin/api/users', adminAuthMiddleware, async (req, res) => {
     try {

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Echoes</title>
+    <!-- We link to the main style.css for consistency and add our own -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="my-echoes.css">
+</head>
+<body>
+    <header>
+        <!-- This header reuses the styles from the main app -->
+        <h1>My Echoes</h1>
+        <div id="user-auth-container">
+            <!-- This will be populated by my-echoes.js -->
+        </div>
+    </header>
+
+    <main class="my-echoes-main">
+        <div class="page-header">
+            <a href="index.html" class="back-link">← Back to Map</a>
+        </div>
+        
+        <div id="my-echoes-list-container">
+            <!-- Echoes will be dynamically inserted here by JavaScript -->
+            <p id="loading-message">Loading your echoes...</p>
+        </div>
+    </main>
+
+    <script src="my-echoes.js"></script>
+</body>
+</html>

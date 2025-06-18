@@ -1,0 +1,78 @@
+/* Styles for the "My Echoes" page */
+
+/* Ensure the background is black, overriding any defaults */
+body {
+    background-color: #000 !important;
+}
+
+.my-echoes-main {
+    padding: 1.5rem;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+    /* Allow this page to scroll if the list is long */
+    overflow-y: auto;
+    height: calc(100vh - 50px); /* Full height minus header */
+}
+
+.page-header {
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #444;
+    padding-bottom: 1rem;
+}
+
+.back-link {
+    color: #007bff;
+    text-decoration: none;
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+.back-link:hover {
+    text-decoration: underline;
+}
+
+#my-echoes-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.my-echo-item {
+    background-color: #222;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.my-echo-item .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.my-echo-item .location-name {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #fff;
+}
+
+.my-echo-item .date-info {
+    font-size: 0.9rem;
+    color: #aaa;
+}
+
+.my-echo-item audio {
+    width: 100%;
+}
+
+#loading-message, #empty-message {
+    text-align: center;
+    font-size: 1.2rem;
+    color: #888;
+    padding: 3rem 0;
+}

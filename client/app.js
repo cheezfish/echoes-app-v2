@@ -283,6 +283,9 @@ function updateUIAfterLogin() {
     loginBtn.style.display = "none";
     registerBtn.style.display = "none";
     logoutBtn.style.display = "inline-block";
+    // NEW: Show the "My Echoes" button
+    const myEchoesBtn = document.getElementById('my-echoes-btn');
+    if (myEchoesBtn) myEchoesBtn.style.display = 'inline-block';
     updateInfoPanelText();
 }
 
@@ -291,6 +294,9 @@ function updateUIAfterLogout() {
     loginBtn.style.display = "inline-block";
     registerBtn.style.display = "inline-block";
     logoutBtn.style.display = "none";
+    // NEW: Hide the "My Echoes" button
+    const myEchoesBtn = document.getElementById('my-echoes-btn');
+    if (myEchoesBtn) myEchoesBtn.style.display = 'none';
     updateInfoPanelText();
 }
 

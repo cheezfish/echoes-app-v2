@@ -1,4 +1,4 @@
-// client/app.js - YOUR CODE, FULLY REFACTORED AND CORRECTED
+// client/app.js - YOUR LATEST CODE + DYNAMIC PROMPTS FEATURE
 
 const API_URL = 'https://echoes-server.onrender.com';
 const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev';
@@ -25,6 +25,18 @@ let locationWatcherId = null;
 let fetchTimeout = null;
 let recordingTimer;
 let isUserInVicinity = false;
+
+// --- NEW: DYNAMIC PROMPT STATE ---
+let promptInterval = null;
+const promptMessages = [
+    "What does your street sound like right now?", "Capture the sound of the wind.", "Record the quietest place you can find.",
+    "Find a unique sound nobody has heard.", "What does happiness sound like?", "Record the sound of your commute.",
+    "Capture the ambience of a local cafe.", "What is the sound of nature near you?"
+];
+const recordingMessages = [
+    "Great sound...", "Keep it steady.", "Listen closely.", "You're capturing a unique moment.",
+    "A perfect echo.", "What a vibe...", "This is a good one."
+];
 
 // --- UI ELEMENT CACHE ---
 let loginBtn, registerBtn, welcomeMessage, loggedOutView, loggedInView, userMenuButton, userMenuDropdown, globalStatusBar, contextActionBtn, nearbyEchoesList, authModal, authForm, modalError, usernameInput, passwordInput, modalTitle, modalSubmitBtn;
@@ -105,18 +117,29 @@ function updateActionButtonState() {
     if (!contextActionBtn) return;
     contextActionBtn.classList.remove('is-recording');
     let isRecording = mediaRecorder && mediaRecorder.state === 'recording';
+    
+    // Stop prompts before determining the new state
+    stopPromptCycling();
+
     if (isRecording) {
-        contextActionBtn.className = 'is-recording';
+        contextActionBtn.className = 'record is-recording';
         let secondsLeft = Math.max(0, Math.round((recordingTimer.targetTime - Date.now()) / 1000));
         contextActionBtn.innerHTML = `<span>Stop (${secondsLeft}s)</span>`;
     } else if (isUserInVicinity && userToken) {
         contextActionBtn.className = 'record';
         contextActionBtn.title = 'Record an Echo';
         contextActionBtn.innerHTML = `<img src="https://api.iconify.design/material-symbols:mic.svg?color=white" alt="Record"> <span>Record</span>`;
+        startPromptCycling(); // Start prompts only in this specific state
     } else {
         contextActionBtn.className = 'find-me';
         contextActionBtn.title = 'Find My Location';
         contextActionBtn.innerHTML = `<img src="https://api.iconify.design/material-symbols:my-location.svg?color=white" alt="Find Me">`;
+        // Set a default message if not prompting
+        if (loggedInUser) {
+            updateStatus(`Welcome, ${loggedInUser}!`, 'info', 0);
+        } else {
+            updateStatus("Click the compass to explore your area.", 'info', 0);
+        }
     }
 }
 
@@ -139,11 +162,27 @@ function updateStatus(message, type = 'info', duration = 4000) {
     if (duration > 0) {
         setTimeout(() => {
             if (globalStatusBar.textContent === message) {
-                if (loggedInUser) { globalStatusBar.textContent = `Welcome, ${loggedInUser}!`; globalStatusBar.className = 'global-status-bar'; }
-                else { globalStatusBar.textContent = 'Click the compass to explore your area.'; globalStatusBar.className = 'global-status-bar';}
+                // When a temporary message expires, revert to the default state message
+                updateActionButtonState(); 
             }
         }, duration);
     }
+}
+
+// --- NEW PROMPT CYCLING FUNCTIONS ---
+function startPromptCycling() {
+    if (promptInterval) return;
+    let currentIndex = Math.floor(Math.random() * promptMessages.length);
+    updateStatus(promptMessages[currentIndex], 'info', 0);
+    promptInterval = setInterval(() => {
+        currentIndex = (currentIndex + 1) % promptMessages.length;
+        updateStatus(promptMessages[currentIndex], 'info', 0);
+    }, 10000);
+}
+
+function stopPromptCycling() {
+    clearInterval(promptInterval);
+    promptInterval = null;
 }
 
 // --- INTERACTIVITY FUNCTIONS ---
@@ -164,50 +203,22 @@ async function fetchEchoesForCurrentView() {
     }
 }
 
-// In client/app.js, find the renderNearbyList function and replace it
-
 function renderNearbyList(echoes) {
     nearbyEchoesList.innerHTML = '';
     if (echoes.length === 0) {
         nearbyEchoesList.innerHTML = `<p id="empty-message" style="text-align:center; padding: 2rem;">No echoes found in the current map view.</p>`;
         return;
     }
-    
     echoes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    
     echoes.forEach(echo => {
         const item = document.createElement('div');
         item.className = 'my-echo-item';
         item.dataset.echoId = echo.id;
-        
-        // NEW: Date formatting for DD/MM/YY HH:MM
-        const d = new Date(echo.created_at);
-        const day = d.getDate().toString().padStart(2, '0');
-        const month = (d.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
-        const year = d.getFullYear().toString().slice(-2);
-        const hours = d.getHours().toString().padStart(2, '0');
-        const minutes = d.getMinutes().toString().padStart(2, '0');
-        const formattedDateTime = `${day}/${month}/${year} ${hours}:${minutes}`;
-
+        const recordedDateTime = new Date(echo.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         const locationDisplayName = echo.location_name || 'A Discovered Place';
-
-        // --- NEW CONDENSED HTML STRUCTURE ---
-        item.innerHTML = `
-            <div class="info-row">
-                <span class="location-name">${locationDisplayName}</span>
-                <span class="author-info">by ${echo.username || 'anonymous'}</span>
-            </div>
-            <audio controls preload="metadata" src="${echo.audio_url}" onplay="window.keepEchoAlive(${echo.id})"></audio>
-            <div class="meta-row">
-                <span>${formattedDateTime}</span>
-            </div>
-        `;
-        
+        item.innerHTML = `<div class="info-row"><span class="location-name">${locationDisplayName}</span><span class="date-info">by ${echo.username || 'anonymous'}</span></div><audio controls preload="metadata" src="${echo.audio_url}" onplay="window.keepEchoAlive(${echo.id})"></audio><div class="actions-row"><span class="date-info">Recorded: ${recordedDateTime}</span></div>`;
         item.addEventListener('click', (e) => {
-            // Prevent click-through when interacting with the audio player
-            if (e.target.tagName !== 'AUDIO' && !e.target.closest('audio')) {
-                handleListItemClick(echo.id);
-            }
+            if (e.target.tagName !== 'AUDIO' && !e.target.closest('audio')) handleListItemClick(echo.id);
         });
         nearbyEchoesList.appendChild(item);
     });
@@ -269,9 +280,83 @@ function onLocationError(error) { updateStatus(`Error: ${error.message}`, "error
 function startLocationWatcher() { if (locationWatcherId) navigator.geolocation.clearWatch(locationWatcherId); if ("geolocation" in navigator) { const options = { enableHighAccuracy: true, timeout: 27000, maximumAge: 30000 }; locationWatcherId = navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, options); } }
 function handleFindMeClick() { updateStatus("Locating...", "info"); if (!("geolocation" in navigator)) return updateStatus("Geolocation not supported.", "error"); const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }; navigator.geolocation.getCurrentPosition(position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startLocationWatcher(); }, onLocationError, options); }
 function handleRecordClick() { if (!('geolocation' in navigator)) return updateStatus("Geolocation not supported.", "error"); const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }; navigator.geolocation.getCurrentPosition( position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startRecordingProcess(); }, err => { onLocationError(err); updateStatus("Could not get location.", "error"); }, options ); }
-async function startRecordingProcess() { try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" }); audioChunks = []; mediaRecorder.ondataavailable = e => audioChunks.push(e.data); mediaRecorder.onstop = uploadAndSaveEcho; mediaRecorder.start(); recordingTimer = { startTime: Date.now(), targetTime: Date.now() + MAX_RECORDING_SECONDS * 1000, intervalId: setInterval(() => { updateActionButtonState(); if (Date.now() >= recordingTimer.targetTime) mediaRecorder.stop(); }, 1000) }; updateActionButtonState(); } catch (e) { console.error("Mic error:", e); updateStatus("Could not access mic.", "error"); } }
+
+async function startRecordingProcess() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        audioChunks = [];
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.onstop = uploadAndSaveEcho;
+        mediaRecorder.start();
+        stopPromptCycling();
+        updateStatus(recordingMessages[Math.floor(Math.random() * recordingMessages.length)], 'success', 7000);
+        let recordingPromptInterval = setInterval(() => {
+            const randomIndex = Math.floor(Math.random() * recordingMessages.length);
+            updateStatus(recordingMessages[randomIndex], 'success', 7000); 
+        }, 8000);
+        mediaRecorder.recordingPromptInterval = recordingPromptInterval;
+        recordingTimer = {
+            startTime: Date.now(),
+            targetTime: Date.now() + MAX_RECORDING_SECONDS * 1000,
+            intervalId: setInterval(() => {
+                updateActionButtonState();
+                if (Date.now() >= recordingTimer.targetTime) {
+                    mediaRecorder.stop();
+                }
+            }, 1000)
+        };
+        updateActionButtonState();
+    } catch (e) {
+        console.error("Mic error:", e);
+        updateStatus("Could not access mic.", "error");
+    }
+}
+
 function blobToBase64(blob) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(blob); }); }
-async function uploadAndSaveEcho() { clearInterval(recordingTimer.intervalId); mediaRecorder = null; updateActionButtonState(); updateStatus("Processing...", "info"); if (audioChunks.length === 0) { updateStatus("Recording too short.", "error"); return; } const audioBlob = new Blob(audioChunks, { type: "audio/webm" }); audioChunks = []; const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`; try { updateStatus("Preparing upload...", "info"); const presignedResponse = await fetch(`${API_URL}/presigned-url`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: fileName, fileType: audioBlob.type }) }); if (!presignedResponse.ok) throw new Error(`Presigned URL failed: ${await presignedResponse.text()}`); const { url: uploadUrl } = await presignedResponse.json(); updateStatus("Uploading...", "info"); await fetch(uploadUrl, { method: "PUT", body: audioBlob, headers: { "Content-Type": audioBlob.type } }); const audioUrl = `${R2_PUBLIC_URL_BASE}/${fileName}`; updateStatus("Saving...", "info"); const audioBase64 = await blobToBase64(audioBlob); const saveResponse = await fetch(`${API_URL}/echoes`, { method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${userToken}` }, body: JSON.stringify({ w3w_address: currentBucketKey, audio_url: audioUrl, lat: currentUserPosition.lat, lng: currentUserPosition.lng, audio_blob_base64: audioBase64 }) }); if (!saveResponse.ok) throw new Error(`Save metadata failed: ${await saveResponse.text()}`); updateStatus("Echo saved successfully!", "success"); fetchEchoesForCurrentView(); } catch (err) { console.error("Full echo process failed:", err); updateStatus(`Error: ${err.message}`, "error"); } }
+
+async function uploadAndSaveEcho() {
+    if (mediaRecorder && mediaRecorder.recordingPromptInterval) {
+        clearInterval(mediaRecorder.recordingPromptInterval);
+    }
+    if (recordingTimer) {
+        clearInterval(recordingTimer.intervalId);
+    }
+    const collectedChunks = [...audioChunks];
+    mediaRecorder = null;
+    audioChunks = [];
+    updateActionButtonState();
+    updateStatus("Processing...", "info", 0);
+    if (collectedChunks.length === 0) {
+        updateStatus("Recording too short.", "error");
+        return;
+    }
+    const audioBlob = new Blob(collectedChunks, { type: "audio/webm" });
+    const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
+    try {
+        updateStatus("Preparing upload...", "info", 0);
+        const presignedResponse = await fetch(`${API_URL}/presigned-url`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: fileName, fileType: audioBlob.type }) });
+        if (!presignedResponse.ok) throw new Error(`Presigned URL failed: ${await presignedResponse.text()}`);
+        const { url: uploadUrl } = await presignedResponse.json();
+        updateStatus("Uploading...", "info", 0);
+        await fetch(uploadUrl, { method: "PUT", body: audioBlob, headers: { "Content-Type": audioBlob.type } });
+        const audioUrl = `${R2_PUBLIC_URL_BASE}/${fileName}`;
+        updateStatus("Saving...", "info", 0);
+        const audioBase64 = await blobToBase64(audioBlob);
+        const saveResponse = await fetch(`${API_URL}/echoes`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${userToken}` },
+            body: JSON.stringify({ w3w_address: currentBucketKey, audio_url: audioUrl, lat: currentUserPosition.lat, lng: currentUserPosition.lng, audio_blob_base64: audioBase64 })
+        });
+        if (!saveResponse.ok) throw new Error(`Save metadata failed: ${await saveResponse.text()}`);
+        updateStatus("Echo saved successfully!", "success");
+        fetchEchoesForCurrentView();
+    } catch (err) {
+        console.error("Full echo process failed:", err);
+        updateStatus(`Error: ${err.message}`, "error");
+    }
+}
+
 function checkLoginState() { userToken = localStorage.getItem("echoes_token"); if (userToken) { try { const payload = JSON.parse(atob(userToken.split(".")[1])); loggedInUser = payload.user.username; updateUIAfterLogin(); } catch (err) { console.error("Failed to decode token", err); handleLogout(); } } else { updateUIAfterLogout(); } }
 function handleLogout() { localStorage.removeItem("echoes_token"); userToken = null; loggedInUser = null; if (userMenuDropdown) userMenuDropdown.style.display = 'none'; updateUIAfterLogout(); if (locationWatcherId) { navigator.geolocation.clearWatch(locationWatcherId); locationWatcherId = null; } isUserInVicinity = false; updateActionButtonState(); }
 function updateUIAfterLogin() { loggedOutView.style.display = "none"; loggedInView.style.display = "block"; welcomeMessage.textContent = loggedInUser; updateStatus(`Welcome, ${loggedInUser}!`, 'success', 0); updateActionButtonState(); }

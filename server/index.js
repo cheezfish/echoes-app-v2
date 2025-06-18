@@ -214,47 +214,44 @@ app.get('/api/medley/drops', async (req, res) => {
     }
 });
 
-// GET /api/medley/search - HARDENED with extreme logging
+
+// GET /api/medley/search - REWRITTEN WITH BULLETPROOF URL CONSTRUCTION
 app.get('/api/medley/search', async (req, res) => {
     const { q } = req.query;
-    console.log(`[Medley Search] Received search request for: "${q}"`);
     if (!q) {
         return res.status(400).json({ error: 'Search query "q" is required.' });
     }
 
-    let token;
     try {
-        token = await getSpotifyToken();
-    } catch (error) {
-        // If getting the token fails, we can't proceed.
-        return res.status(500).json({ error: `Authentication with Spotify failed: ${error.message}` });
-    }
+        const token = await getSpotifyToken();
 
-    try {
-        const properlyEncodedQuery = encodeURIComponent(q);
-        const searchUrl = `https://api.spotify.com/v1/search?q=${properlyEncodedQuery}&type=track,playlist&limit=10`;
+        // --- THE DEFINITIVE FIX ---
+        // We use the standard URL and URLSearchParams objects to construct the URL.
+        // This is the correct and safest way to handle query parameters.
+        const searchUrl = new URL('https://api.spotify.com/v1/search');
+        searchUrl.searchParams.append('q', q); // It handles all encoding perfectly.
+        searchUrl.searchParams.append('type', 'track,playlist');
+        searchUrl.searchParams.append('limit', '10');
+        // --- END OF FIX ---
         
-        console.log(`[Medley Search] Making request to Spotify with URL: ${searchUrl}`);
-        
-        const response = await fetch(searchUrl, {
+        console.log(`[Medley] Requesting from Spotify: ${searchUrl.toString()}`);
+
+        const response = await fetch(searchUrl.toString(), {
             headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        console.log(`[Medley Search] Spotify responded with status: ${response.status}`);
+        const data = await response.json();
 
         if (!response.ok) {
-            const errorBody = await response.json();
-            console.error("[Medley Search] Spotify API returned an error:", errorBody);
-            throw new Error(errorBody.error.message || 'Spotify search failed with a non-200 status.');
+            // Forward the specific error from Spotify
+            console.error("[Medley] Spotify API returned an error:", data);
+            throw new Error(data.error.message || 'Spotify search failed');
         }
 
-        const data = await response.json();
-        console.log(`[Medley Search] Successfully received data from Spotify. Returning ${data.tracks?.items?.length || 0} tracks.`);
         res.json(data);
-
     } catch (err) {
-        console.error("[Medley Search] Full Search Error during fetch:", err.message);
-        res.status(500).json({ error: `Search failed: ${err.message}` });
+        console.error("[Medley] Full Search Error:", err.message);
+        res.status(500).json({ error: `Search failed.` });
     }
 });
 

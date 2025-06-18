@@ -68,6 +68,29 @@ app.post('/api/users/login', async (req, res) => {
     }
 });
 
+// --- USER-SPECIFIC ROUTES (Protected) ---
+
+// NEW: Endpoint to get all echoes for the currently logged-in user
+app.get('/api/users/my-echoes', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    console.log(`Fetching echoes for user ID: ${userId}`);
+
+    try {
+        const query = `
+            SELECT id, w3w_address, audio_url, created_at, play_count
+            FROM echoes
+            WHERE user_id = $1
+            ORDER BY created_at DESC;
+        `;
+        const result = await pool.query(query, [userId]);
+        res.json(result.rows);
+
+    } catch (err) {
+        console.error(`Error fetching echoes for user ${userId}:`, err);
+        res.status(500).json({ error: 'Server error while fetching your echoes.' });
+    }
+});
+
 // === ADMIN API ROUTES ===
 
 app.get('/admin/api/echoes', adminAuthMiddleware, async (req, res) => {

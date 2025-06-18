@@ -1,4 +1,4 @@
-// client/app.js - TRULY COMPLETE AND UNABRIDGED
+// client/app.js - FINAL CORRECTED VERSION
 
 const API_URL = 'https://echoes-server.onrender.com';
 const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev';
@@ -26,7 +26,7 @@ let fetchTimeout = null;
 let recordingTimer;
 
 // --- UI ELEMENT CACHE ---
-let recordBtn, loginBtn, registerBtn, logoutBtn, welcomeMessage, findMeBtn, statusMessageEl, nearbyEchoesList, authModal, myEchoesBtn, authForm, modalError, usernameInput, passwordInput;
+let recordBtn, loginBtn, registerBtn, logoutBtn, welcomeMessage, findMeBtn, statusMessageEl, nearbyEchoesList, authModal, myEchoesBtn, authForm, modalError, usernameInput, passwordInput, modalTitle, modalSubmitBtn;
 
 /** Creates the dynamic "health ring" icon */
 function createHealthIcon(healthPercent, isHighlighted = false) {
@@ -36,15 +36,10 @@ function createHealthIcon(healthPercent, isHighlighted = false) {
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (healthPercent / 100) * circumference;
     let ringColor;
-    if (isHighlighted) {
-        ringColor = '#ff5733'; // Highlight color
-    } else if (healthPercent > 66) {
-        ringColor = '#ffc107'; // Fresh
-    } else if (healthPercent > 33) {
-        ringColor = '#007bff'; // Stable
-    } else {
-        ringColor = '#6c757d'; // Fading
-    }
+    if (isHighlighted) ringColor = '#ff5733';
+    else if (healthPercent > 66) ringColor = '#ffc107';
+    else if (healthPercent > 33) ringColor = '#007bff';
+    else ringColor = '#6c757d';
     const html = `<div class="health-icon-container" style="width:${size}px; height:${size}px;"><svg class="health-icon-svg" viewBox="0 0 ${size} ${size}"><circle class="health-ring-bg" cx="${size/2}" cy="${size/2}" r="${radius}"></circle><circle class="health-ring-fg" cx="${size/2}" cy="${size/2}" r="${radius}" stroke="${ringColor}" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"></circle></svg><img class="health-icon-inner" src="${centralEchoIconUrl}?color=${ringColor}" alt="Echo"></div>`;
     return L.divIcon({ html: html, className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
 }
@@ -65,20 +60,20 @@ document.addEventListener('DOMContentLoaded', () => {
     modalError = document.getElementById("modal-error");
     usernameInput = document.getElementById("username");
     passwordInput = document.getElementById("password");
+    // Get modal title and submit button for the fixed openModal function
+    modalTitle = document.getElementById("modal-title");
+    modalSubmitBtn = document.getElementById("modal-submit-btn");
     initializeApp();
 });
 
 function initializeApp() {
     setupEventListeners();
     checkLoginState();
-
     map = L.map('map', { zoomControl: true, attributionControl: false }).setView([20, 0], 2);
     L.tileLayer('https://api.maptiler.com/maps/toner-v2/{z}/{x}/{y}.png?key=oeJYklnaUPpZgpHgTszf', { maxZoom: 20, attribution: '© <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
     L.control.attribution({ position: 'topright' }).addTo(map);
-
     markers = L.markerClusterGroup({ disableClusteringAtZoom: 15 });
     map.addLayer(markers);
-
     map.on('moveend', () => {
         clearTimeout(fetchTimeout);
         fetchTimeout = setTimeout(() => {
@@ -90,6 +85,7 @@ function initializeApp() {
             }
         }, 500);
     });
+    updateInfoPanelText();
 }
 
 function setupEventListeners() {
@@ -103,12 +99,26 @@ function setupEventListeners() {
     authForm.addEventListener('submit', handleAuthFormSubmit);
 }
 
-/** --- NEW CORE INTERACTIVITY --- */
+// --- NEW/RESTORED CORE FUNCTIONS ---
+
+// RESTORED: This function was missing.
+function updateStatus(message, type = 'info', duration = 0) {
+    if (!statusMessageEl) return;
+    statusMessageEl.textContent = message;
+    statusMessageEl.className = type;
+    if (duration > 0) {
+        setTimeout(() => {
+            if (statusMessageEl.textContent === message) {
+                statusMessageEl.textContent = '';
+                statusMessageEl.className = '';
+            }
+        }, duration);
+    }
+}
 
 async function fetchEchoesForCurrentView() {
     const center = map.getBounds().getCenter();
     updateStatus("Scanning for echoes...", "info");
-
     try {
         const response = await fetch(`${API_URL}/echoes?lat=${center.lat}&lng=${center.lng}`);
         if (!response.ok) throw new Error("Server could not fetch echoes.");
@@ -222,7 +232,7 @@ function clearNearbyListAndMarkers() {
     renderNearbyList([]);
 }
 
-/** --- AUTH, LOCATION, AND RECORDING FUNCTIONS --- */
+// --- AUTH, LOCATION, AND RECORDING FUNCTIONS ---
 
 window.keepEchoAlive = async (id) => {
     try {
@@ -337,14 +347,12 @@ async function uploadAndSaveEcho() {
         });
         if (!presignedResponse.ok) throw new Error(`Presigned URL failed: ${await presignedResponse.text()}`);
         const { url: uploadUrl } = await presignedResponse.json();
-        
         updateStatus("Uploading...", "info");
-        await fetch(uploadUrl, { method: "PUT", body: audioBlob, headers: { "Content-Type": audioBlob.type } });
-
+        const uploadResponse = await fetch(uploadUrl, { method: "PUT", body: audioBlob, headers: { "Content-Type": audioBlob.type } });
+        if (!uploadResponse.ok) throw new Error("Upload to R2 failed");
         const audioUrl = `${R2_PUBLIC_URL_BASE}/${fileName}`;
         updateStatus("Saving...", "info");
         const audioBase64 = await blobToBase64(audioBlob);
-        
         const saveResponse = await fetch(`${API_URL}/echoes`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${userToken}` },
@@ -353,7 +361,6 @@ async function uploadAndSaveEcho() {
             })
         });
         if (!saveResponse.ok) throw new Error(`Save metadata failed: ${await saveResponse.text()}`);
-        
         updateStatus("Echo saved successfully!", "success", 3000);
         fetchEchoesForCurrentView();
     } catch (err) {
@@ -367,7 +374,23 @@ async function uploadAndSaveEcho() {
 function onLocationError(error) { updateStatus(`Error: ${error.message}`, "error", 4000); updateInfoPanelText(); }
 function startLocationWatcher() { if (locationWatcherId) navigator.geolocation.clearWatch(locationWatcherId); if ("geolocation" in navigator) { const options = { enableHighAccuracy: true, timeout: 27000, maximumAge: 30000 }; locationWatcherId = navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, options); } }
 function updateInfoPanelText() { recordBtn.disabled = !userToken || !currentUserPosition; }
-function openModal(mode) { modalError.textContent = ""; authForm.reset(); if (mode === 'login') { authForm.querySelector('#modal-title').textContent = "Login"; authForm.querySelector('#modal-submit-btn').textContent = "Login"; authForm.dataset.mode = "login"; } else { authForm.querySelector('#modal-title').textContent = "Register"; authForm.querySelector('#modal-submit-btn').textContent = "Register"; authForm.dataset.mode = "register"; } authModal.style.display = "flex"; }
+
+// FIXED: This function now correctly finds the modal's title and button.
+function openModal(mode) {
+    modalError.textContent = "";
+    authForm.reset();
+    if (mode === 'login') {
+        modalTitle.textContent = "Login";
+        modalSubmitBtn.textContent = "Login";
+        authForm.dataset.mode = "login";
+    } else {
+        modalTitle.textContent = "Register";
+        modalSubmitBtn.textContent = "Register";
+        authForm.dataset.mode = "register";
+    }
+    authModal.style.display = "flex";
+}
+
 function checkLoginState() { userToken = localStorage.getItem("echoes_token"); if (userToken) { try { const payload = JSON.parse(atob(userToken.split(".")[1])); loggedInUser = payload.user.username; updateUIAfterLogin(); } catch (err) { console.error("Failed to decode token", err); handleLogout(); } } else { updateUIAfterLogout(); } updateInfoPanelText(); }
 function handleLogout() { localStorage.removeItem("echoes_token"); userToken = null; loggedInUser = null; updateUIAfterLogout(); if (locationWatcherId) { navigator.geolocation.clearWatch(locationWatcherId); locationWatcherId = null; } }
 function updateUIAfterLogin() { welcomeMessage.textContent = `Welcome, ${loggedInUser}`; if (myEchoesBtn) myEchoesBtn.style.display = 'inline-block'; loginBtn.style.display = "none"; registerBtn.style.display = "none"; logoutBtn.style.display = "inline-block"; updateInfoPanelText(); }

@@ -329,17 +329,38 @@ function stopPromptCycling() {
 }
 
 // --- INTERACTIVITY FUNCTIONS ---
+// --- Find and replace the fetchEchoesForCurrentView function ---
 async function fetchEchoesForCurrentView() {
-    const center = map.getBounds().getCenter();
+    // 1. Get the map's current visible bounding box
+    const bounds = map.getBounds();
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+
     updateStatus("Scanning for echoes...", "info");
+
     try {
-        const response = await fetch(`${API_URL}/echoes?lat=${center.lat}&lng=${center.lng}`);
+        // 2. Build the new URL with the corner coordinates
+        const url = new URL(`${API_URL}/echoes`);
+        url.searchParams.append('sw_lng', sw.lng);
+        url.searchParams.append('sw_lat', sw.lat);
+        url.searchParams.append('ne_lng', ne.lng);
+        url.searchParams.append('ne_lat', ne.lat);
+
+        const response = await fetch(url);
         if (!response.ok) throw new Error("Server could not fetch echoes.");
+        
         currentEchoesInView = await response.json();
+        
+        // The rest of the logic works perfectly with this data
         renderMapMarkers(currentEchoesInView);
         renderNearbyList(currentEchoesInView);
-        if (currentEchoesInView.length > 0) updateStatus(`${currentEchoesInView.length} echoes found in this area.`, "success");
-        else updateStatus("No echoes found here. Be the first!", "info", 0);
+        
+        // Update the status based on what was returned for this view
+        if (currentEchoesInView.length > 0) {
+            updateStatus(`${currentEchoesInView.length} signals detected in this area.`, "success");
+        } else {
+            updateStatus("This area is quiet.", "info", 0);
+        }
     } catch (err) {
         updateStatus("Could not fetch echoes.", "error");
         console.error("Fetch Echoes Error:", err);

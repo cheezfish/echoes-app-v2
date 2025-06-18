@@ -236,31 +236,36 @@ app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, re
 
 // --- ECHOES ROUTES ---
 
-
-// --- REVERTED ECHOES ROUTE ---
+// --- FINAL, OPTIMIZED ECHOES ROUTE ---
 app.get('/echoes', async (req, res) => {
-    const { lat, lng } = req.query;
-    if (!lat || !lng) return res.status(400).json({ error: "Latitude and longitude are required." });
+    // We now expect the map's corner coordinates from the client
+    const { sw_lng, sw_lat, ne_lng, ne_lat } = req.query;
+
+    if (!sw_lng || !sw_lat || !ne_lng || !ne_lat) {
+        // Fallback for the very first load before the map has bounds
+        // This can be a simple query or an empty array.
+        // Let's return an empty array to force the user to move the map.
+        return res.json([]);
+    }
     
-    // We fetch everything in the large 3km radius of the MAP VIEW.
-    // The client will do the precise distance calculation from the USER's position.
-    const DETECTION_RADIUS_METERS = 3000;
     const EXPIRATION_PERIOD = '20 days'; 
 
     try {
+        // This query selects all echoes within the rectangular bounding box of the map view.
+        // It's the most efficient way to get exactly what the user can see.
         const query = `
             SELECT e.*, u.username
             FROM echoes e 
             LEFT JOIN users u ON e.user_id = u.id 
             WHERE 
-                ST_DWithin(geog, ST_MakePoint($2, $1)::geography, ${DETECTION_RADIUS_METERS})
+                geog && ST_MakeEnvelope($1, $2, $3, $4, 4326)
                 AND e.last_played_at >= NOW() - INTERVAL '${EXPIRATION_PERIOD}';
         `;
-        // Removed the ORDER BY distance_meters, as it's no longer calculated here.
-        const result = await pool.query(query, [lat, lng]);
+        const values = [sw_lng, sw_lat, ne_lng, ne_lat];
+        const result = await pool.query(query, values);
         res.json(result.rows);
     } catch (err) {
-        console.error("Get Echoes DB Error:", err);
+        console.error("Get Echoes by Bounding Box DB Error:", err);
         res.status(500).send('Server Error');
     }
 });

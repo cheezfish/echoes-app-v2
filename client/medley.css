@@ -1,0 +1,120 @@
+/* Styles specific to the Medley page */
+
+.beta-tag {
+    font-size: 0.6em;
+    font-weight: normal;
+    color: #ffc107;
+    vertical-align: middle;
+    margin-left: 5px;
+}
+
+#map-container {
+    height: calc(100vh - 50px - 32px); /* Full height minus header and status bar */
+    position: relative;
+    display: flex;
+}
+
+#drop-track-btn {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 401;
+    min-width: 56px;
+    height: 56px;
+    border-radius: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 20px;
+    font-size: 1rem;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    background-color: #1DB954; /* Spotify Green */
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+#drop-track-btn:hover:not(:disabled) {
+    background-color: #1ed760;
+    transform: scale(1.05);
+}
+#drop-track-btn:disabled {
+    background-color: #555;
+    cursor: not-allowed;
+}
+#drop-track-btn img {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+}
+
+/* Modal and Search Styles */
+#drop-modal .modal-content {
+    max-width: 600px;
+}
+
+.search-container {
+    position: relative;
+    margin: 1rem 0;
+}
+
+#spotify-search-input {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    border: 1px solid #555;
+    border-radius: 6px;
+    background-color: #333;
+    color: #eee;
+}
+
+#spotify-results-container {
+    max-height: 40vh;
+    overflow-y: auto;
+    border: 1px solid #444;
+    border-radius: 6px;
+}
+
+.spotify-result-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #444;
+}
+.spotify-result-item:last-child {
+    border-bottom: none;
+}
+.spotify-result-item:hover {
+    background-color: #4a4a4a;
+}
+.spotify-result-item img {
+    width: 50px;
+    height: 50px;
+    margin-right: 15px;
+    border-radius: 4px;
+}
+.result-info h4 { margin: 0 0 5px 0; font-size: 1rem; }
+.result-info p { margin: 0; font-size: 0.85rem; color: #bbb; }
+
+#selection-preview {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #555;
+}
+#selected-item-display {
+    display: flex;
+    align-items: center;
+    background-color: #333;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+#confirm-drop-btn {
+    width: 100%;
+    background-color: #1DB954;
+}
+#confirm-drop-btn:hover {
+    background-color: #1ed760;
+}

@@ -124,6 +124,120 @@ app.get('/api/achievements', authMiddleware, async (req, res) => {
 });
 
 
+// --- HELPER FUNCTION for Spotify Auth ---
+let spotifyToken = { value: null, expires: 0 };
+
+async function getSpotifyToken() {
+    if (spotifyToken.value && spotifyToken.expires > Date.now()) {
+        return spotifyToken.value;
+    }
+
+    console.log('[Spotify] Token expired or missing. Requesting new token...');
+    const credentials = Buffer.from(`${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`).toString('base64');
+    
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${credentials}`,
+        },
+        body: 'grant_type=client_credentials',
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to get Spotify token');
+    }
+
+    const data = await response.json();
+    spotifyToken = {
+        value: data.access_token,
+        expires: Date.now() + (data.expires_in - 300) * 1000, // Refresh 5 mins early
+    };
+    console.log('[Spotify] New token acquired.');
+    return spotifyToken.value;
+}
+
+
+// =======================================================
+// --- MEDLEY (BETA) API ROUTES ---
+// =======================================================
+
+// GET /api/medley/drops - Fetches nearby, active drops
+app.get('/api/medley/drops', async (req, res) => {
+    const { lat, lng } = req.query;
+    if (!lat || !lng) return res.status(400).json({ error: "Latitude and longitude are required." });
+    
+    const DISCOVERY_RADIUS_METERS = 20000; // 20km
+
+    try {
+        const query = `
+            SELECT id, lat, lng, spotify_uri, item_name, artist_name, album_art_url
+            FROM medley_drops
+            WHERE 
+                ST_DWithin(geog, ST_MakePoint($2, $1)::geography, ${DISCOVERY_RADIUS_METERS})
+                AND created_at > NOW() - INTERVAL '1 day' -- Only fetch drops from the last 24 hours
+            ORDER BY created_at DESC;
+        `;
+        const result = await pool.query(query, [lat, lng]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("[Medley] Get Drops DB Error:", err);
+        res.status(500).send('Server Error');
+    }
+});
+
+// GET /api/medley/search - Searches Spotify for tracks/playlists
+app.get('/api/medley/search', async (req, res) => {
+    const { q } = req.query;
+    if (!q) return res.status(400).json({ error: 'Search query "q" is required.' });
+
+    try {
+        const token = await getSpotifyToken();
+        const searchUrl = `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=track,playlist&limit=10`;
+        
+        const response = await fetch(searchUrl, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Spotify search failed');
+
+        const data = await response.json();
+        res.json(data);
+    } catch (err) {
+        console.error("[Medley] Spotify Search Error:", err);
+        res.status(500).send('Server Error');
+    }
+});
+
+// POST /api/medley/drops - Creates a new anonymous drop
+app.post('/api/medley/drops', async (req, res) => {
+    const { lat, lng, spotify_uri, item_name, artist_name, album_art_url } = req.body;
+
+    if (!lat || !lng || !spotify_uri || !item_name) {
+        return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    try {
+        const insertQuery = `
+            INSERT INTO medley_drops (lat, lng, spotify_uri, item_name, artist_name, album_art_url)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *;
+        `;
+        const insertValues = [lat, lng, spotify_uri, item_name, artist_name, album_art_url];
+        const insertResult = await pool.query(insertQuery, insertValues);
+        const newDrop = insertResult.rows[0];
+
+        // Now, update the geography column for the new drop
+        const updateQuery = `UPDATE medley_drops SET geog = ST_MakePoint($1, $2) WHERE id = $3;`;
+        await pool.query(updateQuery, [lng, lat, newDrop.id]);
+        
+        res.status(201).json(newDrop);
+    } catch (err) {
+        console.error('[Medley] Create Drop Error:', err);
+        res.status(500).json({ error: 'Failed to save drop.' });
+    }
+});
+
 // === ADMIN API ROUTES ===
 app.get('/admin/api/echoes', adminAuthMiddleware, async (req, res) => {
     try {

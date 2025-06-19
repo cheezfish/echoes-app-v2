@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const seedSubmitBtn = document.getElementById('seed-submit-btn');
     const pruneBtn = document.getElementById('prune-echoes-btn');
     const pruneStatusEl = document.getElementById('prune-status');
+    const purgeStorageBtn = document.getElementById('purge-storage-btn');       // <-- ADD THIS
+const purgeStorageStatusEl = document.getElementById('purge-storage-status'); // <-- ADD THIS
 
     let adminMap;
     let adminMarkers;
@@ -240,6 +242,37 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             alert(`Error: ${error.message}`);
         }
+    }
+
+        // === ADD THIS NEW EVENT LISTENER FOR THE PURGE BUTTON ===
+    if (purgeStorageBtn) {
+        purgeStorageBtn.addEventListener('click', async () => {
+            // Use a strong confirmation because this is highly destructive
+            if (!confirm('This will scan for and permanently delete all unused audio files from your storage bucket. This cannot be undone. Are you sure?')) {
+                return;
+            }
+
+            purgeStorageStatusEl.textContent = 'Scanning... This may take a minute...';
+            purgeStorageStatusEl.className = 'status';
+            purgeStorageBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_URL}/admin/api/storage/purge-orphans`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${adminToken}` },
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Failed to start purge.');
+
+                purgeStorageStatusEl.textContent = result.message;
+                purgeStorageStatusEl.className = 'status success';
+            } catch (error) {
+                purgeStorageStatusEl.textContent = `Error: ${error.message}`;
+                purgeStorageStatusEl.className = 'status error';
+            } finally {
+                purgeStorageBtn.disabled = false;
+            }
+        });
     }
 
     async function fetchAllUsersForAdmin() {

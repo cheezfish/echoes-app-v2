@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -431,6 +431,72 @@ app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, re
     } catch (err) {
         console.error(`Admin: Error toggling admin status for user ${id}:`, err);
         res.status(500).json({ error: 'Failed to toggle admin status due to server error.' });
+    }
+});
+
+// =================================================================
+// === ADD THIS NEW ENDPOINT FOR PURGING ORPHANED STORAGE FILES ===
+// =================================================================
+app.post('/admin/api/storage/purge-orphans', adminAuthMiddleware, async (req, res) => {
+    try {
+        // Step 1: Get all "live" audio URLs from your database
+        const echoesResult = await pool.query(`SELECT audio_url FROM echoes`);
+        const medleyResult = await pool.query(`SELECT audio_url FROM medley_drops`); // Also check medley drops to be safe
+
+        const liveUrls = new Set([
+            ...echoesResult.rows.map(r => r.audio_url),
+            ...medleyResult.rows.map(r => r.audio_url)
+        ]);
+
+        // Step 2: List all objects in your R2 bucket
+        const listCommand = new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET_NAME });
+        const r2Objects = await s3.send(listCommand);
+        const allR2Files = r2Objects.Contents || []; // Handle case where bucket is empty
+
+        // Step 3: Identify the orphaned files
+        // IMPORTANT: Ensure R2_PUBLIC_URL_BASE is set in your .env file!
+        // e.g., R2_PUBLIC_URL_BASE=https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev
+        const r2PublicBase = process.env.R2_PUBLIC_URL_BASE;
+        if (!r2PublicBase) {
+            throw new Error('R2_PUBLIC_URL_BASE is not set on the server.');
+        }
+
+        const orphansToDelete = allR2Files.filter(file => {
+            const fullUrl = `${r2PublicBase}/${file.Key}`;
+            return !liveUrls.has(fullUrl);
+        });
+
+        // If there are no orphans, we're done!
+        if (orphansToDelete.length === 0) {
+            return res.json({ message: 'Scan complete. No orphaned files found.', purgedCount: 0 });
+        }
+
+        // Step 4: Prepare and execute the batch delete command
+        const deleteKeys = orphansToDelete.map(file => ({ Key: file.Key }));
+        const deleteCommand = new DeleteObjectsCommand({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Delete: { Objects: deleteKeys },
+        });
+
+        const deleteResult = await s3.send(deleteCommand);
+
+        if (deleteResult.Errors && deleteResult.Errors.length > 0) {
+            console.error('Some files could not be purged:', deleteResult.Errors);
+            throw new Error('Some files could not be purged. Check server logs.');
+        }
+
+        const totalSizePurged = orphansToDelete.reduce((sum, file) => sum + file.Size, 0);
+        const sizeInMB = (totalSizePurged / (1024 * 1024)).toFixed(2);
+
+        res.json({
+            message: `Successfully purged ${orphansToDelete.length} orphaned files, freeing up ${sizeInMB} MB.`,
+            purgedCount: orphansToDelete.length,
+            spaceFreedMB: sizeInMB
+        });
+
+    } catch (err) {
+        console.error('[PURGE] An error occurred:', err);
+        res.status(500).json({ error: 'A server error occurred during the storage purge operation.' });
     }
 });
 

@@ -434,28 +434,21 @@ app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, re
     }
 });
 
-// =================================================================
-// === ADD THIS NEW ENDPOINT FOR PURGING ORPHANED STORAGE FILES ===
-// =================================================================
+// In server/index.js, replace the entire purge-orphans route with this one.
+
 app.post('/admin/api/storage/purge-orphans', adminAuthMiddleware, async (req, res) => {
     try {
-        // Step 1: Get all "live" audio URLs from your database
-        const echoesResult = await pool.query(`SELECT audio_url FROM echoes`);
-        const medleyResult = await pool.query(`SELECT audio_url FROM medley_drops`); // Also check medley drops to be safe
+        // Step 1: Get all "live" audio URLs from ONLY the echoes table
+        const echoesResult = await pool.query(`SELECT audio_url FROM echoes WHERE audio_url IS NOT NULL`);
 
-        const liveUrls = new Set([
-            ...echoesResult.rows.map(r => r.audio_url),
-            ...medleyResult.rows.map(r => r.audio_url)
-        ]);
+        const liveUrls = new Set(echoesResult.rows.map(r => r.audio_url));
 
         // Step 2: List all objects in your R2 bucket
         const listCommand = new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET_NAME });
         const r2Objects = await s3.send(listCommand);
-        const allR2Files = r2Objects.Contents || []; // Handle case where bucket is empty
+        const allR2Files = r2Objects.Contents || [];
 
         // Step 3: Identify the orphaned files
-        // IMPORTANT: Ensure R2_PUBLIC_URL_BASE is set in your .env file!
-        // e.g., R2_PUBLIC_URL_BASE=https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev
         const r2PublicBase = process.env.R2_PUBLIC_URL_BASE;
         if (!r2PublicBase) {
             throw new Error('R2_PUBLIC_URL_BASE is not set on the server.');
@@ -466,7 +459,6 @@ app.post('/admin/api/storage/purge-orphans', adminAuthMiddleware, async (req, re
             return !liveUrls.has(fullUrl);
         });
 
-        // If there are no orphans, we're done!
         if (orphansToDelete.length === 0) {
             return res.json({ message: 'Scan complete. No orphaned files found.', purgedCount: 0 });
         }
@@ -496,7 +488,7 @@ app.post('/admin/api/storage/purge-orphans', adminAuthMiddleware, async (req, re
 
     } catch (err) {
         console.error('[PURGE] An error occurred:', err);
-        res.status(500).json({ error: 'A server error occurred during the storage purge operation.' });
+        res.status(500).json({ error: err.message || 'A server error occurred during the storage purge operation.' });
     }
 });
 

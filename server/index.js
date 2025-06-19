@@ -227,13 +227,11 @@ app.get('/api/medley/search', async (req, res) => {
     try {
         const token = await getSpotifyToken();
 
-        // --- THE DEFINITIVE FIX ---
-        // We structure the query using Spotify's field filter syntax.
-        // This makes the search more specific and reliable.
-        const structuredQuery = `track:${q} artist:${q}`;
-        
+        // --- THE CORRECT FIX ---
+        // We do not use field filters. We send the raw query string and let
+        // Spotify's powerful search algorithm do the work of finding the best matches.
         const searchUrl = new URL('https://api.spotify.com/v1/search');
-        searchUrl.searchParams.append('q', structuredQuery);
+        searchUrl.searchParams.append('q', q); // Pass the user's query directly
         searchUrl.searchParams.append('type', 'track,playlist');
         searchUrl.searchParams.append('limit', '10');
         // --- END OF FIX ---

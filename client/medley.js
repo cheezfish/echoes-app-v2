@@ -127,7 +127,7 @@ async function searchSpotify(query) {
 
 function renderSearchResults(data) {
     spotifyResultsContainer.innerHTML = '';
-    const items = [...(data.tracks?.items || []), ...(data.playlists?.items || [])];
+    const items = data.items || []; // Use data.items, as the server now returns the 'tracks' object
     items.forEach(item => {
         const div = document.createElement('div');
         div.className = 'spotify-result-item';

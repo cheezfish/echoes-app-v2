@@ -215,7 +215,9 @@ app.get('/api/medley/drops', async (req, res) => {
 });
 
 
-// GET /api/medley/search - REWRITTEN WITH BULLETPROOF URL CONSTRUCTION
+// In server/index.js
+
+// --- THIS IS THE FINAL, CORRECTED SEARCH ROUTE ---
 app.get('/api/medley/search', async (req, res) => {
     const { q } = req.query;
     if (!q) {
@@ -226,15 +228,17 @@ app.get('/api/medley/search', async (req, res) => {
         const token = await getSpotifyToken();
 
         // --- THE DEFINITIVE FIX ---
-        // We use the standard URL and URLSearchParams objects to construct the URL.
-        // This is the correct and safest way to handle query parameters.
+        // We structure the query using Spotify's field filter syntax.
+        // This makes the search more specific and reliable.
+        const structuredQuery = `track:${q} artist:${q}`;
+        
         const searchUrl = new URL('https://api.spotify.com/v1/search');
-        searchUrl.searchParams.append('q', q); // It handles all encoding perfectly.
+        searchUrl.searchParams.append('q', structuredQuery);
         searchUrl.searchParams.append('type', 'track,playlist');
         searchUrl.searchParams.append('limit', '10');
         // --- END OF FIX ---
         
-        console.log(`[Medley] Requesting from Spotify: ${searchUrl.toString()}`);
+        console.log(`[Medley] Requesting from Spotify with structured query: ${searchUrl.toString()}`);
 
         const response = await fetch(searchUrl.toString(), {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -243,9 +247,8 @@ app.get('/api/medley/search', async (req, res) => {
         const data = await response.json();
 
         if (!response.ok) {
-            // Forward the specific error from Spotify
             console.error("[Medley] Spotify API returned an error:", data);
-            throw new Error(data.error.message || 'Spotify search failed');
+            throw new Error(data.error?.message || 'Spotify search failed');
         }
 
         res.json(data);

@@ -29,6 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
     confirmDropBtn = document.getElementById('confirm-drop-btn');
     statusBar = document.getElementById('global-status-bar');
 
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(() => console.log('Service Worker registered successfully.'))
+            .catch(error => console.error('Service Worker registration failed:', error));
+    }
+
     initializeMap();
     setupEventListeners();
     getUserLocation();

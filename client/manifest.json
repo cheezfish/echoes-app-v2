@@ -1,0 +1,11 @@
+{
+  "name": "Medley by Echoes",
+  "short_name": "Medley",
+  "start_url": "/medley.html",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#1DB954",
+  "icons": [
+    // ... icon definitions ...
+  ]
+}

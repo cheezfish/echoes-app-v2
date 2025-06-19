@@ -35,6 +35,20 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(error => console.error('Service Worker registration failed:', error));
     }
 
+    const params = new URLSearchParams(window.location.search);
+    const sharedText = params.get('shared_text');
+
+    if (sharedText) {
+        console.log(`Share received! Content: ${sharedText}`);
+        // For now, just show an alert to prove it works.
+        alert(`Received a share: ${sharedText}`);
+        // We can also pre-fill the search bar
+        spotifySearchInput.value = sharedText;
+        searchSpotify(sharedText);
+        // Open the modal automatically for a better UX
+        dropModal.style.display = 'flex';
+    }
+
     initializeMap();
     setupEventListeners();
     getUserLocation();

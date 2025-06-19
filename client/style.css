@@ -6,7 +6,7 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
     display: flex; 
     flex-direction: column; 
-    height: 100vh; 
+    height: 100dvh; 
     overflow: hidden; 
     background-color: #000 !important;
     color: #eee; 
@@ -56,6 +56,7 @@ h1 {
 }
 
 #user-menu-button {
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -260,9 +261,9 @@ h1 {
 .health-ring-fg { stroke-linecap: round; transition: stroke-dashoffset 0.5s ease-out, stroke 0.5s ease-out; }
 .health-icon-inner { width: 28px; height: 28px; position: relative; z-index: 1; }
 
-.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:flex;justify-content:center;align-items:center;z-index:1005}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,.7);display:flex;justify-content:center;align-items:center;z-index:1005;cursor: pointer;}
 .modal-content{background-color:#3a3a3a;color:#eee;padding:1.5rem;border-radius:8px;width:90%;max-width:500px;position:relative;box-shadow:0 5px 15px rgba(0,0,0,.5); display: flex; flex-direction: column; }
-.close-btn{position:absolute;top:10px;right:15px;font-size:28px;font-weight:700;border:none;background:0 0;cursor:pointer;color:#aaa}
+.close-btn{position:absolute;top:10px;right:15px;font-size:28px;font-weight:700;border:none;background:0 0;cursor:pointer;color:#aaa;cursor: pointer;}
 .close-btn:hover{color:#fff}
 .form-group{margin-bottom:1rem}
 .form-group label{display:block;margin-bottom:.5rem}

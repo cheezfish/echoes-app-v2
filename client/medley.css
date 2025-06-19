@@ -153,3 +153,60 @@
     background-color: #1DB954; /* Spotify Green */
     /* No need to re-declare hover, it uses the default button styles */
 }
+
+/* === NEW: CUSTOM MEDLEY POPUP STYLES === */
+
+/* Target our custom popup class */
+.medley-popup .leaflet-popup-content-wrapper {
+    background-color: #282828; /* Dark, spotify-like background */
+    color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.medley-popup .leaflet-popup-content {
+    margin: 0;
+    padding: 1.2rem; /* Consistent padding */
+    width: 300px !important; /* Force a consistent width */
+}
+
+/* Style the close button to be more subtle */
+.medley-popup .leaflet-popup-close-button {
+    color: #aaa;
+    padding: 10px 10px 0 0;
+}
+.medley-popup .leaflet-popup-close-button:hover {
+    color: #fff;
+}
+
+/* Remove the pointy tip */
+.medley-popup .leaflet-popup-tip {
+    display: none;
+}
+
+/* Style the content inside our custom popup */
+.medley-popup-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.medley-popup-content h3 {
+    font-size: 1.25rem;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.medley-popup-content p {
+    font-size: 0.95rem;
+    color: #b3b3b3;
+    margin: 0 0 0.5rem 0;
+}
+
+/* Style the embedded Spotify player */
+.medley-popup-content iframe {
+    border-radius: 8px;
+    height: 80px; /* Force the compact player height */
+}

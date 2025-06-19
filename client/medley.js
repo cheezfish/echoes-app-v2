@@ -102,15 +102,42 @@ async function fetchNearbyDrops() {
     }
 }
 
+// In medley.js
+
 function renderDropsOnMap(drops) {
+    // No change to the start of the function
     drops.forEach(drop => {
+        // --- THIS IS THE UPDATED PART ---
+
+        // 1. Define the custom HTML content for our new popup
+        const popupContent = `
+            <div class="medley-popup-content">
+                <h3>${drop.item_name}</h3>
+                <p>by ${drop.artist_name || 'Various Artists'}</p>
+                <iframe 
+                    style="border-radius:8px;" 
+                    src="https://open.spotify.com/embed?uri=${drop.spotify_uri}" 
+                    width="100%" 
+                    height="80" 
+                    frameBorder="0" 
+                    allowfullscreen="" 
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    loading="lazy">
+                </iframe>
+            </div>
+        `;
+
+        // 2. Define the options for the popup, including our custom class
+        const popupOptions = {
+            className: 'medley-popup',
+            maxWidth: 300,
+            minWidth: 300
+        };
+
+        // 3. Create the marker and bind the popup with the new content and options
         L.marker([drop.lat, drop.lng], { icon: dropIcon })
           .addTo(map)
-          .bindPopup(`
-              <h4>${drop.item_name}</h4>
-              <p>by ${drop.artist_name || 'Various Artists'}</p>
-              <iframe style="border-radius:12px" src="https://open.spotify.com/embed?uri=${drop.spotify_uri}" width="100%" height="80" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
-          `);
+          .bindPopup(popupContent, popupOptions);
     });
 }
 

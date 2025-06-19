@@ -217,7 +217,7 @@ app.get('/api/medley/drops', async (req, res) => {
 
 // In server/index.js
 
-// --- THIS IS THE FINAL, CORRECTED SEARCH ROUTE ---
+// --- THIS IS THE FINAL, MARKET-AWARE SEARCH ROUTE ---
 app.get('/api/medley/search', async (req, res) => {
     const { q } = req.query;
     if (!q) {
@@ -227,16 +227,24 @@ app.get('/api/medley/search', async (req, res) => {
     try {
         const token = await getSpotifyToken();
 
-        // --- THE CORRECT FIX ---
-        // We do not use field filters. We send the raw query string and let
-        // Spotify's powerful search algorithm do the work of finding the best matches.
+        // Use the standard URL and URLSearchParams objects for robust URL creation.
         const searchUrl = new URL('https://api.spotify.com/v1/search');
-        searchUrl.searchParams.append('q', q); // Pass the user's query directly
+        
+        // Append the user's search query.
+        searchUrl.searchParams.append('q', q);
+        
+        // Append the types of content we're looking for.
         searchUrl.searchParams.append('type', 'track,playlist');
-        searchUrl.searchParams.append('limit', '10');
+        
+        // --- THE CRITICAL FIX ---
+        // Specify the market to get a full, relevant catalog of results.
+        // We'll use 'GB' for Great Britain since the app is London-focused.
+        searchUrl.searchParams.append('market', 'GB');
         // --- END OF FIX ---
         
-        console.log(`[Medley] Requesting from Spotify with structured query: ${searchUrl.toString()}`);
+        searchUrl.searchParams.append('limit', '10');
+        
+        console.log(`[Medley] Requesting from Spotify: ${searchUrl.toString()}`);
 
         const response = await fetch(searchUrl.toString(), {
             headers: { 'Authorization': `Bearer ${token}` }

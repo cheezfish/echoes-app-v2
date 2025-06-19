@@ -148,20 +148,26 @@ function renderSearchResults(data) {
 }
 
 function selectItem(item) {
+    // This is the object that will be sent to the server
     selectedItem = {
         spotify_uri: item.uri,
         item_name: item.name,
+        // Handle both track and playlist artist/owner info
         artist_name: item.type === 'track' ? item.artists.map(a => a.name).join(', ') : item.owner.display_name,
+        // Handle both track and playlist album art
         album_art_url: (item.album?.images[0] || item.images[0] || {url: ''}).url
     };
 
+    // --- UPDATED HTML STRUCTURE FOR THE PREVIEW ---
     selectedItemDisplay.innerHTML = `
-        <img src="${selectedItem.album_art_url}" alt="${selectedItem.item_name}">
+        <img src="${selectedItem.album_art_url}" alt="Album Art">
         <div class="result-info">
             <h4>${selectedItem.item_name}</h4>
             <p>${selectedItem.artist_name}</p>
         </div>
     `;
+    
+    // Show the preview section
     selectionPreview.style.display = 'block';
 }
 

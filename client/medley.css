@@ -98,23 +98,58 @@
 .result-info h4 { margin: 0 0 5px 0; font-size: 1rem; }
 .result-info p { margin: 0; font-size: 0.85rem; color: #bbb; }
 
+/* === NEW AND IMPROVED SELECTION PREVIEW STYLES === */
 #selection-preview {
     margin-top: 1.5rem;
     padding-top: 1.5rem;
     border-top: 1px solid #555;
+    /* We'll use display: none; controlled by JS */
 }
+
 #selected-item-display {
-    display: flex;
-    align-items: center;
-    background-color: #333;
-    padding: 10px;
-    border-radius: 6px;
+    display: flex; /* Use flexbox for layout */
+    align-items: center; /* Vertically align items */
+    gap: 15px; /* Space between image and text */
     margin-bottom: 1rem;
+    background-color: #282828; /* A slightly lighter shade */
+    padding: 1rem;
+    border-radius: 8px;
 }
+
+#selected-item-display img {
+    /* Constrain the image size */
+    width: 80px;
+    height: 80px;
+    object-fit: cover; /* Ensure image covers the area without distortion */
+    border-radius: 6px;
+    flex-shrink: 0; /* Prevent image from shrinking */
+}
+
+#selected-item-display .result-info {
+    /* Allow text to take remaining space */
+    flex-grow: 1;
+    min-width: 0; /* Important for flexbox ellipsis to work */
+}
+
+#selected-item-display h4 {
+    margin: 0 0 5px 0;
+    font-size: 1.1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Add ... for long track names */
+}
+
+#selected-item-display p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #bbb;
+}
+
+/* Style for the confirmation button */
 #confirm-drop-btn {
     width: 100%;
-    background-color: #1DB954;
-}
-#confirm-drop-btn:hover {
-    background-color: #1ed760;
+    padding: 12px;
+    font-size: 1rem;
+    background-color: #1DB954; /* Spotify Green */
+    /* No need to re-declare hover, it uses the default button styles */
 }

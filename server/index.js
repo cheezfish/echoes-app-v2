@@ -217,7 +217,8 @@ app.get('/api/medley/drops', async (req, res) => {
 
 // In server/index.js
 
-// --- THIS IS THE FINAL, MARKET-AWARE SEARCH ROUTE ---
+
+// --- THIS IS THE FINAL, DOCUMENTATION-COMPLIANT SEARCH ROUTE ---
 app.get('/api/medley/search', async (req, res) => {
     const { q } = req.query;
     if (!q) {
@@ -227,23 +228,22 @@ app.get('/api/medley/search', async (req, res) => {
     try {
         const token = await getSpotifyToken();
 
-        // Use the standard URL and URLSearchParams objects for robust URL creation.
+        // --- THE DEFINITIVE FIX, BASED ON THE DOCUMENTATION ---
+
+        // 1. Construct the query string using field filters.
+        // This tells Spotify to look for the user's query in EITHER the track name OR the artist name.
+        // A simple space acts as an OR.
+        const structuredQuery = `track:${q} artist:${q}`;
+
+        // 2. Use URLSearchParams to handle all encoding correctly and build the URL.
         const searchUrl = new URL('https://api.spotify.com/v1/search');
+        searchUrl.searchParams.append('q', structuredQuery);
+        searchUrl.searchParams.append('type', 'track'); // We only search for tracks to get more relevant results
+        searchUrl.searchParams.append('market', 'GB'); // CRUCIAL: Provide a market as per the docs
+        searchUrl.searchParams.append('limit', '20'); // Get a good number of results
         
-        // Append the user's search query.
-        searchUrl.searchParams.append('q', q);
-        
-        // Append the types of content we're looking for.
-        searchUrl.searchParams.append('type', 'track,playlist');
-        
-        // --- THE CRITICAL FIX ---
-        // Specify the market to get a full, relevant catalog of results.
-        // We'll use 'GB' for Great Britain since the app is London-focused.
-        searchUrl.searchParams.append('market', 'GB');
         // --- END OF FIX ---
-        
-        searchUrl.searchParams.append('limit', '10');
-        
+
         console.log(`[Medley] Requesting from Spotify: ${searchUrl.toString()}`);
 
         const response = await fetch(searchUrl.toString(), {
@@ -257,7 +257,9 @@ app.get('/api/medley/search', async (req, res) => {
             throw new Error(data.error?.message || 'Spotify search failed');
         }
 
-        res.json(data);
+        // We only care about the tracks from the response
+        res.json(data.tracks);
+
     } catch (err) {
         console.error("[Medley] Full Search Error:", err.message);
         res.status(500).json({ error: `Search failed.` });

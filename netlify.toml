@@ -1,0 +1,11 @@
+# netlify.toml
+
+[[redirects]]
+  from = "/sw.js"
+  to = "/client/sw.js"
+  status = 200
+
+[[redirects]]
+  from = "/manifest.json"
+  to = "/client/manifest.json"
+  status = 200

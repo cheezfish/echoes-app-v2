@@ -1,0 +1,6 @@
+# This file tells the Nixpacks build system how to configure the environment.
+
+[phases.setup]
+# We are specifying an explicit list of packages to install from the Nix package manager.
+# 'nodejs-20_x' is the package name for the Node.js version 20 toolchain.
+nixPkgs = ["nodejs-20_x"]

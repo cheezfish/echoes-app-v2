@@ -1,3 +1,0 @@
-# New, corrected content
-[phases.setup]
-nixPkgs = ["pkgs.nodejs-18_x"]

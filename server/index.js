@@ -10,7 +10,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const https = require('https');
-const mm = require('music-metadata'); // For reading audio duration
+const mm = require('music-metadata/lib/core'); // For reading audio duration
 
 const s3 = new S3Client({
     region: 'auto',

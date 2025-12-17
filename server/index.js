@@ -10,7 +10,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const https = require('https');
-const mm = require('music-metadata/lib/core'); // For reading audio duration
+// REMOVED: const mm = require('music-metadata/lib/core'); -> This caused the crash
 
 const s3 = new S3Client({
     region: 'auto',
@@ -354,7 +354,9 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
 
     let duration = 0;
     try {
-        const metadata = await mm.parseBuffer(file.buffer, file.mimetype);
+        // FIXED: Use dynamic import for compatibility with music-metadata v8+ (ESM)
+        const { parseBuffer } = await import('music-metadata');
+        const metadata = await parseBuffer(file.buffer, file.mimetype);
         duration = Math.round(metadata.format.duration || 0);
         if (duration === 0) throw new Error('Failed to extract a valid duration.');
     } catch (err) {
@@ -540,7 +542,10 @@ app.post('/echoes', authMiddleware, async (req, res) => {
 
     try {
         const audioBuffer = Buffer.from(audio_blob_base64, 'base64');
-        const metadata = await mm.parseBuffer(audioBuffer, 'audio/webm');
+        
+        // FIXED: Use dynamic import for compatibility with music-metadata v8+ (ESM)
+        const { parseBuffer } = await import('music-metadata');
+        const metadata = await parseBuffer(audioBuffer, 'audio/webm');
         duration = Math.round(metadata.format.duration || 0);
         
         if (!process.env.OPENCAGE_API_KEY) {

@@ -1,6 +1,6 @@
 // client/achievements.js
 
-const API_URL = 'https://echoes-server.onrender.com';
+const API_URL = 'https://echoes-server.cheezfish.com';
 
 document.addEventListener('DOMContentLoaded', () => {
     const gridContainer = document.getElementById('achievements-grid-container');

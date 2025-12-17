@@ -1,6 +1,6 @@
 // client/my-echoes.js - COMPLETE AND UNABRIDGED
 
-const API_URL = 'https://echoes-server.onrender.com';
+const API_URL = 'https://echoes-server.cheezfish.com';
 
 const EXPIRATION_THRESHOLD_MS = 20 * 24 * 60 * 60 * 1000; 
 

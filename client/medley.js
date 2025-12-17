@@ -1,6 +1,6 @@
 // client/medley.js
 
-const API_URL = 'https://echoes-server.onrender.com';
+const API_URL = 'https://echoes-server.cheezfish.com';
 
 // --- GLOBAL STATE ---
 let map, userPosition;

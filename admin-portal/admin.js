@@ -1,6 +1,6 @@
 // admin-portal/admin.js - FINAL WITH PRUNING FUNCTIONALITY
 
-const API_URL = 'https://echoes-server.onrender.com';
+const API_URL = 'https://echoes-server.cheezfish.com';
 
 document.addEventListener('DOMContentLoaded', () => {
     const adminLoginForm = document.getElementById('admin-login-form');

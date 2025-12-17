@@ -35,8 +35,8 @@ const app = express();
 const corsOptions = {
   // Pass an array of ALL allowed origins
   origin: [
-    'https://echoes-app.netlify.app',          // Your production client app
-    'https://echoes-admin-portal.netlify.app'  // Your production admin portal
+    'https://echoes.cheezfish.com',          // Your production client app
+    'https://echoes-admin.cheezfish.com'  // Your production admin portal
     // You could also add 'http://localhost:5500' here if you ever want to test locally again
   ],
   optionsSuccessStatus: 200

@@ -401,7 +401,7 @@ function renderNearbyList(echoes) {
             </div>
             <audio controls preload="metadata" src="${echo.audio_url}" onplay="window.keepEchoAlive(${echo.id})"></audio>
             <div class="meta-row">
-                <span>${formattedDateTime}</span>
+                <span>${recordedDateTime}</span>
             </div>
         `;
         

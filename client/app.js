@@ -399,7 +399,7 @@ function renderNearbyList(echoes) {
                 <span class="location-name">${locationDisplayName}</span>
                 <span class="author-info">by ${echo.username || 'anonymous'}</span>
             </div>
-            <audio controls preload="metadata" src="${echo.audio_url}" onplay="window.keepEchoAlive(${echo.id})"></audio>
+            <audio controls preload="none" src="${echo.audio_url}" onplay="window.keepEchoAlive(${echo.id})"></audio>
             <div class="meta-row">
                 <span>${recordedDateTime}</span>
             </div>

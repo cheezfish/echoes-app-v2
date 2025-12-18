@@ -507,13 +507,32 @@ function highlightEcho(echoId) {
 
 function clearNearbyListAndMarkers() { currentEchoesInView = []; markers.clearLayers(); echoMarkersMap.clear(); renderNearbyList([]); }
 
-window.keepEchoAlive = async (id) => { try { // The corrected line
-fetch(`${API_URL}/api/echoes/${id}/play`, {
-    method: 'POST',
-    headers: {
-        'Authorization': `Bearer ${userToken}` // Show the ID card!
-    }
-}); const marker = echoMarkersMap.get(id); if (marker) { const echoData = currentEchoesInView.find(e => e.id === id); if (echoData) echoData.last_played_at = new Date().toISOString(); marker.setIcon(createHealthIcon(100, id === highlightedEchoId)); } } catch (err) { console.error("Failed to send keep-alive ping:", err); } };
+window.keepEchoAlive = async (id) => { 
+    try { 
+        // Define headers object
+        const headers = { "Content-Type": "application/json" };
+        
+        // Only add the Authorization header if we actually have a real token
+        if (userToken) {
+            headers['Authorization'] = `Bearer ${userToken}`;
+        }
+
+        fetch(`${API_URL}/api/echoes/${id}/play`, {
+            method: 'POST',
+            headers: headers
+        }); 
+
+        // Update the UI immediately (turn the ring red/orange)
+        const marker = echoMarkersMap.get(id); 
+        if (marker) { 
+            const echoData = currentEchoesInView.find(e => e.id === id); 
+            if (echoData) echoData.last_played_at = new Date().toISOString(); 
+            marker.setIcon(createHealthIcon(100, id === highlightedEchoId)); 
+        } 
+    } catch (err) { 
+        console.error("Failed to send keep-alive ping:", err); 
+    } 
+};
 function onLocationUpdate(position) { currentUserPosition = { lat: position.coords.latitude, lng: position.coords.longitude }; const latLng = [currentUserPosition.lat, currentUserPosition.lng]; if (userMarker) userMarker.setLatLng(latLng); else userMarker = L.marker(latLng, { icon: userLocationIcon, interactive: false, zIndexOffset: 1000 }).addTo(map); const latStr = currentUserPosition.lat.toFixed(4); const lngStr = currentUserPosition.lng.toFixed(4); currentBucketKey = `sq_${latStr}_${lngStr}`; isUserInVicinity = true; updateActionButtonState(); }
 function onLocationError(error) { updateStatus(`Error: ${error.message}`, "error"); isUserInVicinity = false; updateActionButtonState(); }
 function startLocationWatcher() { if (locationWatcherId) navigator.geolocation.clearWatch(locationWatcherId); if ("geolocation" in navigator) { const options = { enableHighAccuracy: true, timeout: 27000, maximumAge: 30000 }; locationWatcherId = navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, options); } }

@@ -613,10 +613,32 @@ app.delete('/api/echoes/:id', authMiddleware, async (req, res) => {
 
 // In server/index.js, inside the POST /api/echoes/:id/play route
 
-app.post('/api/echoes/:id/play', authMiddleware, async (req, res) => { // Added authMiddleware here
+// REPLACE your existing /api/echoes/:id/play route with this one:
+
+app.post('/api/echoes/:id/play', async (req, res) => {
+    // NOTICE: We removed 'authMiddleware' from the line above. 
+    // This allows anonymous requests to enter the function.
+
     const { id } = req.params;
-    const userId = req.user.id; // We need the user's ID to check achievements
+
+    // 1. Manually check for a user token (Optional Auth)
+    let listenerId = null;
+    const tokenHeader = req.header('Authorization');
+    
+    // If a token exists and isn't the string "null" or undefined
+    if (tokenHeader && tokenHeader.startsWith('Bearer ') && !tokenHeader.includes('null')) {
+        try {
+            const token = tokenHeader.split(' ')[1];
+            // We use the 'jwt' library you already imported at the top of index.js
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            listenerId = decoded.user.id;
+        } catch (err) {
+            console.warn("[Play] Invalid token provided, treating listener as anonymous.");
+        }
+    }
+
     try {
+        // 2. Increment play count (The core feature)
         const query = `
             UPDATE echoes SET last_played_at = CURRENT_TIMESTAMP, play_count = play_count + 1
             WHERE id = $1 RETURNING *;
@@ -626,15 +648,17 @@ app.post('/api/echoes/:id/play', authMiddleware, async (req, res) => { // Added 
         
         const listenedEcho = result.rows[0];
 
-        // NEW: Trigger achievement check in the background
-        // We only check if the user is listening to someone else's echo
-        if (listenedEcho.user_id !== userId) {
-            checkAndAwardAchievements(userId, 'LISTEN_ECHO', { listenedEcho });
+        // 3. Handle Achievements (Only if applicable)
+        
+        // A. Listener Achievement: Only if we successfully identified the user
+        if (listenerId && listenedEcho.user_id !== listenerId) {
+            checkAndAwardAchievements(listenerId, 'LISTEN_ECHO', { listenedEcho });
         }
         
-        // Also check if the original creator has hit the Century Club
-        checkAndAwardAchievements(listenedEcho.user_id, 'LISTEN_ECHO', { listenedEcho });
-
+        // B. Creator Achievement: Always check for the creator
+        if (listenedEcho.user_id) {
+            checkAndAwardAchievements(listenedEcho.user_id, 'LISTEN_ECHO', { listenedEcho });
+        }
 
         res.status(200).json(listenedEcho);
     } catch (err) {

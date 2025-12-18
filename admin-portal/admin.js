@@ -1,178 +1,377 @@
-// admin-portal/admin.js - FULL UX/UI OVERHAUL
+/**
+ * ECHOES ADMIN TERMINAL - CORE ENGINE
+ * Modern Vanilla JS Implementation
+ */
 
 const API_URL = 'https://echoes-server.cheezfish.com';
 
+// State Management
+const State = {
+    token: localStorage.getItem('echoes_admin_token'),
+    map: null,
+    markers: null,
+    activeTab: 'dashboard'
+};
+
+// DOM Cache
+const UI = {
+    loginSection: document.getElementById('admin-login-section'),
+    dashboardSection: document.getElementById('admin-dashboard-section'),
+    loginForm: document.getElementById('admin-login-form'),
+    loginError: document.getElementById('admin-login-error'),
+    
+    // Stats
+    stats: {
+        totalEchoes: document.getElementById('stat-total-echoes'),
+        totalUsers: document.getElementById('stat-total-users'),
+        echoes24h: document.getElementById('stat-echoes-24h'),
+        users24h: document.getElementById('stat-users-24h')
+    },
+
+    // Tables
+    echoesTable: document.querySelector('#echoes-table tbody'),
+    usersTable: document.getElementById('users-table-body'),
+    
+    // Controls
+    searchInput: document.getElementById('echo-search-input'),
+    navTabs: document.querySelectorAll('.nav-item, .nav-tab'), // Supports both old/new class names
+    tabContents: document.querySelectorAll('.tab-content')
+};
+
+/**
+ * INITIALIZATION
+ */
 document.addEventListener('DOMContentLoaded', () => {
-    // Cache all DOM elements
-    const elements = {
-        loginSection: document.getElementById('admin-login-section'),
-        loginForm: document.getElementById('admin-login-form'),
-        loginError: document.getElementById('admin-login-error'),
-        usernameInput: document.getElementById('admin-username'),
-        passwordInput: document.getElementById('admin-password'),
-        dashboardSection: document.getElementById('admin-dashboard-section'),
-        logoutBtn: document.getElementById('admin-logout-btn'),
-        navTabs: document.querySelectorAll('.nav-tab'),
-        tabContents: document.querySelectorAll('.tab-content'),
-        statTotalEchoes: document.getElementById('stat-total-echoes'),
-        statTotalUsers: document.getElementById('stat-total-users'),
-        statEchoes24h: document.getElementById('stat-echoes-24h'),
-        statUsers24h: document.getElementById('stat-users-24h'),
-        echoSearchInput: document.getElementById('echo-search-input'),
-        adminMapContainer: document.getElementById('admin-map'),
-        echoesTableBody: document.querySelector('#echoes-table tbody'),
-        usersTableBody: document.getElementById('users-table-body'),
-        pruneBtn: document.getElementById('prune-echoes-btn'),
-        pruneStatus: document.getElementById('prune-status'),
-        purgeBtn: document.getElementById('purge-storage-btn'),
-        purgeStatus: document.getElementById('purge-storage-status'),
+    if (State.token) {
+        showDashboard();
+    } else {
+        showLogin();
+    }
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    // Login Submission
+    UI.loginForm?.addEventListener('submit', handleLogin);
+
+    // Logout
+    document.getElementById('admin-logout-btn')?.addEventListener('click', () => {
+        localStorage.removeItem('echoes_admin_token');
+        location.reload();
+    });
+
+    // Navigation Tab Switching
+    UI.navTabs.forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+
+    // Search with Debounce
+    UI.searchInput?.addEventListener('input', debounce(() => {
+        if (State.activeTab === 'echoes') fetchEchoes();
+    }, 500));
+
+    // Maintenance Actions
+    document.getElementById('prune-echoes-btn')?.addEventListener('click', handlePrune);
+    document.getElementById('purge-storage-btn')?.addEventListener('click', handlePurge);
+}
+
+/**
+ * AUTHENTICATION
+ */
+async function handleLogin(e) {
+    e.preventDefault();
+    UI.loginError.textContent = 'Authenticating...';
+    
+    const username = document.getElementById('admin-username').value;
+    const password = document.getElementById('admin-password').value;
+
+    try {
+        const response = await fetch(`${API_URL}/api/users/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Login failed');
+
+        // Check Admin Privileges
+        const adminCheck = await fetch(`${API_URL}/admin/api/users`, {
+            headers: { 'Authorization': `Bearer ${data.token}` }
+        });
+
+        if (adminCheck.status === 403) throw new Error('Access Denied: Not an admin.');
+        if (!adminCheck.ok) throw new Error('Admin verification failed.');
+
+        localStorage.setItem('echoes_admin_token', data.token);
+        State.token = data.token;
+        showDashboard();
+    } catch (err) {
+        UI.loginError.textContent = err.message;
+        UI.loginError.classList.add('error');
+    }
+}
+
+function showLogin() {
+    UI.loginSection.style.display = 'flex';
+    UI.dashboardSection.style.display = 'none';
+}
+
+function showDashboard() {
+    UI.loginSection.style.display = 'none';
+    UI.dashboardSection.style.display = 'flex';
+    switchTab('dashboard');
+}
+
+/**
+ * NAVIGATION & TAB LOGIC
+ */
+function switchTab(tabId) {
+    State.activeTab = tabId;
+
+    // Update UI Classes
+    UI.tabContents.forEach(content => {
+        content.classList.toggle('active', content.id === `${tabId}-view`);
+    });
+
+    UI.navTabs.forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabId);
+    });
+
+    // Load Data based on Tab
+    switch (tabId) {
+        case 'dashboard':
+            refreshDashboardStats();
+            break;
+        case 'echoes':
+            if (!State.map) initMap();
+            fetchEchoes();
+            setTimeout(() => State.map?.invalidateSize(), 200);
+            break;
+        case 'users':
+            fetchUsers();
+            break;
+    }
+}
+
+/**
+ * DATA FETCHING & STATS (The Fix)
+ */
+async function refreshDashboardStats() {
+    // Show loading state
+    Object.values(UI.stats).forEach(el => el.textContent = '...');
+
+    const [echoes, users] = await Promise.all([
+        apiFetch('/admin/api/echoes'),
+        apiFetch('/admin/api/users')
+    ]);
+
+    const now = new Date();
+    const oneDayInMs = 24 * 60 * 60 * 1000;
+
+    if (echoes && Array.isArray(echoes)) {
+        UI.stats.totalEchoes.textContent = echoes.length;
+        const recentEchoes = echoes.filter(e => (now - new Date(e.created_at)) < oneDayInMs);
+        UI.stats.echoes24h.textContent = recentEchoes.length;
+    }
+
+    if (users && Array.isArray(users)) {
+        UI.stats.totalUsers.textContent = users.length;
+        const recentUsers = users.filter(u => (now - new Date(u.created_at)) < oneDayInMs);
+        UI.stats.users24h.textContent = recentUsers.length;
+    }
+}
+
+async function fetchEchoes() {
+    const query = UI.searchInput?.value || '';
+    const echoes = await apiFetch(`/admin/api/echoes?searchUser=${query}`);
+    if (!echoes) return;
+
+    renderEchoesTable(echoes);
+    renderMapMarkers(echoes);
+}
+
+async function fetchUsers() {
+    const users = await apiFetch('/admin/api/users');
+    if (users) renderUsersTable(users);
+}
+
+/**
+ * RENDERING LOGIC
+ */
+function renderEchoesTable(echoes) {
+    if (!UI.echoesTable) return;
+    
+    if (echoes.length === 0) {
+        UI.echoesTable.innerHTML = '<tr><td colspan="7">No echoes found.</td></tr>';
+        return;
+    }
+
+    UI.echoesTable.innerHTML = echoes.map(echo => `
+        <tr>
+            <td>${echo.id}</td>
+            <td><span class="user-pill">${echo.username || 'Anon'}</span></td>
+            <td><small>${echo.w3w_address || 'Unknown'}</small></td>
+            <td>${new Date(echo.created_at).toLocaleDateString()}</td>
+            <td>${echo.play_count}</td>
+            <td>
+                <audio controls src="${echo.audio_url}"></audio>
+            </td>
+            <td>
+                <button class="btn-danger" onclick="deleteEcho(${echo.id})">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderUsersTable(users) {
+    if (!UI.usersTable) return;
+    
+    UI.usersTable.innerHTML = users.map(user => `
+        <tr>
+            <td>${user.id}</td>
+            <td>${user.username}</td>
+            <td>${new Date(user.created_at).toLocaleDateString()}</td>
+            <td>
+                <span class="badge ${user.is_admin ? 'admin' : 'user'}">
+                    ${user.is_admin ? 'Admin' : 'User'}
+                </span>
+            </td>
+            <td>
+                <button class="btn-warning" onclick="toggleAdmin(${user.id}, ${user.is_admin})">
+                    ${user.is_admin ? 'Demote' : 'Make Admin'}
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+/**
+ * MAP LOGIC
+ */
+function initMap() {
+    const mapContainer = document.getElementById('admin-map');
+    if (!mapContainer || State.map) return;
+
+    State.map = L.map(mapContainer).setView([20, 0], 2);
+    
+    // Dark Mode Tiles
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; CartoDB'
+    }).addTo(State.map);
+
+    State.markers = L.markerClusterGroup();
+    State.map.addLayer(State.markers);
+}
+
+function renderMapMarkers(echoes) {
+    if (!State.markers) return;
+    State.markers.clearLayers();
+
+    echoes.forEach(echo => {
+        const lat = parseFloat(echo.lat);
+        const lng = parseFloat(echo.lng);
+        
+        if (!isNaN(lat) && !isNaN(lng)) {
+            const marker = L.marker([lat, lng])
+                .bindPopup(`
+                    <div class="map-popup">
+                        <strong>${echo.username || 'Anon'}</strong><br>
+                        ${echo.w3w_address}<br>
+                        <audio src="${echo.audio_url}" controls></audio>
+                    </div>
+                `);
+            State.markers.addLayer(marker);
+        }
+    });
+}
+
+/**
+ * ACTIONS
+ */
+async function deleteEcho(id) {
+    if (!confirm(`Permanently delete echo #${id}?`)) return;
+    try {
+        const res = await apiFetch(`/admin/api/echoes/${id}`, { method: 'DELETE' });
+        if (res) fetchEchoes();
+    } catch (err) { alert(err.message); }
+}
+
+async function toggleAdmin(userId, currentStatus) {
+    const action = currentStatus ? 'Remove admin from' : 'Make admin';
+    if (!confirm(`${action} user #${userId}?`)) return;
+
+    try {
+        await apiFetch(`/admin/api/users/${userId}/toggle-admin`, { method: 'PUT' });
+        fetchUsers();
+    } catch (err) { alert(err.message); }
+}
+
+async function handlePrune() {
+    if (!confirm("This will delete all echoes older than 20 days with 0 plays. Proceed?")) return;
+    const statusEl = document.getElementById('prune-status');
+    statusEl.textContent = "Pruning...";
+    
+    try {
+        const res = await apiFetch('/admin/api/echoes/prune', { method: 'POST' });
+        statusEl.textContent = res.msg || "Prune successful";
+        statusEl.className = "status-text success";
+        refreshDashboardStats();
+    } catch (err) {
+        statusEl.textContent = err.message;
+        statusEl.className = "status-text error";
+    }
+}
+
+async function handlePurge() {
+    if (!confirm("Delete all audio files in R2 not associated with a database entry?")) return;
+    const statusEl = document.getElementById('purge-storage-status');
+    statusEl.textContent = "Purging...";
+
+    try {
+        const res = await apiFetch('/admin/api/storage/purge-orphans', { method: 'POST' });
+        statusEl.textContent = res.message || "Purge complete";
+        statusEl.className = "status-text success";
+    } catch (err) {
+        statusEl.textContent = err.message;
+        statusEl.className = "status-text error";
+    }
+}
+
+/**
+ * UTILS
+ */
+async function apiFetch(endpoint, options = {}) {
+    const headers = {
+        'Authorization': `Bearer ${State.token}`,
+        'Content-Type': 'application/json',
+        ...options.headers
     };
 
-    let adminMap, adminMarkers;
-    let adminToken = localStorage.getItem('echoes_admin_token');
-
-    function updateAdminUI() {
-        if (adminToken) {
-            elements.loginSection.style.display = 'none';
-            elements.dashboardSection.style.display = 'block';
-            if (!adminMap) initializeAdminMap();
-            fetchDashboardData();
-        } else {
-            elements.loginSection.style.display = 'block';
-            elements.dashboardSection.style.display = 'none';
-            if (adminMap) { adminMap.remove(); adminMap = null; }
-        }
-    }
-
-    // --- Event Listeners ---
-    elements.loginForm?.addEventListener('submit', handleLogin);
-    elements.logoutBtn?.addEventListener('click', handleLogout);
-    elements.navTabs.forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
-    elements.pruneBtn?.addEventListener('click', handlePrune);
-    elements.purgeBtn?.addEventListener('click', handlePurge);
-    elements.echoSearchInput?.addEventListener('input', () => debounce(fetchAllEchoesForAdmin, 500)());
-
-    // --- Auth ---
-    async function handleLogin(e) {
-        e.preventDefault();
-        elements.loginError.textContent = '';
-        try {
-            const response = await fetch(`${API_URL}/api/users/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: elements.usernameInput.value, password: elements.passwordInput.value })
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Login failed');
-            
-            const adminCheckResponse = await fetch(`${API_URL}/admin/api/users`, { headers: { 'Authorization': `Bearer ${data.token}` } });
-            if (adminCheckResponse.status === 403) throw new Error('Not authorized for admin access.');
-            if (!adminCheckResponse.ok) throw new Error('Admin verification failed.');
-            
-            localStorage.setItem('echoes_admin_token', data.token);
-            adminToken = data.token;
-            updateAdminUI();
-        } catch (error) {
-            elements.loginError.textContent = error.message;
-        }
-    }
-    function handleLogout() {
-        localStorage.removeItem('echoes_admin_token');
-        adminToken = null;
-        updateAdminUI();
-    }
-
-    // --- Tab Management ---
-    function switchTab(tabId) {
-        elements.tabContents.forEach(content => content.classList.remove('active'));
-        elements.navTabs.forEach(tab => tab.classList.remove('active'));
-        document.getElementById(`${tabId}-view`).classList.add('active');
-        document.querySelector(`.nav-tab[data-tab='${tabId}']`).classList.add('active');
-        if (tabId === 'echoes' && adminMap) setTimeout(() => adminMap.invalidateSize(), 10);
-        if (tabId === 'echoes') fetchAllEchoesForAdmin();
-        if (tabId === 'users') fetchAllUsersForAdmin();
-    }
-
-    // --- Data Fetching ---
-    async function fetchDashboardData() {
-        const echoes = await fetchData('/admin/api/echoes');
-        const users = await fetchData('/admin/api/users');
-        if (echoes) {
-            const now = new Date();
-            const echoes24h = echoes.filter(e => (now - new Date(e.created_at)) < 24 * 3600 * 1000).length;
-            elements.statTotalEchoes.textContent = echoes.length;
-            elements.statEchoes24h.textContent = echoes24h;
-        }
-        if (users) {
-            const now = new Date();
-            const users24h = users.filter(u => (now - new Date(u.created_at)) < 24 * 3600 * 1000).length;
-            elements.statTotalUsers.textContent = users.length;
-            elements.statUsers24h.textContent = users24h;
-        }
-    }
-    async function fetchAllEchoesForAdmin() {
-        const echoes = await fetchData(`/admin/api/echoes?searchUser=${elements.echoSearchInput.value}`);
-        if (echoes) {
-            renderEchoesTable(echoes);
-            renderEchoesOnAdminMap(echoes);
-        }
-    }
-    async function fetchAllUsersForAdmin() {
-        const users = await fetchData('/admin/api/users');
-        if (users) renderUsersTable(users);
-    }
-    async function fetchData(endpoint) {
-        if (!adminToken) return null;
-        try {
-            const response = await fetch(`${API_URL}${endpoint}`, { headers: { 'Authorization': `Bearer ${adminToken}` } });
-            if (!response.ok) throw new Error(`Failed to fetch ${endpoint}`);
-            return await response.json();
-        } catch (error) {
-            console.error(error);
+    try {
+        const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+        if (response.status === 401) {
+            localStorage.removeItem('echoes_admin_token');
+            location.reload();
             return null;
         }
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || data.msg || 'API Error');
+        return data;
+    } catch (err) {
+        console.error(`Fetch error [${endpoint}]:`, err);
+        return null;
     }
+}
 
-    // --- Rendering ---
-    function renderEchoesTable(echoes) { /* ... same as before ... */ }
-    function renderEchoesOnAdminMap(echoes) { /* ... same as before ... */ }
-    function renderUsersTable(users) { /* ... same as before ... */ }
-
-    // --- Actions ---
-    async function handleDeleteEcho(e) { /* ... same as before ... */ }
-    async function handleToggleAdmin(e) { /* ... same as before ... */ }
-    async function handlePrune() { /* ... same as before, but update status element ... */ }
-    async function handlePurge() { /* ... same as before, but update status element ... */ }
-
-    // --- Map ---
-    function initializeAdminMap() {
-        if (!adminMapContainer || adminMap) return;
-        adminMap = L.map(adminMapContainer).setView([20, 0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(adminMap);
-        adminMarkers = L.markerClusterGroup();
-        adminMap.addLayer(adminMarkers);
-    }
-    
-    // --- Utils ---
-    let debounceTimer;
-    function debounce(func, delay) {
-        return function() {
-            const context = this;
-            const args = arguments;
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => func.apply(context, args), delay);
-        }
-    }
-
-    // --- Initial Kickoff ---
-    updateAdminUI();
-
-    // (Full function bodies for brevity, replace with your existing correct ones)
-    function renderEchoesTable(echoes){if(!elements.echoesTableBody)return;elements.echoesTableBody.innerHTML="";if(0===echoes.length)return void(elements.echoesTableBody.innerHTML='<tr><td colspan="7">No echoes found.</td></tr>');echoes.forEach(echo=>{const e=elements.echoesTableBody.insertRow(),o=parseFloat(echo.lat),t=parseFloat(echo.lng);e.innerHTML=`<td>${echo.id}</td><td>${echo.username||"Anon"}</td><td>${echo.w3w_address}</td><td>${isNaN(o)?"N/A":o.toFixed(4)}</td><td>${isNaN(t)?"N/A":t.toFixed(4)}</td><td>${new Date(echo.created_at).toLocaleString()}</td><td>${echo.play_count}</td><td><audio controls src="${echo.audio_url}"></audio></td><td><button class="delete-echo-btn" data-id="${echo.id}">Delete</button></td>`}),document.querySelectorAll(".delete-echo-btn").forEach(e=>e.addEventListener("click",handleDeleteEcho))}
-    function renderEchoesOnAdminMap(echoes){if(!adminMap||!adminMarkers)return;adminMarkers.clearLayers();echoes.forEach(echo=>{const e=parseFloat(echo.lat),o=parseFloat(echo.lng);isNaN(e)||isNaN(o)||(L.marker([e,o]).bindPopup(`<b>ID:</b> ${echo.id}<br><b>Author:</b> ${echo.username||"Anon"}<br><b>Location:</b> ${echo.w3w_address}<br><a href="${echo.audio_url}" target="_blank">Play</a>`).addTo(adminMarkers))})}
-    function renderUsersTable(users){if(!elements.usersTableBody)return;elements.usersTableBody.innerHTML="";if(0===users.length)return void(elements.usersTableBody.innerHTML='<tr><td colspan="5">No users found.</td></tr>');users.forEach(user=>{const e=elements.usersTableBody.insertRow();e.innerHTML=`<td>${user.id}</td><td>${user.username}</td><td>${new Date(user.created_at).toLocaleString()}</td><td>${user.is_admin}</td><td><button class="toggle-admin-btn" data-id="${user.id}" data-isadmin="${user.is_admin}">${user.is_admin?"Remove Admin":"Make Admin"}</button></td>`}),document.querySelectorAll(".toggle-admin-btn").forEach(e=>e.addEventListener("click",handleToggleAdmin))}
-    async function handleDeleteEcho(e){const o=e.target.dataset.id;if(!confirm(`Delete echo ID ${o}?`))return;try{const t=await fetch(`${API_URL}/admin/api/echoes/${o}`,{method:"DELETE",headers:{Authorization:`Bearer ${adminToken}`}}),n=await t.json();if(!t.ok)throw new Error(n.error||n.msg||"Failed to delete");alert(n.msg||"Echo deleted."),fetchAllEchoesForAdmin()}catch(t){alert(`Error: ${t.message}`)}}
-    async function handleToggleAdmin(e){const o=e.target.dataset.id,t="true"===e.target.dataset.isadmin;if(!confirm(`${t?"Remove admin from":"Make admin"} user ID ${o}?`))return;try{const n=await fetch(`${API_URL}/admin/api/users/${o}/toggle-admin`,{method:"PUT",headers:{Authorization:`Bearer ${adminToken}`}}),s=await n.json();if(!n.ok)throw new Error(s.error||"Failed to toggle status");alert("User admin status updated."),fetchAllUsersForAdmin()}catch(n){alert(`Error: ${n.message}`)}}
-    async function handlePrune(){if("PRUNE"!==prompt("This is destructive. Type 'PRUNE' to confirm."))return void alert("Pruning cancelled.");elements.pruneStatus.textContent="Pruning...",elements.pruneStatus.className="status",elements.pruneBtn.disabled=!0;try{const e=await fetch(`${API_URL}/admin/api/echoes/prune`,{method:"POST",headers:{Authorization:`Bearer ${adminToken}`}}),o=await e.json();if(!e.ok)throw new Error(o.error||"Pruning failed");elements.pruneStatus.textContent=o.msg,elements.pruneStatus.className="status success"}catch(e){elements.pruneStatus.textContent=`Error: ${e.message}`,elements.pruneStatus.className="status error"}finally{elements.pruneBtn.disabled=!1}}
-    async function handlePurge(){if(!confirm("This will permanently delete all unused audio files. Are you sure?"))return;elements.purgeStatus.textContent="Scanning...",elements.purgeStatus.className="status",elements.purgeBtn.disabled=!0;try{const e=await fetch(`${API_URL}/admin/api/storage/purge-orphans`,{method:"POST",headers:{Authorization:`Bearer ${adminToken}`}}),o=await e.json();if(!e.ok)throw new Error(o.error||"Purge failed");elements.purgeStatus.textContent=o.message,elements.purgeStatus.className="status success"}catch(e){elements.purgeStatus.textContent=`Error: ${e.message}`,elements.purgeStatus.className="status error"}finally{elements.purgeBtn.disabled=!1}}
-});
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}

@@ -3,92 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Echoes Admin</title>
-    <!-- === NEW: Google Fonts for a modern look === -->
+    <title>Echoes | Admin Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- ========================================== -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <link rel="stylesheet" href="admin.css">
 </head>
-<body>
-    <div id="admin-login-section" class="login-container">
-        <form id="admin-login-form">
-            <h1>Echoes Admin</h1>
-            <input type="text" id="admin-username" placeholder="Username" required>
-            <input type="password" id="admin-password" placeholder="Password" required>
-            <button type="submit">Login</button>
-            <p id="admin-login-error" class="error"></p>
-        </form>
+<body class="dark-theme">
+    <!-- Login Overlay -->
+    <div id="admin-login-section" class="login-page">
+        <div class="login-card">
+            <div class="brand-header">
+                <div class="logo-icon"></div>
+                <h1>Echoes Admin</h1>
+                <p>Enter credentials to access terminal</p>
+            </div>
+            <form id="admin-login-form">
+                <div class="input-group">
+                    <input type="text" id="admin-username" placeholder="Username" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="admin-password" placeholder="Password" required>
+                </div>
+                <button type="submit" class="btn-primary">Authenticate</button>
+                <p id="admin-login-error" class="error-msg"></p>
+            </form>
+        </div>
     </div>
 
-    <div id="admin-dashboard-section" style="display:none;">
-        <header class="main-header">
-            <div class="logo">Echoes Dashboard</div>
-            <div class="user-info">
-                <span>Welcome, Admin!</span>
-                <button id="admin-logout-btn">Logout</button>
+    <!-- Main Dashboard -->
+    <div id="admin-dashboard-section" class="app-container" style="display:none;">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-text">ECHOES<span>.</span></div>
             </div>
-        </header>
-
-        <div class="dashboard-layout">
-            <nav class="main-nav">
-                <button data-tab="dashboard" class="nav-tab active">Dashboard</button>
-                <button data-tab="echoes" class="nav-tab">Echoes</button>
-                <button data-tab="users" class="nav-tab">Users</button>
-                <button data-tab="maintenance" class="nav-tab">Maintenance</button>
+            <nav class="sidebar-nav">
+                <button data-tab="dashboard" class="nav-item active">
+                    <span class="icon">📊</span> Overview
+                </button>
+                <button data-tab="echoes" class="nav-item">
+                    <span class="icon">🔊</span> Manage Echoes
+                </button>
+                <button data-tab="users" class="nav-item">
+                    <span class="icon">👥</span> User Directory
+                </button>
+                <button data-tab="maintenance" class="nav-item">
+                    <span class="icon">🛠️</span> System Tools
+                </button>
             </nav>
+            <div class="sidebar-footer">
+                <div class="admin-badge">Admin Access</div>
+                <button id="admin-logout-btn" class="logout-link">Sign Out</button>
+            </div>
+        </aside>
 
-            <main class="main-content">
-                <div id="dashboard-view" class="tab-content active">
-                    <h2>Overview</h2>
-                    <div class="stats-grid">
-                        <div class="stat-card"><h3>Total Echoes</h3><p id="stat-total-echoes">--</p></div>
-                        <div class="stat-card"><h3>Total Users</h3><p id="stat-total-users">--</p></div>
-                        <div class="stat-card"><h3>Echoes (24h)</h3><p id="stat-echoes-24h">--</p></div>
-                        <div class="stat-card"><h3>New Users (24h)</h3><p id="stat-users-24h">--</p></div>
+        <main class="content-area">
+            <!-- Overview Tab -->
+            <section id="dashboard-view" class="tab-content active">
+                <header class="view-header">
+                    <h1>System Overview</h1>
+                    <p>Real-time platform statistics</p>
+                </header>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Echoes</div>
+                        <div class="stat-value" id="stat-total-echoes">...</div>
+                        <div class="stat-delta">Lifetime records</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Active Users</div>
+                        <div class="stat-value" id="stat-total-users">...</div>
+                        <div class="stat-delta">Registered accounts</div>
+                    </div>
+                    <div class="stat-card accent">
+                        <div class="stat-label">Echoes (24h)</div>
+                        <div class="stat-value" id="stat-echoes-24h">...</div>
+                        <div class="stat-delta positive">+ Trending</div>
+                    </div>
+                    <div class="stat-card accent">
+                        <div class="stat-label">New Users (24h)</div>
+                        <div class="stat-value" id="stat-users-24h">...</div>
+                        <div class="stat-delta positive">+ Growth</div>
                     </div>
                 </div>
-                <div id="echoes-view" class="tab-content">
-                    <h2>Manage Echoes</h2>
-                    <div class="controls"><input type="text" id="echo-search-input" placeholder="Search by author or location..."></div>
-                    <div id="admin-map"></div>
-                    <div class="table-container">
-                        <table id="echoes-table">
-                            <thead><tr><th>ID</th><th>Author</th><th>Location</th><th>Created</th><th>Plays</th><th>Audio</th><th>Actions</th></tr></thead>
-                            <tbody></tbody>
-                        </table>
+            </section>
+
+            <!-- Echoes Tab -->
+            <section id="echoes-view" class="tab-content">
+                <header class="view-header">
+                    <h1>Echoes Explorer</h1>
+                    <div class="header-actions">
+                        <input type="text" id="echo-search-input" placeholder="Filter by author or location...">
+                    </div>
+                </header>
+                <div id="admin-map" class="map-container"></div>
+                <div class="data-card">
+                    <table id="echoes-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Author</th>
+                                <th>Address</th>
+                                <th>Created</th>
+                                <th>Plays</th>
+                                <th>Audio</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Users Tab -->
+            <section id="users-view" class="tab-content">
+                <header class="view-header">
+                    <h1>User Management</h1>
+                </header>
+                <div class="data-card">
+                    <table id="users-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Joined</th>
+                                <th>Role</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Maintenance Tab -->
+            <section id="maintenance-view" class="tab-content">
+                <header class="view-header">
+                    <h1>System Maintenance</h1>
+                </header>
+                <div class="maintenance-grid">
+                    <div class="m-card">
+                        <h3>Prune Inactive Echoes</h3>
+                        <p>Removes echoes with 0 plays older than 20 days.</p>
+                        <button id="prune-echoes-btn" class="btn-warning">Execute Prune</button>
+                        <p id="prune-status" class="status-text"></p>
+                    </div>
+                    <div class="m-card">
+                        <h3>Sync Storage Bucket</h3>
+                        <p>Deletes orphaned .wav files from R2 storage.</p>
+                        <button id="purge-storage-btn" class="btn-danger">Purge Orphans</button>
+                        <p id="purge-storage-status" class="status-text"></p>
                     </div>
                 </div>
-                <div id="users-view" class="tab-content">
-                    <h2>Manage Users</h2>
-                    <div class="table-container">
-                        <table id="users-table">
-                            <thead><tr><th>ID</th><th>Username</th><th>Created</th><th>Is Admin?</th><th>Actions</th></tr></thead>
-                            <tbody id="users-table-body"></tbody>
-                        </table>
-                    </div>
-                </div>
-                <div id="maintenance-view" class="tab-content">
-                    <h2>Site Maintenance</h2>
-                    <div class="maintenance-action">
-                        <h3>Prune Expired Echoes</h3>
-                        <p>Permanently delete echoes that haven't been played in over 20 days.</p>
-                        <button id="prune-echoes-btn" class="btn-warning">Prune Echoes</button>
-                        <p id="prune-status" class="status"></p>
-                    </div>
-                    <div class="maintenance-action">
-                        <h3>Purge Orphaned Storage</h3>
-                        <p>Scan R2 and delete audio files not linked to any echo.</p>
-                        <button id="purge-storage-btn" class="btn-danger">Purge Storage</button>
-                        <p id="purge-storage-status" class="status"></p>
-                    </div>
-                </div>
-            </main>
-        </div>
+            </section>
+        </main>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

@@ -1,21 +1,17 @@
-// admin-portal/admin.js - GORGEOUS UI - FINAL, TESTED VERSION
+// admin-portal/admin.js - FINAL, CORRECTED, AND READABLE
 
 const API_URL = 'https://echoes-server.cheezfish.com';
 
-// --- DOM ELEMENT VARIABLES (Declared globally) ---
 let loginSection, loginForm, loginError, usernameInput, passwordInput,
     dashboardSection, logoutBtn, navTabs, tabContents,
     statTotalEchoes, statTotalUsers, statEchoes24h, statUsers24h,
     echoSearchInput, adminMapContainer, echoesTableBody,
     usersTableBody, pruneBtn, pruneStatus, purgeBtn, purgeStatus;
 
-// --- APP STATE ---
 let adminMap, adminMarkers;
 let adminToken = null;
 
-// --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Assign all DOM elements once the page is loaded
     loginSection = document.getElementById('admin-login-section');
     loginForm = document.getElementById('admin-login-form');
     loginError = document.getElementById('admin-login-error');
@@ -31,14 +27,13 @@ document.addEventListener('DOMContentLoaded', () => {
     statUsers24h = document.getElementById('stat-users-24h');
     echoSearchInput = document.getElementById('echo-search-input');
     adminMapContainer = document.getElementById('admin-map');
-    echoesTableBody = document.querySelector('#echoes-table tbody');
+    echoesTableBody = document.getElementById('echoes-table-body'); // Use the specific ID
     usersTableBody = document.getElementById('users-table-body');
     pruneBtn = document.getElementById('prune-echoes-btn');
     pruneStatus = document.getElementById('prune-status');
     purgeBtn = document.getElementById('purge-storage-btn');
     purgeStatus = document.getElementById('purge-storage-status');
     
-    // Attach all event listeners
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
     navTabs.forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
@@ -46,18 +41,16 @@ document.addEventListener('DOMContentLoaded', () => {
     purgeBtn.addEventListener('click', handlePurge);
     echoSearchInput.addEventListener('input', debounce(fetchAllEchoesForAdmin, 500));
 
-    // Initial check for token to determine UI state
     adminToken = localStorage.getItem('echoes_admin_token');
     updateAdminUI();
 });
-
 
 function updateAdminUI() {
     if (adminToken) {
         loginSection.style.display = 'none';
         dashboardSection.style.display = 'block';
         if (!adminMap) initializeAdminMap();
-        fetchDashboardData();
+        fetchDashboardData(); // Fetch data for the default active tab
     } else {
         loginSection.style.display = 'block';
         dashboardSection.style.display = 'none';
@@ -151,19 +144,19 @@ function renderEchoesTable(echoes) {
     echoes.forEach(echo => {
         const row = echoesTableBody.insertRow();
         const latNum = parseFloat(echo.lat), lngNum = parseFloat(echo.lng);
-        row.innerHTML = `<td>${echo.id}</td><td>${echo.username||"Anon"}</td><td>${echo.w3w_address}</td><td>${new Date(echo.created_at).toLocaleString()}</td><td>${echo.play_count}</td><td><audio controls src="${echo.audio_url}"></audio></td><td><button class="delete-echo-btn" data-id="${echo.id}">Delete</button></td>`;
+        row.innerHTML = `<td>${echo.id}</td><td>${echo.username||"Anon"}</td><td>${echo.location}</td><td>${new Date(echo.created_at).toLocaleString()}</td><td>${echo.play_count}</td><td><audio controls src="${echo.audio_url}"></audio></td><td><button class="delete-echo-btn" data-id="${echo.id}">Delete</button></td>`;
     });
     document.querySelectorAll(".delete-echo-btn").forEach(btn => btn.addEventListener("click", handleDeleteEcho));
 }
 
 function renderEchoesOnAdminMap(echoes) {
-    if (!adminMap) return;
+    if (!adminMap || !adminMarkers) return;
     adminMarkers.clearLayers();
     if (!echoes) return;
     echoes.forEach(echo => {
         const latNum = parseFloat(echo.lat), lngNum = parseFloat(echo.lng);
         if (!isNaN(latNum) && !isNaN(lngNum)) {
-            L.marker([latNum, lngNum]).bindPopup(`<b>ID:</b> ${echo.id}<br><b>Author:</b> ${echo.username||"Anon"}<br><b>Location:</b> ${echo.w3w_address}<br><a href="${echo.audio_url}" target="_blank">Play</a>`).addTo(adminMarkers);
+            L.marker([latNum, lngNum]).bindPopup(`<b>ID:</b> ${echo.id}<br><b>Author:</b> ${echo.username||"Anon"}<br><b>Location:</b> ${echo.location}<br><a href="${echo.audio_url}" target="_blank">Play</a>`).addTo(adminMarkers);
         }
     });
 }
@@ -178,10 +171,10 @@ function renderUsersTable(users) {
     document.querySelectorAll(".toggle-admin-btn").forEach(btn => btn.addEventListener("click", handleToggleAdmin));
 }
 
-async function handleDeleteEcho(e){const o=e.target.dataset.id;if(!confirm(`Delete echo ID ${o}?`))return;try{const t=await fetch(`${API_URL}/admin/api/echoes/${o}`,{method:"DELETE",headers:{Authorization:`Bearer ${adminToken}`}}),n=await t.json();if(!t.ok)throw new Error(n.error||n.msg||"Failed to delete");alert(n.msg||"Echo deleted."),fetchAllEchoesForAdmin()}catch(t){alert(`Error: ${t.message}`)}}
-async function handleToggleAdmin(e){const o=e.target.dataset.id,t="true"===e.target.dataset.isadmin;if(!confirm(`${t?"Remove admin from":"Make admin"} user ID ${o}?`))return;try{const n=await fetch(`${API_URL}/admin/api/users/${o}/toggle-admin`,{method:"PUT",headers:{Authorization:`Bearer ${adminToken}`}}),s=await n.json();if(!n.ok)throw new Error(s.error||"Failed to toggle status");alert("User admin status updated."),fetchAllUsersForAdmin()}catch(n){alert(`Error: ${n.message}`)}}
-async function handlePrune(){if("PRUNE"!==prompt("Type 'PRUNE' to confirm."))return;pruneStatus.textContent="Pruning...";pruneBtn.disabled=!0;try{const e=await fetch(`${API_URL}/admin/api/echoes/prune`,{method:"POST",headers:{Authorization:`Bearer ${adminToken}`}}),o=await e.json();if(!e.ok)throw new Error(o.error);pruneStatus.textContent=o.msg,fetchAllEchoesForAdmin()}catch(e){pruneStatus.textContent=`Error: ${e.message}`}finally{pruneBtn.disabled=!1}}
-async function handlePurge(){if(!confirm("Permanently delete unused audio files?"))return;purgeStatus.textContent="Scanning...";purgeBtn.disabled=!0;try{const e=await fetch(`${API_URL}/admin/api/storage/purge-orphans`,{method:"POST",headers:{Authorization:`Bearer ${adminToken}`}}),o=await e.json();if(!e.ok)throw new Error(o.error);purgeStatus.textContent=o.message}catch(e){purgeStatus.textContent=`Error: ${e.message}`}finally{purgeBtn.disabled=!1}}
+async function handleDeleteEcho(e){ const o=e.target.dataset.id;if(!confirm(`Delete echo ID ${o}?`))return;try{const t=await fetch(`${API_URL}/admin/api/echoes/${o}`,{method:"DELETE",headers:{Authorization:`Bearer ${adminToken}`}}),n=await t.json();if(!t.ok)throw new Error(n.error||n.msg||"Failed to delete");alert(n.msg||"Echo deleted."),fetchAllEchoesForAdmin()}catch(t){alert(`Error: ${t.message}`)} }
+async function handleToggleAdmin(e){ const o=e.target.dataset.id,t="true"===e.target.dataset.isadmin;if(!confirm(`${t?"Remove admin from":"Make admin"} user ID ${o}?`))return;try{const n=await fetch(`${API_URL}/admin/api/users/${o}/toggle-admin`,{method:"PUT",headers:{Authorization:`Bearer ${adminToken}`}}),s=await n.json();if(!n.ok)throw new Error(s.error||"Failed to toggle status");alert("User admin status updated."),fetchAllUsersForAdmin()}catch(n){alert(`Error: ${n.message}`)} }
+async function handlePrune(){ if("PRUNE"!==prompt("Type 'PRUNE' to confirm."))return;pruneStatus.textContent="Pruning...";pruneBtn.disabled=!0;try{const e=await fetch(`${API_URL}/admin/api/echoes/prune`,{method:"POST",headers:{Authorization:`Bearer ${adminToken}`}}),o=await e.json();if(!e.ok)throw new Error(o.error);pruneStatus.textContent=o.msg,fetchAllEchoesForAdmin()}catch(e){pruneStatus.textContent=`Error: ${e.message}`}finally{pruneBtn.disabled=!1} }
+async function handlePurge(){ if(!confirm("Permanently delete unused audio files?"))return;purgeStatus.textContent="Scanning...";purgeBtn.disabled=!0;try{const e=await fetch(`${API_URL}/admin/api/storage/purge-orphans`,{method:"POST",headers:{Authorization:`Bearer ${adminToken}`}}),o=await e.json();if(!e.ok)throw new Error(o.error);purgeStatus.textContent=o.message}catch(e){purgeStatus.textContent=`Error: ${e.message}`}finally{purgeBtn.disabled=!1} }
 
 function initializeAdminMap() {
     if (!adminMapContainer || adminMap) return;

@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Echoes Admin</title>
+    <!-- === NEW: Google Fonts for a modern look === -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- ========================================== -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
@@ -22,71 +27,68 @@
 
     <div id="admin-dashboard-section" style="display:none;">
         <header class="main-header">
-            <h1>Echoes Dashboard</h1>
+            <div class="logo">Echoes Dashboard</div>
             <div class="user-info">
                 <span>Welcome, Admin!</span>
                 <button id="admin-logout-btn">Logout</button>
             </div>
         </header>
 
-        <nav class="main-nav">
-            <button data-tab="dashboard" class="nav-tab active">Dashboard</button>
-            <button data-tab="echoes" class="nav-tab">Echoes</button>
-            <button data-tab="users" class="nav-tab">Users</button>
-            <button data-tab="maintenance" class="nav-tab">Maintenance</button>
-        </nav>
+        <div class="dashboard-layout">
+            <nav class="main-nav">
+                <button data-tab="dashboard" class="nav-tab active">Dashboard</button>
+                <button data-tab="echoes" class="nav-tab">Echoes</button>
+                <button data-tab="users" class="nav-tab">Users</button>
+                <button data-tab="maintenance" class="nav-tab">Maintenance</button>
+            </nav>
 
-        <main class="main-content">
-            <!-- Dashboard / Stats View -->
-            <div id="dashboard-view" class="tab-content active">
-                <div class="stats-grid">
-                    <div class="stat-card"><h3>Total Echoes</h3><p id="stat-total-echoes">--</p></div>
-                    <div class="stat-card"><h3>Total Users</h3><p id="stat-total-users">--</p></div>
-                    <div class="stat-card"><h3>Echoes (24h)</h3><p id="stat-echoes-24h">--</p></div>
-                    <div class="stat-card"><h3>New Users (24h)</h3><p id="stat-users-24h">--</p></div>
+            <main class="main-content">
+                <div id="dashboard-view" class="tab-content active">
+                    <h2>Overview</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card"><h3>Total Echoes</h3><p id="stat-total-echoes">--</p></div>
+                        <div class="stat-card"><h3>Total Users</h3><p id="stat-total-users">--</p></div>
+                        <div class="stat-card"><h3>Echoes (24h)</h3><p id="stat-echoes-24h">--</p></div>
+                        <div class="stat-card"><h3>New Users (24h)</h3><p id="stat-users-24h">--</p></div>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Echoes Management View -->
-            <div id="echoes-view" class="tab-content">
-                <div class="controls">
-                    <input type="text" id="echo-search-input" placeholder="Search by author or location...">
+                <div id="echoes-view" class="tab-content">
+                    <h2>Manage Echoes</h2>
+                    <div class="controls"><input type="text" id="echo-search-input" placeholder="Search by author or location..."></div>
+                    <div id="admin-map"></div>
+                    <div class="table-container">
+                        <table id="echoes-table">
+                            <thead><tr><th>ID</th><th>Author</th><th>Location</th><th>Created</th><th>Plays</th><th>Audio</th><th>Actions</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
-                <div id="admin-map"></div>
-                <div class="table-container">
-                    <table id="echoes-table">
-                        <thead><tr><th>ID</th><th>Author</th><th>Location</th><th>Created</th><th>Plays</th><th>Audio</th><th>Actions</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
+                <div id="users-view" class="tab-content">
+                    <h2>Manage Users</h2>
+                    <div class="table-container">
+                        <table id="users-table">
+                            <thead><tr><th>ID</th><th>Username</th><th>Created</th><th>Is Admin?</th><th>Actions</th></tr></thead>
+                            <tbody id="users-table-body"></tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Users Management View -->
-            <div id="users-view" class="tab-content">
-                <div class="table-container">
-                    <table id="users-table">
-                        <thead><tr><th>ID</th><th>Username</th><th>Created</th><th>Is Admin?</th><th>Actions</th></tr></thead>
-                        <tbody id="users-table-body"></tbody>
-                    </table>
+                <div id="maintenance-view" class="tab-content">
+                    <h2>Site Maintenance</h2>
+                    <div class="maintenance-action">
+                        <h3>Prune Expired Echoes</h3>
+                        <p>Permanently delete echoes that haven't been played in over 20 days.</p>
+                        <button id="prune-echoes-btn" class="btn-warning">Prune Echoes</button>
+                        <p id="prune-status" class="status"></p>
+                    </div>
+                    <div class="maintenance-action">
+                        <h3>Purge Orphaned Storage</h3>
+                        <p>Scan R2 and delete audio files not linked to any echo.</p>
+                        <button id="purge-storage-btn" class="btn-danger">Purge Storage</button>
+                        <p id="purge-storage-status" class="status"></p>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Maintenance View -->
-            <div id="maintenance-view" class="tab-content">
-                <div class="maintenance-action">
-                    <h3>Prune Expired Echoes</h3>
-                    <p>Permanently delete all echoes that haven't been played in over 20 days.</p>
-                    <button id="prune-echoes-btn" class="btn-warning">Prune Echoes</button>
-                    <p id="prune-status" class="status"></p>
-                </div>
-                <div class="maintenance-action">
-                    <h3>Purge Orphaned Storage</h3>
-                    <p>Scan R2 and delete audio files not linked to any echo in the database.</p>
-                    <button id="purge-storage-btn" class="btn-danger">Purge Storage</button>
-                    <p id="purge-storage-status" class="status"></p>
-                </div>
-            </div>
-        </main>
+            </main>
+        </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

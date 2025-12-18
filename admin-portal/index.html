@@ -34,26 +34,33 @@
 
         <div class="dashboard-layout">
             <nav class="main-nav">
-                <button data-tab="echoes" class="nav-tab active">Echoes</button>
+                <button data-tab="dashboard" class="nav-tab active">Dashboard</button>
+                <button data-tab="echoes" class="nav-tab">Echoes</button>
                 <button data-tab="users" class="nav-tab">Users</button>
-                <!-- Add other tabs here later if needed -->
+                <button data-tab="maintenance" class="nav-tab">Maintenance</button>
             </nav>
 
             <main class="main-content">
-                <!-- Echoes Management View -->
-                <div id="echoes-view" class="tab-content active">
-                    <h2>Global Echoes Map</h2>
+                <div id="dashboard-view" class="tab-content active">
+                    <h2>Overview</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card"><h3>Total Echoes</h3><p id="stat-total-echoes">--</p></div>
+                        <div class="stat-card"><h3>Total Users</h3><p id="stat-total-users">--</p></div>
+                        <div class="stat-card"><h3>Echoes (24h)</h3><p id="stat-echoes-24h">--</p></div>
+                        <div class="stat-card"><h3>New Users (24h)</h3><p id="stat-users-24h">--</p></div>
+                    </div>
+                </div>
+                <div id="echoes-view" class="tab-content">
+                    <h2>Manage Echoes</h2>
+                    <div class="controls"><input type="text" id="echo-search-input" placeholder="Search by author or location..."></div>
                     <div id="admin-map"></div>
-                    <h2>All Echoes</h2>
                     <div class="table-container">
                         <table id="echoes-table">
                             <thead><tr><th>ID</th><th>Author</th><th>Location</th><th>Created</th><th>Plays</th><th>Audio</th><th>Actions</th></tr></thead>
-                            <tbody></tbody>
+                            <tbody id="echoes-table-body"></tbody>
                         </table>
                     </div>
                 </div>
-
-                <!-- Users Management View -->
                 <div id="users-view" class="tab-content">
                     <h2>Manage Users</h2>
                     <div class="table-container">
@@ -61,6 +68,21 @@
                             <thead><tr><th>ID</th><th>Username</th><th>Created</th><th>Is Admin?</th><th>Actions</th></tr></thead>
                             <tbody id="users-table-body"></tbody>
                         </table>
+                    </div>
+                </div>
+                <div id="maintenance-view" class="tab-content">
+                    <h2>Site Maintenance</h2>
+                    <div class="maintenance-action">
+                        <h3>Prune Expired Echoes</h3>
+                        <p>Permanently delete echoes that haven't been played in over 20 days.</p>
+                        <button id="prune-echoes-btn" class="btn-warning">Prune Echoes</button>
+                        <p id="prune-status" class="status"></p>
+                    </div>
+                    <div class="maintenance-action">
+                        <h3>Purge Orphaned Storage</h3>
+                        <p>Scan R2 and delete audio files not linked to any echo.</p>
+                        <button id="purge-storage-btn" class="btn-danger">Purge Storage</button>
+                        <p id="purge-storage-status" class="status"></p>
                     </div>
                 </div>
             </main>

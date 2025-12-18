@@ -1,11 +1,4 @@
-/* admin-portal/admin.css - GORGEOUS MODERN OVERHAUL */
-:root {
-    --bg-main: #111827; --bg-content: #1F2937; --bg-header: #374151;
-    --text-primary: #F9FAFB; --text-secondary: #9CA3AF;
-    --border-color: #4B5563; --accent-color: #3B82F6; --accent-hover: #2563EB;
-    --warning-color: #F59E0B; --danger-color: #EF4444; --success-color: #10B981;
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-}
+:root { --bg-main: #111827; --bg-content: #1F2937; --bg-header: #374151; --text-primary: #F9FAFB; --text-secondary: #9CA3AF; --border-color: #4B5563; --accent-color: #3B82F6; --accent-hover: #2563EB; --warning-color: #F59E0B; --danger-color: #EF4444; --success-color: #10B981; --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 body { font-family: var(--font-sans); margin: 0; background-color: var(--bg-main); color: var(--text-primary); font-size: 16px; line-height: 1.5; }
 .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; }
 #admin-login-form { background: var(--bg-content); padding: 2rem; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 90%; max-width: 400px; border: 1px solid var(--border-color); }
@@ -19,8 +12,6 @@ button:disabled { background-color: #555; cursor: not-allowed; }
 .status { min-height: 1em; margin-top: 0.5rem; font-size: 0.9rem; }
 .status.success { color: var(--success-color); }
 .status.error { color: var(--danger-color); }
-
-/* Dashboard Layout */
 .main-header { display: flex; justify-content: space-between; align-items: center; background: var(--bg-header); padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border-color); }
 .main-header .logo { font-weight: bold; font-size: 1.2rem; }
 .main-header .user-info button { width: auto; background: var(--danger-color); }
@@ -32,8 +23,12 @@ button:disabled { background-color: #555; cursor: not-allowed; }
 .main-content h2 { margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
-
-/* Echoes View */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; }
+.stat-card { background: var(--bg-content); padding: 1.5rem; border-radius: 8px; text-align: center; border: 1px solid var(--border-color); }
+.stat-card h3 { margin: 0 0 0.5rem; color: var(--text-secondary); font-size: 1rem; font-weight: 500; }
+.stat-card p { margin: 0; font-size: 2.5rem; font-weight: 700; color: var(--text-primary); }
+.controls { margin-bottom: 1rem; }
+#echo-search-input { max-width: 400px; }
 #admin-map { height: 400px; width: 100%; margin-bottom: 1.5rem; border-radius: 8px; }
 .table-container { overflow-x: auto; background: var(--bg-content); border-radius: 8px; border: 1px solid var(--border-color); }
 table { width: 100%; border-collapse: collapse; }
@@ -44,8 +39,10 @@ audio { width: 150px; height: 30px; }
 .delete-echo-btn, .toggle-admin-btn { width: auto; font-size: 0.8rem; padding: 0.4rem 0.8rem; }
 .btn-warning { background-color: var(--warning-color); }
 .btn-danger { background-color: var(--danger-color); }
-
-/* Leaflet Dark Mode */
+.maintenance-action { background: var(--bg-content); padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid var(--border-color); }
+.maintenance-action h3 { margin-top: 0; }
+.maintenance-action p { color: var(--text-secondary); margin-bottom: 1rem; }
+.maintenance-action button { width: auto; }
 .leaflet-container { background: #333 !important; }
 .leaflet-control-zoom a { background-color: var(--bg-content) !important; color: var(--text-primary) !important; border-color: var(--border-color) !important; }
 .leaflet-control-attribution { background: rgba(0,0,0,0.7) !important; color: var(--text-secondary) !important; }

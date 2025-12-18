@@ -2,167 +2,90 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Echoes | Admin Terminal</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Echoes Admin</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-geosearch@3.11.0/dist/geosearch.css" />
     <link rel="stylesheet" href="admin.css">
 </head>
-<body class="dark-theme">
-    <!-- Login Overlay -->
-    <div id="admin-login-section" class="login-page">
-        <div class="login-card">
-            <div class="brand-header">
-                <div class="logo-icon"></div>
-                <h1>Echoes Admin</h1>
-                <p>Enter credentials to access terminal</p>
-            </div>
+<body>
+    <div class="container">
+        <h1>Echoes Admin Portal</h1>
+        <div id="admin-login-section">
+            <h2>Admin Login</h2>
             <form id="admin-login-form">
-                <div class="input-group">
-                    <input type="text" id="admin-username" placeholder="Username" required>
-                </div>
-                <div class="input-group">
-                    <input type="password" id="admin-password" placeholder="Password" required>
-                </div>
-                <button type="submit" class="btn-primary">Authenticate</button>
-                <p id="admin-login-error" class="error-msg"></p>
+                <input type="text" id="admin-username" placeholder="Username" required><br>
+                <input type="password" id="admin-password" placeholder="Password" required><br>
+                <button type="submit">Login</button>
+                <p id="admin-login-error" class="error"></p>
             </form>
         </div>
-    </div>
-
-    <!-- Main Dashboard -->
-    <div id="admin-dashboard-section" class="app-container" style="display:none;">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <div class="logo-text">ECHOES<span>.</span></div>
+        <div id="admin-dashboard-section" style="display:none;">
+            <p>Welcome, Admin! <button id="admin-logout-btn">Logout</button></p>
+            
+            <div class="admin-actions-container">
+                <h2>Site Maintenance</h2>
+                <button id="prune-echoes-btn">Prune Expired Echoes</button>
+                <p id="prune-status" class="status"></p>
+                <p class="description">This will permanently delete all echoes that have not been played in over 20 days.</p>
             </div>
-            <nav class="sidebar-nav">
-                <button data-tab="dashboard" class="nav-item active">
-                    <span class="icon">📊</span> Overview
-                </button>
-                <button data-tab="echoes" class="nav-item">
-                    <span class="icon">🔊</span> Manage Echoes
-                </button>
-                <button data-tab="users" class="nav-item">
-                    <span class="icon">👥</span> User Directory
-                </button>
-                <button data-tab="maintenance" class="nav-item">
-                    <span class="icon">🛠️</span> System Tools
-                </button>
-            </nav>
-            <div class="sidebar-footer">
-                <div class="admin-badge">Admin Access</div>
-                <button id="admin-logout-btn" class="logout-link">Sign Out</button>
+
+             <!-- === ADD THIS NEW SECTION === -->
+            <div class="admin-actions-container storage-action">
+                <h2>Storage Management</h2>
+                <button id="purge-storage-btn">Purge Orphaned Audio Files</button>
+                <p id="purge-storage-status" class="status"></p>
+                <p class="description">
+                    This will scan your R2 bucket and delete any audio files that are no longer linked to an echo or medley drop in the database. This action is permanent.
+                </p>
             </div>
-        </aside>
+            <!-- ============================= -->
 
-        <main class="content-area">
-            <!-- Overview Tab -->
-            <section id="dashboard-view" class="tab-content active">
-                <header class="view-header">
-                    <h1>System Overview</h1>
-                    <p>Real-time platform statistics</p>
-                </header>
-                
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-label">Total Echoes</div>
-                        <div class="stat-value" id="stat-total-echoes">...</div>
-                        <div class="stat-delta">Lifetime records</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Active Users</div>
-                        <div class="stat-value" id="stat-total-users">...</div>
-                        <div class="stat-delta">Registered accounts</div>
-                    </div>
-                    <div class="stat-card accent">
-                        <div class="stat-label">Echoes (24h)</div>
-                        <div class="stat-value" id="stat-echoes-24h">...</div>
-                        <div class="stat-delta positive">+ Trending</div>
-                    </div>
-                    <div class="stat-card accent">
-                        <div class="stat-label">New Users (24h)</div>
-                        <div class="stat-value" id="stat-users-24h">...</div>
-                        <div class="stat-delta positive">+ Growth</div>
-                    </div>
-                </div>
-            </section>
 
-            <!-- Echoes Tab -->
-            <section id="echoes-view" class="tab-content">
-                <header class="view-header">
-                    <h1>Echoes Explorer</h1>
-                    <div class="header-actions">
-                        <input type="text" id="echo-search-input" placeholder="Filter by author or location...">
-                    </div>
-                </header>
-                <div id="admin-map" class="map-container"></div>
-                <div class="data-card">
-                    <table id="echoes-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Author</th>
-                                <th>Address</th>
-                                <th>Created</th>
-                                <th>Plays</th>
-                                <th>Audio</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Users Tab -->
-            <section id="users-view" class="tab-content">
-                <header class="view-header">
-                    <h1>User Management</h1>
-                </header>
-                <div class="data-card">
-                    <table id="users-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Username</th>
-                                <th>Joined</th>
-                                <th>Role</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="users-table-body"></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- Maintenance Tab -->
-            <section id="maintenance-view" class="tab-content">
-                <header class="view-header">
-                    <h1>System Maintenance</h1>
-                </header>
-                <div class="maintenance-grid">
-                    <div class="m-card">
-                        <h3>Prune Inactive Echoes</h3>
-                        <p>Removes echoes with 0 plays older than 20 days.</p>
-                        <button id="prune-echoes-btn" class="btn-warning">Execute Prune</button>
-                        <p id="prune-status" class="status-text"></p>
-                    </div>
-                    <div class="m-card">
-                        <h3>Sync Storage Bucket</h3>
-                        <p>Deletes orphaned .wav files from R2 storage.</p>
-                        <button id="purge-storage-btn" class="btn-danger">Purge Orphans</button>
-                        <p id="purge-storage-status" class="status-text"></p>
-                    </div>
-                </div>
-            </section>
-        </main>
+            <div class="seeding-container">
+                <h2>Seed New Echo</h2>
+                <p>Use the search bar on the map or click a location directly. Then fill out the form and upload an audio file.</p>
+                <form id="seed-echo-form">
+                    <label for="seed-lat">Latitude:</label>
+                    <input type="text" id="seed-lat" name="lat" readonly required>
+                    <label for="seed-lng">Longitude:</label>
+                    <input type="text" id="seed-lng" name="lng" readonly required>
+                    <label for="seed-w3w-address">Location Name (e.g., "Eiffel Tower"):</label>
+                    <input type="text" id="seed-w3w-address" name="w3w_address" placeholder="A descriptive name for the location" required>
+                    <label for="seed-audio-file">Audio File (MP3, WAV, WEBM):</label>
+                    <input type="file" id="seed-audio-file" name="audioFile" accept="audio/*" required>
+                    <button type="submit" id="seed-submit-btn">Create Seeded Echo</button>
+                    <p id="seed-status" class="status"></p>
+                </form>
+            </div>
+            
+            <h2>Global Echoes Map</h2>
+            <div id="admin-map"></div>
+            <h2>All Echoes (Table View)</h2>
+            <table id="echoes-table">
+                <thead>
+                    <tr>
+                        <th>ID</th><th>Author</th><th>Location Key/Name</th><th>Lat</th><th>Lng</th>
+                        <th>Created</th><th>Plays</th><th>Audio</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <h2>All Users</h2>
+            <table id="users-table">
+                <thead>
+                    <tr>
+                        <th>ID</th><th>Username</th><th>Created</th><th>Is Admin?</th><th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table-body"></tbody>
+            </table>
+        </div>
     </div>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet-geosearch@3.11.0/dist/geosearch.umd.js"></script>
     <script src="admin.js"></script>
 </body>
 </html>

@@ -144,7 +144,7 @@ function renderEchoesTable(echoes) {
     echoes.forEach(echo => {
         const row = echoesTableBody.insertRow();
         const latNum = parseFloat(echo.lat), lngNum = parseFloat(echo.lng);
-        row.innerHTML = `<td>${echo.id}</td><td>${echo.username||"Anon"}</td><td>${echo.location}</td><td>${new Date(echo.created_at).toLocaleString()}</td><td>${echo.play_count}</td><td><audio controls src="${echo.audio_url}"></audio></td><td><button class="delete-echo-btn" data-id="${echo.id}">Delete</button></td>`;
+        row.innerHTML = `<td>${echo.id}</td><td>${echo.username||"Anon"}</td><td>${echo.w3w_address}</td><td>${new Date(echo.created_at).toLocaleString()}</td><td>${echo.play_count}</td><td><audio controls src="${echo.audio_url}"></audio></td><td><button class="delete-echo-btn" data-id="${echo.id}">Delete</button></td>`;
     });
     document.querySelectorAll(".delete-echo-btn").forEach(btn => btn.addEventListener("click", handleDeleteEcho));
 }

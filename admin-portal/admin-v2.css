@@ -1,8 +1,9 @@
-/* admin-portal/admin-v2.css - WITH Z-INDEX AND LAYOUT FIX */
+/* admin-portal/admin.css - TABS IN HEADER FIX */
 :root {
     --bg-main: #111827;
     --bg-content: #1F2937;
-    --bg-header: #374151;
+    --bg-header-top: #374151;
+    --bg-nav: #1F2937;
     --text-primary: #F9FAFB;
     --text-secondary: #9CA3AF;
     --border-color: #4B5563;
@@ -23,6 +24,7 @@ body {
     line-height: 1.5;
 }
 
+/* Login styles (unchanged) */
 .login-container {
     display: flex;
     justify-content: center;
@@ -40,80 +42,27 @@ body {
     border: 1px solid var(--border-color);
 }
 
-#admin-login-form h1 {
-    margin-bottom: 1.5rem;
-    text-align: center;
-}
+/* ... (all other login, input, button, error styles are unchanged) ... */
 
-input {
-    display: block;
-    margin-bottom: 1rem;
-    padding: 0.75rem;
-    width: 100%;
-    border: 1px solid var(--border-color);
-    background: #374151;
-    color: var(--text-primary);
-    border-radius: 4px;
-    font-size: 1rem;
-}
-
-input:focus {
-    outline: none;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px var(--accent-color);
-}
-
-button {
-    padding: 0.75rem 1.5rem;
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
-    cursor: pointer;
-    border-radius: 4px;
-    font-weight: bold;
-    width: 100%;
-    font-size: 1rem;
-    transition: background-color 0.2s ease;
-}
-
-button:hover {
-    background-color: var(--accent-hover);
-}
-
-button:disabled {
-    background-color: #555;
-    cursor: not-allowed;
-}
-
-.error {
-    color: var(--warning-color);
-    text-align: center;
-    min-height: 1em;
-    margin-top: 1rem;
-}
-
-.status {
-    min-height: 1em;
-    margin-top: 0.5rem;
-    font-size: 0.9rem;
-}
-
-.status.success {
-    color: var(--success-color);
-}
-
-.status.error {
-    color: var(--danger-color);
-}
-
-/* Dashboard Layout */
+/* === THE LAYOUT FIX IS HERE === */
 .main-header {
+    /* The header is now a flex container for its two rows */
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-header-top);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    /* Make the header stick to the top */
+    top: 0;
+    z-index: 1000;
+}
+
+.header-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--bg-header);
     padding: 0.75rem 1.5rem;
-    border-bottom: 1px solid var(--border-color);
+    width: 100%;
 }
 
 .main-header .logo {
@@ -126,35 +75,28 @@ button:disabled {
     background: var(--danger-color);
 }
 
-/* === THE FIXES ARE HERE === */
-.dashboard-layout {
-    display: flex;
-    flex-direction: column;
-    height: calc(100vh - 57px);
-    /* Height of the viewport minus the header */
-    overflow: hidden;
-    /* Prevent this container from scrolling */
-}
-
 .main-nav {
     display: flex;
-    background: var(--bg-content);
-    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-nav);
+    width: 100%;
     overflow-x: auto;
-    flex-shrink: 0;
-    /* Don't allow the nav to shrink */
+}
+
+/* The rest of the page layout */
+.dashboard-layout {
+    /* This is now just a simple container */
 }
 
 .main-content {
     padding: 1.5rem;
+    height: calc(100vh - 114px);
+    /* Full viewport height MINUS the new combined header height */
     overflow-y: auto;
-    /* THIS is the element that will scroll */
-    flex-grow: 1;
-    /* Allow it to take up all remaining space */
 }
 
-/* ======================== */
+/* ============================= */
 
+/* All other styles for tabs, content, stats, tables, map, etc. remain the same */
 .nav-tab {
     background: none;
     border: none;
@@ -256,10 +198,10 @@ tr:last-child td {
 }
 
 th {
-    background-color: var(--bg-header);
-    font-weight: 500;
+    background-color: #374151;
 }
 
+/* Matching the new header top */
 audio {
     width: 150px;
     height: 30px;
@@ -314,4 +256,66 @@ audio {
 .leaflet-control-attribution {
     background: rgba(0, 0, 0, 0.7) !important;
     color: var(--text-secondary) !important;
+}
+
+/* Full button and input styles for completeness */
+input {
+    display: block;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    width: 100%;
+    border: 1px solid var(--border-color);
+    background: #374151;
+    color: var(--text-primary);
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-color);
+}
+
+button {
+    padding: 0.75rem 1.5rem;
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    font-weight: bold;
+    width: 100%;
+    font-size: 1rem;
+    transition: background-color 0.2s ease;
+}
+
+button:hover {
+    background-color: var(--accent-hover);
+}
+
+button:disabled {
+    background-color: #555;
+    cursor: not-allowed;
+}
+
+.error {
+    color: var(--warning-color);
+    text-align: center;
+    min-height: 1em;
+    margin-top: 1rem;
+}
+
+.status {
+    min-height: 1em;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.status.success {
+    color: var(--success-color);
+}
+
+.status.error {
+    color: var(--danger-color);
 }

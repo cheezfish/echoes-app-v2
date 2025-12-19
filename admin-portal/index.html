@@ -25,21 +25,25 @@
 
     <div id="admin-dashboard-section" style="display:none;">
         <header class="main-header">
-            <div class="logo">Echoes Dashboard</div>
-            <div class="user-info">
-                <span>Welcome, Admin!</span>
-                <button id="admin-logout-btn">Logout</button>
+            <div class="header-top">
+                <div class="logo">Echoes Dashboard</div>
+                <div class="user-info">
+                    <span>Welcome, Admin!</span>
+                    <button id="admin-logout-btn">Logout</button>
+                </div>
             </div>
-        </header>
-
-        <div class="dashboard-layout">
+            <!-- === TABS MOVED HERE === -->
             <nav class="main-nav">
                 <button data-tab="dashboard" class="nav-tab active">Dashboard</button>
                 <button data-tab="echoes" class="nav-tab">Echoes</button>
                 <button data-tab="users" class="nav-tab">Users</button>
                 <button data-tab="maintenance" class="nav-tab">Maintenance</button>
             </nav>
+            <!-- ===================== -->
+        </header>
 
+        <!-- The dashboard-layout div is now just for the main content -->
+        <div class="dashboard-layout">
             <main class="main-content">
                 <div id="dashboard-view" class="tab-content active">
                     <h2>Overview</h2>
@@ -57,7 +61,6 @@
                     <div class="table-container">
                         <table id="echoes-table">
                             <thead><tr><th>ID</th><th>Author</th><th>Location</th><th>Created</th><th>Plays</th><th>Audio</th><th>Actions</th></tr></thead>
-                            <!-- === THE FIX: Added the ID here === -->
                             <tbody id="echoes-table-body"></tbody>
                         </table>
                     </div>

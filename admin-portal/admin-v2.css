@@ -1,10 +1,11 @@
+/* admin-portal/admin-v2.css - WITH Z-INDEX AND LAYOUT FIX */
 :root {
-    --bg-main: #030509;
-    --bg-content: #0c121a;
+    --bg-main: #111827;
+    --bg-content: #1F2937;
     --bg-header: #374151;
     --text-primary: #F9FAFB;
     --text-secondary: #9CA3AF;
-    --border-color: #4b556357;
+    --border-color: #4B5563;
     --accent-color: #3B82F6;
     --accent-hover: #2563EB;
     --warning-color: #F59E0B;
@@ -34,7 +35,7 @@ body {
     padding: 2rem;
     border-radius: 8px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-    width: 100%;
+    width: 90%;
     max-width: 400px;
     border: 1px solid var(--border-color);
 }
@@ -46,11 +47,11 @@ body {
 
 input {
     display: block;
-    margin-bottom: 1.2rem;
-    padding: 0rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
     width: 100%;
     border: 1px solid var(--border-color);
-    background: #737c89;
+    background: #374151;
     color: var(--text-primary);
     border-radius: 4px;
     font-size: 1rem;
@@ -105,6 +106,7 @@ button:disabled {
     color: var(--danger-color);
 }
 
+/* Dashboard Layout */
 .main-header {
     display: flex;
     justify-content: space-between;
@@ -124,10 +126,14 @@ button:disabled {
     background: var(--danger-color);
 }
 
+/* === THE FIXES ARE HERE === */
 .dashboard-layout {
     display: flex;
     flex-direction: column;
     height: calc(100vh - 57px);
+    /* Height of the viewport minus the header */
+    overflow: hidden;
+    /* Prevent this container from scrolling */
 }
 
 .main-nav {
@@ -135,7 +141,19 @@ button:disabled {
     background: var(--bg-content);
     border-bottom: 1px solid var(--border-color);
     overflow-x: auto;
+    flex-shrink: 0;
+    /* Don't allow the nav to shrink */
 }
+
+.main-content {
+    padding: 1.5rem;
+    overflow-y: auto;
+    /* THIS is the element that will scroll */
+    flex-grow: 1;
+    /* Allow it to take up all remaining space */
+}
+
+/* ======================== */
 
 .nav-tab {
     background: none;
@@ -153,11 +171,6 @@ button:disabled {
 .nav-tab.active {
     color: var(--text-primary);
     border-bottom-color: var(--accent-color);
-}
-
-.main-content {
-    padding: 1.5rem;
-    overflow-y: auto;
 }
 
 .main-content h2 {

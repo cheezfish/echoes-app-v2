@@ -565,9 +565,75 @@ window.keepEchoAlive = async (id) => {
         console.error("Failed to send keep-alive ping:", err); 
     } 
 };
-function onLocationUpdate(position) { currentUserPosition = { lat: position.coords.latitude, lng: position.coords.longitude }; const latLng = [currentUserPosition.lat, currentUserPosition.lng]; if (userMarker) userMarker.setLatLng(latLng); else userMarker = L.marker(latLng, { icon: userLocationIcon, interactive: false, zIndexOffset: 1000 }).addTo(map); const latStr = currentUserPosition.lat.toFixed(4); const lngStr = currentUserPosition.lng.toFixed(4); currentBucketKey = `sq_${latStr}_${lngStr}`; isUserInVicinity = true; updateActionButtonState(); }
+
+// client/app.js - Faster Location Logic
+
+// Global variable to track last fetch position to throttle API calls
+let lastFetchPosition = null;
+
+function onLocationUpdate(position) {
+    // 1. Always update global state immediately
+    currentUserPosition = { 
+        lat: position.coords.latitude, 
+        lng: position.coords.longitude 
+    }; 
+    const latLng = [currentUserPosition.lat, currentUserPosition.lng]; 
+
+    // 2. VISUAL UPDATE: Move the blue dot immediately (High FPS)
+    if (userMarker) {
+        userMarker.setLatLng(latLng); 
+    } else {
+        userMarker = L.marker(latLng, { 
+            icon: userLocationIcon, 
+            interactive: false, 
+            zIndexOffset: 1000 
+        }).addTo(map); 
+    }
+
+    // 3. Update State variables
+    const latStr = currentUserPosition.lat.toFixed(4);
+    const lngStr = currentUserPosition.lng.toFixed(4);
+    currentBucketKey = `sq_${latStr}_${lngStr}`;
+    isUserInVicinity = true;
+    updateActionButtonState();
+
+    // 4. DATA FETCH (Throttled logic)
+    // Only fetch new echoes if we have moved > 50 meters from the last fetch
+    if (!lastFetchPosition) {
+        lastFetchPosition = currentUserPosition;
+        // First run: wait a moment for map bounds to settle then fetch
+        setTimeout(() => fetchEchoesForCurrentView(), 500); 
+    } else {
+        // Calculate distance in meters
+        const dist = map.distance(
+            [lastFetchPosition.lat, lastFetchPosition.lng],
+            latLng
+        );
+        
+        // Threshold: 50 meters
+        if (dist > 20) {
+            console.log(`User moved ${Math.round(dist)}m. Refreshing echoes...`);
+            lastFetchPosition = currentUserPosition;
+            fetchEchoesForCurrentView();
+        }
+    }
+}
+
+function startLocationWatcher() { 
+    if (locationWatcherId) navigator.geolocation.clearWatch(locationWatcherId); 
+    
+    if ("geolocation" in navigator) { 
+        // OPTIMIZATION: Tighter settings for "Real Time" feel
+        const options = { 
+            enableHighAccuracy: true, 
+            timeout: 10000,   // Fail if no signal within 10s
+            maximumAge: 2000  // Force fresh GPS (don't use cache older than 2s)
+        }; 
+        locationWatcherId = navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, options); 
+    } 
+}
+
 function onLocationError(error) { updateStatus(`Error: ${error.message}`, "error"); isUserInVicinity = false; updateActionButtonState(); }
-function startLocationWatcher() { if (locationWatcherId) navigator.geolocation.clearWatch(locationWatcherId); if ("geolocation" in navigator) { const options = { enableHighAccuracy: true, timeout: 27000, maximumAge: 30000 }; locationWatcherId = navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, options); } }
 function handleFindMeClick() { updateStatus("Locating...", "info"); if (!("geolocation" in navigator)) return updateStatus("Geolocation not supported.", "error"); const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }; navigator.geolocation.getCurrentPosition(position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startLocationWatcher(); }, onLocationError, options); }
 function handleRecordClick() { if (!('geolocation' in navigator)) return updateStatus("Geolocation not supported.", "error"); const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }; navigator.geolocation.getCurrentPosition( position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startRecordingProcess(); }, err => { onLocationError(err); updateStatus("Could not get location.", "error"); }, options ); }
 

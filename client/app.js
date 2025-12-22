@@ -627,10 +627,20 @@ function getBlobDuration(blob) {
     });
 }
 
-// client/app.js - Replace uploadAndSaveEcho
+// client/app.js
 
 async function uploadAndSaveEcho() {
-    // 1. Cleanup timers
+    // 1. Calculate duration immediately (The "Wall Clock" Method)
+    const endTime = Date.now();
+    let calculatedDuration = 0;
+    
+    if (recordingTimer && recordingTimer.startTime) {
+        calculatedDuration = Math.round((endTime - recordingTimer.startTime) / 1000);
+    }
+    // Ensure it's at least 1 second
+    if (calculatedDuration < 1) calculatedDuration = 1;
+
+    // 2. Cleanup timers
     if (mediaRecorder && mediaRecorder.recordingPromptInterval) {
         clearInterval(mediaRecorder.recordingPromptInterval);
     }
@@ -642,29 +652,27 @@ async function uploadAndSaveEcho() {
     mediaRecorder = null;
     audioChunks = [];
     updateActionButtonState();
-    updateStatus("Processing...", "info", 0);
-
+    
+    // 3. Validation
     if (collectedChunks.length === 0) {
         updateStatus("Recording too short.", "error");
         return;
     }
 
-    // 2. Prepare Blob & Calculate Duration
+    updateStatus("Processing...", "info", 0);
+
+    // 4. Prepare Blob
     const audioBlob = new Blob(collectedChunks, { type: "audio/webm" });
     const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
-    
-    // NEW: Calculate duration locally to save server CPU/RAM
-    const duration = await getBlobDuration(audioBlob); 
 
     try {
         updateStatus("Preparing upload...", "info", 0);
         
-        // 3. Get Presigned URL (Now Authenticated)
+        // 5. Get Presigned URL
         const presignedResponse = await fetch(`${API_URL}/presigned-url`, { 
             method: "POST", 
             headers: { 
                 "Content-Type": "application/json",
-                // NEW: This is required now that we protected the route
                 "Authorization": `Bearer ${userToken}` 
             }, 
             body: JSON.stringify({ fileName: fileName, fileType: audioBlob.type }) 
@@ -673,15 +681,14 @@ async function uploadAndSaveEcho() {
         if (!presignedResponse.ok) throw new Error(`Presigned URL failed: ${await presignedResponse.text()}`);
         const { url: uploadUrl } = await presignedResponse.json();
 
-        // 4. Upload to R2 (Directly from browser)
+        // 6. Upload to R2
         updateStatus("Uploading...", "info", 0);
         await fetch(uploadUrl, { method: "PUT", body: audioBlob, headers: { "Content-Type": audioBlob.type } });
         const audioUrl = `${R2_PUBLIC_URL_BASE}/${fileName}`;
 
-        // 5. Save Metadata to DB
+        // 7. Save Metadata to DB
         updateStatus("Saving...", "info", 0);
         
-        // NEW: Send duration, DO NOT send base64
         const saveResponse = await fetch(`${API_URL}/echoes`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${userToken}` },
@@ -690,8 +697,7 @@ async function uploadAndSaveEcho() {
                 audio_url: audioUrl, 
                 lat: currentUserPosition.lat, 
                 lng: currentUserPosition.lng, 
-                duration: duration // <--- Sending duration directly
-                // audio_blob_base64 REMOVED
+                duration: calculatedDuration // <--- Using the math result
             })
         });
 

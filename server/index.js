@@ -23,7 +23,7 @@ const s3 = new S3Client({
 
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 }
+    limits: { fileSize: 5 * 1024 * 1024 }
 });
 
 const pool = require('./db');
@@ -530,26 +530,24 @@ app.get('/echoes', async (req, res) => {
     }
 });
 
+// server/index.js - Update POST /echoes
+
 app.post('/echoes', authMiddleware, async (req, res) => {
-    const { w3w_address, audio_url, lat, lng, audio_blob_base64 } = req.body;
+    // 1. Get duration directly
+    const { w3w_address, audio_url, lat, lng, duration } = req.body;
     const user_id = req.user.id;
-    if (!w3w_address || !audio_url || lat === undefined || lng === undefined || !audio_blob_base64) {
-        return res.status(400).json({ error: 'All fields including audio data are required' });
+
+    // 2. Validate (No longer checking for audio_blob_base64)
+    if (!w3w_address || !audio_url || lat === undefined || lng === undefined) {
+        return res.status(400).json({ error: 'All fields are required' });
     }
 
     let friendlyLocationName = 'An unknown location';
-    let duration = 0;
-
+    
+    // 3. Keep Geocoding Logic
     try {
-        const audioBuffer = Buffer.from(audio_blob_base64, 'base64');
-        
-        // FIXED: Use dynamic import for compatibility with music-metadata v8+ (ESM)
-        const { parseBuffer } = await import('music-metadata');
-        const metadata = await parseBuffer(audioBuffer, 'audio/webm');
-        duration = Math.round(metadata.format.duration || 0);
-        
         if (!process.env.OPENCAGE_API_KEY) {
-            console.error("FATAL: OPENCAGE_API_KEY environment variable not set. Reverse geocoding will fail.");
+            console.error("FATAL: OPENCAGE_API_KEY environment variable not set.");
         } else {
             const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${process.env.OPENCAGE_API_KEY}&no_annotations=1&limit=1`;
             const geoData = await new Promise((resolve, reject) => {
@@ -566,16 +564,17 @@ app.post('/echoes', authMiddleware, async (req, res) => {
             }
         }
     } catch (err) {
-        console.error("Error during metadata/geocoding phase:", err);
+        console.error("Error during geocoding phase:", err);
     }
 
+    // 4. Insert into DB using the passed duration
     try {
         const insertQuery = `
             INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at, location_name, duration_seconds) 
             VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7) 
             RETURNING id;
         `;
-        const insertValues = [w3w_address, audio_url, lat, lng, user_id, friendlyLocationName, duration];
+        const insertValues = [w3w_address, audio_url, lat, lng, user_id, friendlyLocationName, duration || 0];
         const insertResult = await pool.query(insertQuery, insertValues);
         const newEchoId = insertResult.rows[0].id;
         
@@ -585,7 +584,6 @@ app.post('/echoes', authMiddleware, async (req, res) => {
         const finalQuery = `SELECT e.*, u.username FROM echoes e LEFT JOIN users u ON e.user_id = u.id WHERE e.id = $1;`;
         const finalResult = await pool.query(finalQuery, [newEchoId]);
 
-        // NEW: Trigger achievement check in the background
         checkAndAwardAchievements(user_id, 'LEAVE_ECHO', { newEcho: finalResult.rows[0] });
 
         res.status(201).json(finalResult.rows[0]);
@@ -667,7 +665,7 @@ app.post('/api/echoes/:id/play', async (req, res) => {
     }
 });
 
-app.post('/presigned-url', async (req, res) => {
+app.post('/presigned-url', authMiddleware, async (req, res) => {
     const { fileName, fileType } = req.body;
     if (!fileName || !fileType) return res.status(400).json({ error: 'fileName and fileType are required' });
     const putCommand = new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: fileName, ContentType: fileType });

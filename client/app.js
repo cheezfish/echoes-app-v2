@@ -367,54 +367,86 @@ async function fetchEchoesForCurrentView() {
     }
 }
 
-// --- Find and replace the renderNearbyList function ---
-function renderNearbyList(echoes) {
-    // 1. FILTER the list based on the new, accurate distance_meters property
-    //    that was added in renderMapMarkers.
-    const nearbyEchoes = echoes.filter(echo => echo.distance_meters <= INTERACTION_RANGE_METERS);
+// client/app.js
 
+function renderNearbyList(echoes) {
+    // 1. Filter echoes (Logic remains the same)
+    const nearbyEchoes = echoes.filter(echo => echo.distance_meters <= INTERACTION_RANGE_METERS);
     nearbyEchoesList.innerHTML = '';
 
+    // 2. Handle empty state
     if (nearbyEchoes.length === 0) {
         const message = currentUserPosition ? "No echoes are within listening range. Move closer to a signal." : "Click the compass to find echoes near you.";
+        // This is safe because 'message' is hardcoded by us, not user input
         nearbyEchoesList.innerHTML = `<p id="empty-message" style="text-align:center; padding: 2rem;">${message}</p>`;
         return;
     }
     
-    // Sort the listenable echoes by their actual distance to the user
+    // 3. Sort by distance
     nearbyEchoes.sort((a, b) => a.distance_meters - b.distance_meters);
     
-    // 2. RENDER only the filtered list
+    // 4. Create the list items SAFELY
     nearbyEchoes.forEach(echo => {
         const item = document.createElement('div');
         item.className = 'my-echo-item';
         item.dataset.echoId = echo.id;
         
+        // Prepare the text data
         const recordedDateTime = new Date(echo.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         const locationDisplayName = echo.location_name || 'A Discovered Place';
+        const usernameDisplay = echo.username || 'anonymous';
         
-        // The audio player is always active here because we've already filtered.
-        item.innerHTML = `
-            <div class="info-row">
-                <span class="location-name">${locationDisplayName}</span>
-                <span class="author-info">by ${echo.username || 'anonymous'}</span>
-            </div>
-            <audio controls preload="none" src="${echo.audio_url}" onplay="window.keepEchoAlive(${echo.id})"></audio>
-            <div class="meta-row">
-                <span>${recordedDateTime}</span>
-            </div>
-        `;
+        // --- SECURITY FIX STARTS HERE ---
+        // Instead of writing a big string of HTML with backticks, we build elements one by one.
+        // This forces the browser to treat user content as plain text, neutralizing scripts.
         
+        // A. Create the top info row
+        const infoRow = document.createElement('div');
+        infoRow.className = 'info-row';
+
+        const locSpan = document.createElement('span');
+        locSpan.className = 'location-name';
+        locSpan.textContent = locationDisplayName; // <--- SAFE!
+        
+        const authSpan = document.createElement('span');
+        authSpan.className = 'author-info';
+        authSpan.textContent = `by ${usernameDisplay}`; // <--- SAFE!
+
+        infoRow.appendChild(locSpan);
+        infoRow.appendChild(authSpan);
+
+        // B. Create the Audio player
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.preload = 'none';
+        audio.src = echo.audio_url; 
+        audio.onplay = () => window.keepEchoAlive(echo.id);
+
+        // C. Create the bottom meta row
+        const metaRow = document.createElement('div');
+        metaRow.className = 'meta-row';
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = recordedDateTime;
+        metaRow.appendChild(dateSpan);
+
+        // D. Assemble the item
+        item.appendChild(infoRow);
+        item.appendChild(audio);
+        item.appendChild(metaRow);
+        
+        // --- SECURITY FIX ENDS HERE ---
+
+        // 5. Add Click Listener (Logic remains the same)
         item.addEventListener('click', (e) => {
+            // Don't trigger the "Fly To" effect if they clicked the play button
             if (e.target.tagName !== 'AUDIO' && !e.target.closest('audio')) {
                 handleListItemClick(echo.id);
             }
         });
+
         nearbyEchoesList.appendChild(item);
     });
 }
-
-// --- Find and replace the entire renderMapMarkers function ---
 
 // --- Find and replace the renderMapMarkers function ---
 function renderMapMarkers(echoes) {
@@ -573,42 +605,101 @@ async function startRecordingProcess() {
 
 function blobToBase64(blob) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(blob); }); }
 
+// client/app.js - New Helper Function
+
+function getBlobDuration(blob) {
+    return new Promise((resolve) => {
+        const audio = document.createElement('audio');
+        audio.preload = 'metadata';
+        audio.onloadedmetadata = () => {
+            if (audio.duration === Infinity) {
+                // Fix for Chrome bug with webm duration
+                audio.currentTime = 1e101;
+                audio.ontimeupdate = () => {
+                    this.ontimeupdate = () => {};
+                    resolve(Math.round(audio.duration));
+                }
+            } else {
+                resolve(Math.round(audio.duration));
+            }
+        };
+        audio.src = URL.createObjectURL(blob);
+    });
+}
+
+// client/app.js - Replace uploadAndSaveEcho
+
 async function uploadAndSaveEcho() {
+    // 1. Cleanup timers
     if (mediaRecorder && mediaRecorder.recordingPromptInterval) {
         clearInterval(mediaRecorder.recordingPromptInterval);
     }
     if (recordingTimer) {
         clearInterval(recordingTimer.intervalId);
     }
+
     const collectedChunks = [...audioChunks];
     mediaRecorder = null;
     audioChunks = [];
     updateActionButtonState();
     updateStatus("Processing...", "info", 0);
+
     if (collectedChunks.length === 0) {
         updateStatus("Recording too short.", "error");
         return;
     }
+
+    // 2. Prepare Blob & Calculate Duration
     const audioBlob = new Blob(collectedChunks, { type: "audio/webm" });
     const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
+    
+    // NEW: Calculate duration locally to save server CPU/RAM
+    const duration = await getBlobDuration(audioBlob); 
+
     try {
         updateStatus("Preparing upload...", "info", 0);
-        const presignedResponse = await fetch(`${API_URL}/presigned-url`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: fileName, fileType: audioBlob.type }) });
+        
+        // 3. Get Presigned URL (Now Authenticated)
+        const presignedResponse = await fetch(`${API_URL}/presigned-url`, { 
+            method: "POST", 
+            headers: { 
+                "Content-Type": "application/json",
+                // NEW: This is required now that we protected the route
+                "Authorization": `Bearer ${userToken}` 
+            }, 
+            body: JSON.stringify({ fileName: fileName, fileType: audioBlob.type }) 
+        });
+
         if (!presignedResponse.ok) throw new Error(`Presigned URL failed: ${await presignedResponse.text()}`);
         const { url: uploadUrl } = await presignedResponse.json();
+
+        // 4. Upload to R2 (Directly from browser)
         updateStatus("Uploading...", "info", 0);
         await fetch(uploadUrl, { method: "PUT", body: audioBlob, headers: { "Content-Type": audioBlob.type } });
         const audioUrl = `${R2_PUBLIC_URL_BASE}/${fileName}`;
+
+        // 5. Save Metadata to DB
         updateStatus("Saving...", "info", 0);
-        const audioBase64 = await blobToBase64(audioBlob);
+        
+        // NEW: Send duration, DO NOT send base64
         const saveResponse = await fetch(`${API_URL}/echoes`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${userToken}` },
-            body: JSON.stringify({ w3w_address: currentBucketKey, audio_url: audioUrl, lat: currentUserPosition.lat, lng: currentUserPosition.lng, audio_blob_base64: audioBase64 })
+            body: JSON.stringify({ 
+                w3w_address: currentBucketKey, 
+                audio_url: audioUrl, 
+                lat: currentUserPosition.lat, 
+                lng: currentUserPosition.lng, 
+                duration: duration // <--- Sending duration directly
+                // audio_blob_base64 REMOVED
+            })
         });
+
         if (!saveResponse.ok) throw new Error(`Save metadata failed: ${await saveResponse.text()}`);
+        
         updateStatus("Echo saved successfully!", "success");
         fetchEchoesForCurrentView();
+
     } catch (err) {
         console.error("Full echo process failed:", err);
         updateStatus(`Error: ${err.message}`, "error");

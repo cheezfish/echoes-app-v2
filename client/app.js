@@ -139,6 +139,14 @@ const recordingMessages = [
 // --- UI ELEMENT CACHE ---
 let loginBtn, registerBtn, welcomeMessage, loggedOutView, loggedInView, userMenuButton, userMenuDropdown, globalStatusBar, contextActionBtn, nearbyEchoesList, authModal, authForm, modalError, usernameInput, passwordInput, modalTitle, modalSubmitBtn;
 
+// Helper to format seconds into MM:SS
+const formatTime = (seconds) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
 /** Creates the dynamic "health ring" icon */
 function createHealthIcon(healthPercent, isHighlighted = false) {
     const size = isHighlighted ? 48 : 40;
@@ -425,9 +433,19 @@ function renderNearbyList(echoes) {
         // C. Create the bottom meta row
         const metaRow = document.createElement('div');
         metaRow.className = 'meta-row';
+        
+        // Date
         const dateSpan = document.createElement('span');
         dateSpan.textContent = recordedDateTime;
+        
+        // Duration (NEW)
+        const durationSpan = document.createElement('span');
+        durationSpan.style.marginLeft = "10px";
+        durationSpan.style.color = "#888";
+        durationSpan.innerHTML = `&bull; ${formatTime(echo.duration_seconds)}`; 
+        
         metaRow.appendChild(dateSpan);
+        metaRow.appendChild(durationSpan);
 
         // D. Assemble the item
         item.appendChild(infoRow);
@@ -797,7 +815,7 @@ async function uploadAndSaveEcho() {
 
         // NEW: Trigger the visual ripple
         triggerRippleAnimation(currentUserPosition.lat, currentUserPosition.lng);
-        
+
         fetchEchoesForCurrentView();
 
     } catch (err) {

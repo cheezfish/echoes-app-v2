@@ -669,6 +669,30 @@ async function startRecordingProcess() {
     }
 }
 
+// client/app.js - New helper function
+
+function triggerRippleAnimation(lat, lng) {
+    if (!map) return;
+    
+    // Create a temporary Leaflet marker
+    const rippleIcon = L.divIcon({
+        className: 'ripple-marker',
+        html: '<div class="ripple-ring"></div>',
+        iconSize: [300, 300], // Matches the max size in CSS
+        iconAnchor: [150, 150]
+    });
+
+    const rippleMarker = L.marker([lat, lng], { 
+        icon: rippleIcon, 
+        zIndexOffset: -1000 // Behind other markers
+    }).addTo(map);
+
+    // Remove it after animation completes (2 seconds)
+    setTimeout(() => {
+        map.removeLayer(rippleMarker);
+    }, 2000);
+}
+
 function blobToBase64(blob) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(blob); }); }
 
 // client/app.js - New Helper Function
@@ -770,6 +794,10 @@ async function uploadAndSaveEcho() {
         if (!saveResponse.ok) throw new Error(`Save metadata failed: ${await saveResponse.text()}`);
         
         updateStatus("Echo saved successfully!", "success");
+
+        // NEW: Trigger the visual ripple
+        triggerRippleAnimation(currentUserPosition.lat, currentUserPosition.lng);
+        
         fetchEchoesForCurrentView();
 
     } catch (err) {

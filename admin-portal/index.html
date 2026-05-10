@@ -3,22 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Echoes Admin</title>
+    <title>Echoes — Control Interface</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <link rel="stylesheet" href="admin-v2.css">
 </head>
 <body>
+
     <div id="admin-login-section" class="login-container">
         <form id="admin-login-form">
-            <h1>Echoes Admin</h1>
-            <input type="text" id="admin-username" placeholder="Username" required>
+            <h1>Echoes</h1>
+            <p class="login-subtitle">Restricted Access Terminal</p>
+            <input type="text" id="admin-username" placeholder="Username" required autocomplete="off">
             <input type="password" id="admin-password" placeholder="Password" required>
-            <button type="submit">Login</button>
+            <button type="submit">Authenticate</button>
             <p id="admin-login-error" class="error"></p>
         </form>
     </div>
@@ -26,37 +28,41 @@
     <div id="admin-dashboard-section" style="display:none;">
         <header class="main-header">
             <div class="header-top">
-                <div class="logo">Echoes Dashboard</div>
+                <div class="logo">
+                    <span class="logo-dot"></span>
+                    Echoes Control
+                </div>
                 <div class="user-info">
-                    <span>Welcome, Admin!</span>
-                    <button id="admin-logout-btn">Logout</button>
+                    <span>System Online</span>
+                    <button id="admin-logout-btn">Disconnect</button>
                 </div>
             </div>
-            <!-- === TABS MOVED HERE === -->
             <nav class="main-nav">
                 <button data-tab="dashboard" class="nav-tab active">Dashboard</button>
                 <button data-tab="echoes" class="nav-tab">Echoes</button>
                 <button data-tab="users" class="nav-tab">Users</button>
                 <button data-tab="maintenance" class="nav-tab">Maintenance</button>
             </nav>
-            <!-- ===================== -->
         </header>
 
-        <!-- The dashboard-layout div is now just for the main content -->
         <div class="dashboard-layout">
             <main class="main-content">
+
                 <div id="dashboard-view" class="tab-content active">
-                    <h2>Overview</h2>
+                    <div class="section-header"><h2>System Overview</h2></div>
                     <div class="stats-grid">
                         <div class="stat-card"><h3>Total Echoes</h3><p id="stat-total-echoes">--</p></div>
                         <div class="stat-card"><h3>Total Users</h3><p id="stat-total-users">--</p></div>
-                        <div class="stat-card"><h3>Echoes (24h)</h3><p id="stat-echoes-24h">--</p></div>
-                        <div class="stat-card"><h3>New Users (24h)</h3><p id="stat-users-24h">--</p></div>
+                        <div class="stat-card"><h3>Echoes — 24h</h3><p id="stat-echoes-24h">--</p></div>
+                        <div class="stat-card"><h3>New Users — 24h</h3><p id="stat-users-24h">--</p></div>
                     </div>
                 </div>
+
                 <div id="echoes-view" class="tab-content">
-                    <h2>Manage Echoes</h2>
-                    <div class="controls"><input type="text" id="echo-search-input" placeholder="Search by author or location..."></div>
+                    <div class="section-header"><h2>Echo Registry</h2></div>
+                    <div class="controls">
+                        <input type="text" id="echo-search-input" placeholder="Search by author or location...">
+                    </div>
                     <div id="admin-map"></div>
                     <div class="table-container">
                         <table id="echoes-table">
@@ -65,30 +71,35 @@
                         </table>
                     </div>
                 </div>
+
                 <div id="users-view" class="tab-content">
-                    <h2>Manage Users</h2>
+                    <div class="section-header"><h2>User Registry</h2></div>
                     <div class="table-container">
                         <table id="users-table">
-                            <thead><tr><th>ID</th><th>Username</th><th>Created</th><th>Is Admin?</th><th>Actions</th></tr></thead>
+                            <thead><tr><th>ID</th><th>Username</th><th>Created</th><th>Admin</th><th>Actions</th></tr></thead>
                             <tbody id="users-table-body"></tbody>
                         </table>
                     </div>
                 </div>
+
                 <div id="maintenance-view" class="tab-content">
-                    <h2>Site Maintenance</h2>
-                    <div class="maintenance-action">
-                        <h3>Prune Expired Echoes</h3>
-                        <p>Permanently delete echoes that haven't been played in over 20 days.</p>
-                        <button id="prune-echoes-btn" class="btn-warning">Prune Echoes</button>
-                        <p id="prune-status" class="status"></p>
-                    </div>
-                    <div class="maintenance-action">
-                        <h3>Purge Orphaned Storage</h3>
-                        <p>Scan R2 and delete audio files not linked to any echo.</p>
-                        <button id="purge-storage-btn" class="btn-danger">Purge Storage</button>
-                        <p id="purge-storage-status" class="status"></p>
+                    <div class="section-header"><h2>System Maintenance</h2></div>
+                    <div class="maintenance-grid">
+                        <div class="maintenance-action">
+                            <h3>Prune Expired Echoes</h3>
+                            <p>Permanently delete echoes that haven't been played in over 20 days.</p>
+                            <button id="prune-echoes-btn" class="btn-warning">Execute Prune</button>
+                            <p id="prune-status" class="status"></p>
+                        </div>
+                        <div class="maintenance-action">
+                            <h3>Purge Orphaned Storage</h3>
+                            <p>Scan R2 and delete audio files not linked to any echo record.</p>
+                            <button id="purge-storage-btn" class="btn-danger">Execute Purge</button>
+                            <p id="purge-storage-status" class="status"></p>
+                        </div>
                     </div>
                 </div>
+
             </main>
         </div>
     </div>

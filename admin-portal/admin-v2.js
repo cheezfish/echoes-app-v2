@@ -179,7 +179,7 @@ async function handlePurge(){ if(!confirm("Permanently delete unused audio files
 function initializeAdminMap() {
     if (!adminMapContainer || adminMap) return;
     adminMap = L.map(adminMapContainer).setView([20, 0], 2);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(adminMap);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; <a href="https://carto.com/">CARTO</a>', subdomains: 'abcd', maxZoom: 19 }).addTo(adminMap);
     adminMarkers = L.markerClusterGroup();
     adminMap.addLayer(adminMarkers);
 }

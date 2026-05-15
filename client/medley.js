@@ -12,7 +12,7 @@ function esc(str) {
 // --- GLOBAL STATE ---
 let map, userPosition;
 let dropTrackBtn, dropModal, spotifySearchInput, spotifyResultsContainer, selectionPreview, selectedItemDisplay, confirmDropBtn;
-let statusBar;
+let toastContainer;
 let searchTimeout = null;
 let selectedItem = null;
 
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     selectionPreview = document.getElementById('selection-preview');
     selectedItemDisplay = document.getElementById('selected-item-display');
     confirmDropBtn = document.getElementById('confirm-drop-btn');
-    statusBar = document.getElementById('global-status-bar');
+    toastContainer = document.getElementById('toast-container');
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
@@ -62,7 +62,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initializeMap() {
-    map = L.map('map', { zoomControl: true }).setView([51.505, -0.09], 13);
+    map = L.map('map', { zoomControl: false }).setView([51.505, -0.09], 13);
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
     L.tileLayer('https://api.maptiler.com/maps/toner-v2/{z}/{x}/{y}.png?key=oeJYklnaUPpZgpHgTszf', {
         maxZoom: 19,
         attribution: '© Stadia Maps, © OpenStreetMap contributors'
@@ -92,8 +93,16 @@ function setupEventListeners() {
 }
 
 function updateStatus(message, type = 'info') {
-    statusBar.textContent = message;
-    statusBar.className = `global-status-bar ${type}`;
+    if (!toastContainer) return;
+    const toast = document.createElement('div');
+    toast.className = `toast${type && type !== 'info' ? ' ' + type : ''}`;
+    toast.textContent = message;
+    toastContainer.appendChild(toast);
+    requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('visible')));
+    setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 400);
+    }, 3500);
 }
 
 function getUserLocation() {

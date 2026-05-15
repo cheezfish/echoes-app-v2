@@ -8,16 +8,16 @@
     margin-left: 5px;
 }
 
-#map-container {
-    height: calc(100vh - 50px - 32px); /* Full height minus header and status bar */
-    position: relative;
-    display: flex;
+#map {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
 }
 
 #drop-track-btn {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
     z-index: 401;
     min-width: 56px;
     height: 56px;

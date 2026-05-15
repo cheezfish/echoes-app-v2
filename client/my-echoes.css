@@ -5,12 +5,12 @@ body {
 }
 
 .my-echoes-main {
-    padding: 1.5rem;
+    padding: calc(52px + 1.5rem) 1.5rem 1.5rem;
     max-width: 800px;
     margin: 0 auto;
     width: 100%;
     overflow-y: auto;
-    height: calc(100vh - 50px);
+    height: 100vh;
 }
 
 .page-header {

@@ -7,7 +7,7 @@ const EXPIRATION_THRESHOLD_MS = 20 * 24 * 60 * 60 * 1000;
 document.addEventListener('DOMContentLoaded', async () => {
     const echoesListContainer = document.getElementById('my-echoes-list-container');
     const loadingMessage = document.getElementById('loading-message');
-    const userAuthContainer = document.getElementById('user-auth-container');
+    const pageNavUser = document.getElementById('page-nav-user');
 
     // Auth gate — verify session via cookie
     let currentUser;
@@ -20,10 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    const span = document.createElement('span');
-    span.id = 'welcome-message';
-    span.textContent = `Echoes by: ${currentUser.username}`;
-    userAuthContainer.appendChild(span);
+    if (pageNavUser) pageNavUser.textContent = currentUser.username;
 
     // Helper function to format seconds into MM:SS
     const formatTime = (seconds) => {

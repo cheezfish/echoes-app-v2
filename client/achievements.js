@@ -5,7 +5,7 @@ const API_URL = 'https://echoes-server.cheezfish.com';
 document.addEventListener('DOMContentLoaded', async () => {
     const gridContainer = document.getElementById('achievements-grid-container');
     const loadingMessage = document.getElementById('loading-message');
-    const userAuthContainer = document.getElementById('user-auth-container');
+    const pageNavUser = document.getElementById('page-nav-user');
 
     // Auth gate — verify session via cookie
     let currentUser;
@@ -18,10 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    const span = document.createElement('span');
-    span.id = 'welcome-message';
-    span.textContent = currentUser.username;
-    userAuthContainer.appendChild(span);
+    if (pageNavUser) pageNavUser.textContent = currentUser.username;
 
     async function fetchAchievements() {
         try {

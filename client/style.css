@@ -19,6 +19,46 @@ html, body {
     background: #000;
 }
 
+/* ── SUB-PAGE NAV BAR ── */
+#page-nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 400;
+    height: 52px;
+    background: rgba(8, 8, 8, 0.9);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem;
+    gap: 1rem;
+}
+#page-nav .back-link {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.45);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.2s;
+    flex-shrink: 0;
+}
+#page-nav .back-link:hover { color: #fff; }
+#page-nav .page-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #ddd;
+    letter-spacing: 0.02em;
+    flex: 1;
+    text-align: center;
+}
+#page-nav-user {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.35);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 /* ── WORDMARK ── */
 #wordmark {
     position: fixed;

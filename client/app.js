@@ -250,23 +250,30 @@ function initializeApp() {
     markers = L.markerClusterGroup({ disableClusteringAtZoom: 15 });
     map.addLayer(markers);
     map.on('movestart', () => { isUserInVicinity = false; updateActionButtonState(); });
+
+    function refreshMapView() {
+        const zoom = map.getZoom();
+        if (zoom > 12) {
+            clearClusterMarkers();
+            fetchEchoesForCurrentView();
+        } else if (zoom >= 5) {
+            clearNearbyListAndMarkers();
+            fetchAndRenderClusters(zoom < 9 ? 3 : 5);
+        } else {
+            clearNearbyListAndMarkers();
+            clearClusterMarkers();
+            updateStatus("Zoom in to discover echoes.", "info", 0);
+        }
+    }
+
     map.on('moveend', () => {
         clearTimeout(fetchTimeout);
-        fetchTimeout = setTimeout(() => {
-            const zoom = map.getZoom();
-            if (zoom > 12) {
-                clearClusterMarkers();
-                fetchEchoesForCurrentView();
-            } else if (zoom >= 5) {
-                clearNearbyListAndMarkers();
-                fetchAndRenderClusters(zoom < 9 ? 3 : 5);
-            } else {
-                clearNearbyListAndMarkers();
-                clearClusterMarkers();
-                updateStatus("Zoom in to discover echoes.", "info", 0);
-            }
-        }, 500);
+        fetchTimeout = setTimeout(refreshMapView, 500);
     });
+
+    // Load on initial view (map starts at zoom 2 — show clusters once tiles settle)
+    map.once('load', refreshMapView);
+    setTimeout(refreshMapView, 1000);
 }
 
 function setupEventListeners() {

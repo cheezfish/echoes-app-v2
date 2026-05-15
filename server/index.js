@@ -656,15 +656,15 @@ app.get('/echoes/clusters', async (req, res) => {
     try {
         const result = await pool.query(`
             SELECT
-                substring(geohash, 1, $5) AS cell,
+                substring(COALESCE(geohash, ST_GeoHash(geog::geometry, 7)), 1, $5) AS cell,
                 COUNT(*)::int AS count,
                 AVG(lat) AS center_lat,
                 AVG(lng) AS center_lng
             FROM echoes
             WHERE
                 geog && ST_MakeEnvelope($1, $2, $3, $4, 4326)
-                AND geohash IS NOT NULL
-                AND is_hidden = FALSE
+                AND geog IS NOT NULL
+                AND COALESCE(is_hidden, FALSE) = FALSE
                 AND last_played_at >= NOW() - ($6 * INTERVAL '1 day')
             GROUP BY cell
             ORDER BY count DESC;

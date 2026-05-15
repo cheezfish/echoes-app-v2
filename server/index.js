@@ -14,6 +14,8 @@ const path = require('path');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
+const Sentiment = require('sentiment');
+const sentimentAnalyzer = new Sentiment();
 
 // --- STARTUP ENV VALIDATION ---
 const REQUIRED_ENV = ['JWT_SECRET', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'R2_PUBLIC_URL_BASE'];
@@ -42,6 +44,75 @@ const pool = require('./db');
 const authMiddleware = require('./middleware/auth');
 const adminAuthMiddleware = require('./middleware/adminauth');
 const { checkAndAwardAchievements } = require('./services/achievements');
+
+// --- DB MIGRATION (idempotent, runs at startup) ---
+async function runMigrations() {
+    const client = await pool.connect();
+    try {
+        await client.query(`
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS geohash TEXT;
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS country_code TEXT;
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS city_name TEXT;
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS language_code TEXT DEFAULT 'en';
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS transcript TEXT;
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS transcript_status TEXT DEFAULT 'pending';
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS is_flagged BOOLEAN DEFAULT FALSE;
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS moderation_flags JSONB;
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS sentiment_score REAL;
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT FALSE;
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS completion_count INTEGER DEFAULT 0;
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS report_count INTEGER DEFAULT 0;
+
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS total_plays_received INTEGER DEFAULT 0;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS home_country_code TEXT;
+
+            CREATE TABLE IF NOT EXISTS echo_reactions (
+                id SERIAL PRIMARY KEY,
+                echo_id INTEGER NOT NULL REFERENCES echoes(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                reaction TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(echo_id, user_id, reaction)
+            );
+
+            CREATE TABLE IF NOT EXISTS echo_reports (
+                id SERIAL PRIMARY KEY,
+                echo_id INTEGER NOT NULL REFERENCES echoes(id) ON DELETE CASCADE,
+                reporter_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                reason TEXT NOT NULL,
+                detail TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS echo_plays_log (
+                id SERIAL PRIMARY KEY,
+                echo_id INTEGER NOT NULL REFERENCES echoes(id) ON DELETE CASCADE,
+                listener_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                listener_lat REAL,
+                listener_lng REAL,
+                played_at TIMESTAMPTZ DEFAULT NOW()
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_echoes_geohash ON echoes(geohash);
+        `);
+        // Backfill geohash for existing rows that have a geog but no geohash
+        await client.query(`
+            UPDATE echoes
+            SET geohash = ST_GeoHash(geog::geometry, 7)
+            WHERE geohash IS NULL AND geog IS NOT NULL;
+        `);
+        console.log('[Migration] DB schema up to date.');
+    } catch (err) {
+        console.error('[Migration] Failed:', err.message);
+    } finally {
+        client.release();
+    }
+}
+runMigrations();
 
 const app = express();
 const corsOptions = {
@@ -445,13 +516,15 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
         const insertResult = await pool.query(insertQuery, insertValues);
         const newEchoId = insertResult.rows[0].id;
         
-        const updateQuery = `UPDATE echoes SET geog = ST_MakePoint($1, $2) WHERE id = $3;`;
-        await pool.query(updateQuery, [lng, lat, newEchoId]);
-        
+        await pool.query(`UPDATE echoes SET geog = ST_MakePoint($1, $2), geohash = ST_GeoHash(ST_MakePoint($1, $2)::geometry, 7) WHERE id = $3;`, [lng, lat, newEchoId]);
+
         const finalQuery = `SELECT e.*, u.username FROM echoes e LEFT JOIN users u ON e.user_id = u.id WHERE e.id = $1;`;
         const finalResult = await pool.query(finalQuery, [newEchoId]);
-        
+
         res.status(201).json(finalResult.rows[0]);
+
+        // Fire-and-forget transcription for seeded echoes too
+        transcribeAndModerate(newEchoId, audio_url);
 
     } catch (err) {
         console.error('[SEED] CRITICAL ERROR during R2 or Database phase:', err);
@@ -574,6 +647,35 @@ app.post('/admin/api/storage/purge-orphans', adminAuthMiddleware, async (req, re
 
 // --- ECHOES ROUTES ---
 
+// GET /echoes/clusters — returns geohash-aggregated counts for low-zoom map view
+app.get('/echoes/clusters', async (req, res) => {
+    const { sw_lng, sw_lat, ne_lng, ne_lat, precision } = req.query;
+    if (!sw_lng || !sw_lat || !ne_lng || !ne_lat) return res.json([]);
+    const p = Math.min(Math.max(parseInt(precision) || 3, 1), 7);
+    const EXPIRATION_DAYS = 20;
+    try {
+        const result = await pool.query(`
+            SELECT
+                substring(geohash, 1, $5) AS cell,
+                COUNT(*)::int AS count,
+                AVG(lat) AS center_lat,
+                AVG(lng) AS center_lng
+            FROM echoes
+            WHERE
+                geog && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+                AND geohash IS NOT NULL
+                AND is_hidden = FALSE
+                AND last_played_at >= NOW() - ($6 * INTERVAL '1 day')
+            GROUP BY cell
+            ORDER BY count DESC;
+        `, [sw_lng, sw_lat, ne_lng, ne_lat, p, EXPIRATION_DAYS]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[Clusters] Error:', err);
+        res.status(500).send('Server Error');
+    }
+});
+
 // --- FINAL, OPTIMIZED ECHOES ROUTE ---
 app.get('/echoes', async (req, res) => {
     // We now expect the map's corner coordinates from the client
@@ -657,8 +759,7 @@ app.post('/echoes', authMiddleware, async (req, res) => {
         const insertResult = await pool.query(insertQuery, insertValues);
         const newEchoId = insertResult.rows[0].id;
         
-        const updateQuery = `UPDATE echoes SET geog = ST_MakePoint($1, $2) WHERE id = $3;`;
-        await pool.query(updateQuery, [lng, lat, newEchoId]);
+        await pool.query(`UPDATE echoes SET geog = ST_MakePoint($1, $2), geohash = ST_GeoHash(ST_MakePoint($1, $2)::geometry, 7) WHERE id = $3;`, [lng, lat, newEchoId]);
 
         const finalQuery = `SELECT e.*, u.username FROM echoes e LEFT JOIN users u ON e.user_id = u.id WHERE e.id = $1;`;
         const finalResult = await pool.query(finalQuery, [newEchoId]);
@@ -666,6 +767,9 @@ app.post('/echoes', authMiddleware, async (req, res) => {
         checkAndAwardAchievements(user_id, 'LEAVE_ECHO', { newEcho: finalResult.rows[0] });
 
         res.status(201).json(finalResult.rows[0]);
+
+        // Fire-and-forget transcription (after response sent)
+        transcribeAndModerate(newEchoId, audio_url);
     } catch (err) {
         console.error('Create Echo DB Error:', err);
         res.status(500).json({ error: 'Failed to save echo to database.' });
@@ -743,6 +847,98 @@ app.post('/api/echoes/:id/play', async (req, res) => {
         res.status(500).send("Server Error");
     }
 });
+
+// POST /api/echoes/:id/report — authenticated users flag an echo
+app.post('/api/echoes/:id/report', authMiddleware, async (req, res) => {
+    const echoId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const { reason } = req.body;
+    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+        return res.status(400).json({ error: 'A reason is required.' });
+    }
+    try {
+        await pool.query(
+            `INSERT INTO echo_reports (echo_id, reporter_user_id, reason) VALUES ($1, $2, $3)`,
+            [echoId, userId, reason.trim().slice(0, 500)]
+        );
+        await pool.query(`UPDATE echoes SET report_count = report_count + 1 WHERE id = $1`, [echoId]);
+        res.json({ message: 'Report submitted.' });
+    } catch (err) {
+        console.error(`[Report] Error for echo ${echoId}:`, err);
+        res.status(500).json({ error: 'Failed to submit report.' });
+    }
+});
+
+// --- TRANSCRIPTION PIPELINE ---
+// Fires asynchronously after an echo is saved. No await — caller returns immediately.
+async function transcribeAndModerate(echoId, audioUrl) {
+    if (!process.env.OPENAI_API_KEY) {
+        console.warn('[Transcription] OPENAI_API_KEY not set — skipping.');
+        await pool.query(`UPDATE echoes SET transcript_status = 'skipped' WHERE id = $1`, [echoId]);
+        return;
+    }
+    try {
+        // 1. Fetch audio from R2
+        const audioRes = await fetch(audioUrl, { signal: AbortSignal.timeout(30000) });
+        if (!audioRes.ok) throw new Error(`Failed to fetch audio: HTTP ${audioRes.status}`);
+        const audioBuffer = await audioRes.arrayBuffer();
+
+        // 2. Transcribe with Whisper
+        const ext = audioUrl.split('.').pop().split('?')[0] || 'webm';
+        const mimeMap = { webm: 'audio/webm', mp3: 'audio/mpeg', wav: 'audio/wav', mp4: 'audio/mp4', m4a: 'audio/x-m4a', ogg: 'audio/ogg' };
+        const mime = mimeMap[ext] || 'audio/webm';
+        const whisperForm = new FormData();
+        whisperForm.append('file', new File([audioBuffer], `echo.${ext}`, { type: mime }));
+        whisperForm.append('model', 'whisper-1');
+
+        const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+            body: whisperForm,
+            signal: AbortSignal.timeout(60000)
+        });
+        if (!whisperRes.ok) throw new Error(`Whisper error: ${await whisperRes.text()}`);
+        const { text: transcript } = await whisperRes.json();
+
+        // 3. Moderation check on transcript
+        const modRes = await fetch('https://api.openai.com/v1/moderations', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ input: transcript }),
+            signal: AbortSignal.timeout(10000)
+        });
+        if (!modRes.ok) throw new Error(`Moderation error: ${await modRes.text()}`);
+        const modData = await modRes.json();
+        const modResult = modData.results[0];
+
+        // 4. Sentiment score — normalised to [-1, 1]
+        const sResult = sentimentAnalyzer.analyze(transcript);
+        const sentimentScore = sResult.tokens.length > 0
+            ? Math.max(-1, Math.min(1, sResult.comparative))
+            : null;
+
+        // 5. Write results to DB
+        await pool.query(`
+            UPDATE echoes SET
+                transcript = $1,
+                transcript_status = 'done',
+                moderation_flags = $2,
+                is_flagged = $3,
+                sentiment_score = $4
+            WHERE id = $5
+        `, [transcript, JSON.stringify(modResult.categories), modResult.flagged, sentimentScore, echoId]);
+
+        if (modResult.flagged) {
+            const flags = Object.entries(modResult.categories).filter(([, v]) => v).map(([k]) => k).join(', ');
+            console.warn(`[Moderation] Echo ${echoId} flagged: ${flags}`);
+        } else {
+            console.log(`[Transcription] Echo ${echoId} done. Flagged: ${modResult.flagged}, Sentiment: ${sentimentScore?.toFixed(2)}`);
+        }
+    } catch (err) {
+        console.error(`[Transcription] Failed for echo ${echoId}:`, err.message);
+        await pool.query(`UPDATE echoes SET transcript_status = 'failed' WHERE id = $1`, [echoId]).catch(() => {});
+    }
+}
 
 app.post('/presigned-url', authMiddleware, async (req, res) => {
     const { fileName, fileType } = req.body;

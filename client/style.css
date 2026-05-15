@@ -377,6 +377,21 @@ body.sheet-expanded #context-action-btn {
     margin-top: 0.5rem;
 }
 
+.echo-report-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: none;
+    border: none;
+    padding: 2px 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    line-height: 1;
+}
+.echo-row { position: relative; }
+.echo-row:hover .echo-report-btn { opacity: 1; }
+
 /* ── MODALS ── */
 .modal-overlay {
     position: fixed;

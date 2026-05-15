@@ -20,6 +20,7 @@ let map, markers, userMarker, mediaRecorder;
 let audioChunks = [];
 let loggedInUser = null, currentUserPosition = null, currentBucketKey = "";
 let echoMarkersMap = new Map();
+let clusterMarkersLayer = null;
 let currentEchoesInView = [];
 let highlightedEchoId = null;
 let locationWatcherId = null;
@@ -252,8 +253,18 @@ function initializeApp() {
     map.on('moveend', () => {
         clearTimeout(fetchTimeout);
         fetchTimeout = setTimeout(() => {
-            if (map.getZoom() > 12) fetchEchoesForCurrentView();
-            else { clearNearbyListAndMarkers(); updateStatus("Zoom in further to discover echoes.", "info", 0); }
+            const zoom = map.getZoom();
+            if (zoom > 12) {
+                clearClusterMarkers();
+                fetchEchoesForCurrentView();
+            } else if (zoom >= 5) {
+                clearNearbyListAndMarkers();
+                fetchAndRenderClusters(zoom < 9 ? 3 : 5);
+            } else {
+                clearNearbyListAndMarkers();
+                clearClusterMarkers();
+                updateStatus("Zoom in to discover echoes.", "info", 0);
+            }
         }, 500);
     });
 }
@@ -410,6 +421,53 @@ async function fetchEchoesForCurrentView() {
     }
 }
 
+function clearClusterMarkers() {
+    if (clusterMarkersLayer) {
+        map.removeLayer(clusterMarkersLayer);
+        clusterMarkersLayer = null;
+    }
+}
+
+async function fetchAndRenderClusters(precision) {
+    const bounds = map.getBounds();
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    try {
+        const url = new URL(`${API_URL}/echoes/clusters`);
+        url.searchParams.append('sw_lng', sw.lng);
+        url.searchParams.append('sw_lat', sw.lat);
+        url.searchParams.append('ne_lng', ne.lng);
+        url.searchParams.append('ne_lat', ne.lat);
+        url.searchParams.append('precision', precision);
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const clusters = await res.json();
+        clearClusterMarkers();
+        if (clusters.length === 0) {
+            updateStatus("No echoes in this region yet.", "info", 0);
+            return;
+        }
+        clusterMarkersLayer = L.layerGroup();
+        clusters.forEach(c => {
+            const radius = Math.min(8 + Math.sqrt(c.count) * 4, 40);
+            L.circleMarker([c.center_lat, c.center_lng], {
+                radius,
+                color: '#007bff',
+                fillColor: '#007bff',
+                fillOpacity: 0.25,
+                weight: 2,
+                opacity: 0.7,
+            }).bindTooltip(`${c.count} echo${c.count !== 1 ? 's' : ''}`, { permanent: false, direction: 'top' })
+              .addTo(clusterMarkersLayer);
+        });
+        clusterMarkersLayer.addTo(map);
+        const total = clusters.reduce((s, c) => s + c.count, 0);
+        updateStatus(`${total} echo${total !== 1 ? 's' : ''} across ${clusters.length} area${clusters.length !== 1 ? 's' : ''}. Zoom in to explore.`, "info", 0);
+    } catch (err) {
+        console.error('[Clusters] fetch error:', err);
+    }
+}
+
 function renderNearbyList(echoes) {
     nearbyEchoesList.innerHTML = '';
 
@@ -483,8 +541,19 @@ function renderNearbyList(echoes) {
             item.appendChild(audio);
         }
 
+        // Report button — only visible on hover via CSS
+        const reportBtn = document.createElement('button');
+        reportBtn.className = 'echo-report-btn';
+        reportBtn.title = 'Report this echo';
+        reportBtn.innerHTML = `<img src="https://api.iconify.design/material-symbols:flag-outline.svg?color=%23888" alt="Report" width="14" height="14">`;
+        reportBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleReportEcho(echo.id);
+        });
+        item.appendChild(reportBtn);
+
         item.addEventListener('click', (e) => {
-            if (!e.target.closest('audio')) handleListItemClick(echo.id);
+            if (!e.target.closest('audio') && !e.target.closest('.echo-report-btn')) handleListItemClick(echo.id);
         });
 
         nearbyEchoesList.appendChild(item);
@@ -538,6 +607,27 @@ function renderMapMarkers(echoes) {
 }
 
 function handleListItemClick(echoId) { const marker = echoMarkersMap.get(echoId); if (marker) { map.flyTo(marker.getLatLng(), map.getZoom() < 16 ? 16 : map.getZoom()); highlightEcho(echoId); } }
+
+async function handleReportEcho(echoId) {
+    const reason = prompt('Why are you reporting this echo?\n(e.g. offensive content, spam, inappropriate)');
+    if (!reason || !reason.trim()) return;
+    try {
+        const res = await fetch(`${API_URL}/api/echoes/${echoId}/report`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: reason.trim() })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Report failed.');
+        }
+        showToast('Report submitted. Thank you.', 'success');
+    } catch (err) {
+        showToast(`Could not submit report: ${err.message}`, 'error');
+    }
+}
+
 function handleMarkerClick(echoId) {
     if (bottomSheet) { bottomSheet.classList.add('expanded'); document.body.classList.add('sheet-expanded'); }
     const listItem = nearbyEchoesList.querySelector(`.echo-row[data-echo-id='${echoId}']`);

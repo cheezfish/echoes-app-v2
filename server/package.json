@@ -21,6 +21,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.1",
     "music-metadata": "^11.3.0",
-    "pg": "^8.16.0"
+    "pg": "^8.16.0",
+    "sentiment": "^5.0.2"
   }
 }

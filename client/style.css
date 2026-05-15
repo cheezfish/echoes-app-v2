@@ -22,9 +22,9 @@ html, body {
 /* ── WORDMARK ── */
 #wordmark {
     position: fixed;
-    top: 1rem;
-    left: 1rem;
-    z-index: 400;
+    bottom: calc(64px + 1.25rem);
+    left: 1.25rem;
+    z-index: 401;
     font-size: 1rem;
     font-weight: 700;
     letter-spacing: 0.2em;
@@ -32,6 +32,10 @@ html, body {
     text-transform: lowercase;
     pointer-events: none;
     text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9);
+    transition: bottom 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+body.sheet-expanded #wordmark {
+    bottom: calc(65vh + 1.25rem);
 }
 
 /* ── USER PILL ── */
@@ -168,8 +172,11 @@ html, body {
     font-weight: 600;
     color: white;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    transition: bottom 0.32s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s, box-shadow 0.3s;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+body.sheet-expanded #context-action-btn {
+    bottom: calc(65vh + 1.25rem);
 }
 #context-action-btn img { width: 22px; height: 22px; }
 #context-action-btn span { margin-left: 6px; }
@@ -456,3 +463,7 @@ html, body {
 .leaflet-control-zoom a:hover { background: rgba(35,35,35,0.95) !important; color: #fff !important; }
 .leaflet-control-attribution { background: rgba(0,0,0,0.5) !important; color: #666 !important; font-size: 0.65rem !important; }
 .leaflet-control-attribution a { color: #60a5fa !important; }
+
+@media (max-width: 768px) {
+    .leaflet-control-zoom { display: none !important; }
+}

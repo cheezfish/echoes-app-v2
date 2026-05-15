@@ -233,8 +233,8 @@ function initBottomSheet() {
     handleArea.addEventListener('touchend', e => {
         if (moved) {
             const dy = e.changedTouches[0].clientY - startY;
-            if (dy > 30) bottomSheet && bottomSheet.classList.remove('expanded');
-            else if (dy < -30) bottomSheet && bottomSheet.classList.add('expanded');
+            if (dy > 30) { bottomSheet && bottomSheet.classList.remove('expanded'); document.body.classList.remove('sheet-expanded'); }
+            else if (dy < -30) { bottomSheet && bottomSheet.classList.add('expanded'); document.body.classList.add('sheet-expanded'); }
         }
     });
 }
@@ -320,7 +320,11 @@ function handleContextActionClick() {
 }
 
 function toggleUserMenu() { userMenuDropdown.style.display = userMenuDropdown.style.display === 'block' ? 'none' : 'block'; }
-function toggleSheet() { if (bottomSheet) bottomSheet.classList.toggle('expanded'); }
+function toggleSheet() {
+    if (!bottomSheet) return;
+    bottomSheet.classList.toggle('expanded');
+    document.body.classList.toggle('sheet-expanded', bottomSheet.classList.contains('expanded'));
+}
 
 function showToast(message, type = '', duration = 4000) {
     if (!toastContainer) return;
@@ -535,7 +539,7 @@ function renderMapMarkers(echoes) {
 
 function handleListItemClick(echoId) { const marker = echoMarkersMap.get(echoId); if (marker) { map.flyTo(marker.getLatLng(), map.getZoom() < 16 ? 16 : map.getZoom()); highlightEcho(echoId); } }
 function handleMarkerClick(echoId) {
-    if (bottomSheet) bottomSheet.classList.add('expanded');
+    if (bottomSheet) { bottomSheet.classList.add('expanded'); document.body.classList.add('sheet-expanded'); }
     const listItem = nearbyEchoesList.querySelector(`.echo-row[data-echo-id='${echoId}']`);
     if (listItem) { listItem.scrollIntoView({ behavior: 'smooth', block: 'center' }); highlightEcho(echoId); }
 }

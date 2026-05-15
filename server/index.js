@@ -10,6 +10,18 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const https = require('https');
+const path = require('path');
+const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
+
+// --- STARTUP ENV VALIDATION ---
+const REQUIRED_ENV = ['JWT_SECRET', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'R2_PUBLIC_URL_BASE'];
+const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missingEnv.length > 0) {
+    console.error(`FATAL: Missing required environment variables: ${missingEnv.join(', ')}`);
+    process.exit(1);
+}
 // REMOVED: const mm = require('music-metadata/lib/core'); -> This caused the crash
 
 const s3 = new S3Client({
@@ -33,36 +45,63 @@ const { checkAndAwardAchievements } = require('./services/achievements');
 
 const app = express();
 const corsOptions = {
-  // Pass an array of ALL allowed origins
-  origin: [
-    'https://echoes.cheezfish.com',          // Your production client app
-    'https://echoes-admin.cheezfish.com'  // Your production admin portal
-    // You could also add 'http://localhost:5500' here if you ever want to test locally again
-  ],
-  optionsSuccessStatus: 200
+    origin: [
+        'https://echoes.cheezfish.com',
+        'https://echoes-admin.cheezfish.com',
+    ],
+    credentials: true,
+    optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
-// Increase the limit to allow for Base64 audio data
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 
+// --- RATE LIMITERS ---
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many attempts, please try again later.' },
+});
+const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please slow down.' },
+});
+app.use('/api/', apiLimiter);
+
+// --- ALLOWED AUDIO MIME TYPES (presigned upload + seed) ---
+const ALLOWED_AUDIO_TYPES = new Set(['audio/webm', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a']);
+
 // --- USER AUTH ROUTES ---
-app.post('/api/users/register', async (req, res) => {
+app.post('/api/users/register', authLimiter, async (req, res) => {
     const { username, password } = req.body;
+
+    // #9 — password & username policy
     if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });
+    if (typeof username !== 'string' || !/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+        return res.status(400).json({ error: 'Username must be 3–20 characters and contain only letters, numbers, or underscores.' });
+    }
+    if (typeof password !== 'string' || password.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    }
     try {
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
         const result = await pool.query('INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username;', [username, password_hash]);
         res.status(201).json(result.rows[0]);
     } catch (err) {
-        if (err.code === '23505') return res.status(409).json({ error: 'Username already exists.' });
+        if (err.code === '23505') return res.status(409).json({ error: 'Registration failed. Please try a different username.' });
         console.error("Registration DB Error:", err);
         res.status(500).json({ error: 'Server error during registration.' });
     }
 });
 
-app.post('/api/users/login', async (req, res) => {
+app.post('/api/users/login', authLimiter, async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });
     try {
@@ -74,7 +113,13 @@ app.post('/api/users/login', async (req, res) => {
         const payload = { user: { id: user.id, username: user.username } };
         jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' }, (err, token) => {
             if (err) throw err;
-            res.json({ token });
+            res.cookie('echoes_token', token, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'Lax',
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+            res.json({ user: { id: user.id, username: user.username } });
         });
     } catch (err) {
         console.error("Login DB Error:", err);
@@ -82,6 +127,15 @@ app.post('/api/users/login', async (req, res) => {
     }
 });
 
+
+app.get('/api/users/me', authMiddleware, (req, res) => {
+    res.json({ id: req.user.id, username: req.user.username });
+});
+
+app.post('/api/users/logout', (req, res) => {
+    res.clearCookie('echoes_token', { httpOnly: true, secure: true, sameSite: 'Lax' });
+    res.json({ msg: 'Logged out.' });
+});
 
 // --- USER-SPECIFIC ROUTES (Protected) ---
 app.get('/api/users/my-echoes', authMiddleware, async (req, res) => {
@@ -240,7 +294,7 @@ app.get('/api/medley/search', async (req, res) => {
         searchUrl.searchParams.append('limit', '50'); // Increase limit to the maximum allowed
         // --- END OF FIX ---
         
-        console.log(`[Medley] Requesting from Spotify: ${searchUrl.toString()}`);
+        console.log(`[Medley] Requesting from Spotify (query redacted)`);
 
         const response = await fetch(searchUrl.toString(), {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -325,10 +379,10 @@ app.delete('/admin/api/echoes/:id', adminAuthMiddleware, async (req, res) => {
 });
 
 app.post('/admin/api/echoes/prune', adminAuthMiddleware, async (req, res) => {
-    const EXPIRATION_PERIOD = '20 days'; 
+    const EXPIRATION_DAYS = 20;
     try {
-        const deleteQuery = `DELETE FROM echoes WHERE last_played_at < NOW() - INTERVAL '${EXPIRATION_PERIOD}';`;
-        const result = await pool.query(deleteQuery);
+        const deleteQuery = `DELETE FROM echoes WHERE last_played_at < NOW() - ($1 * INTERVAL '1 day');`;
+        const result = await pool.query(deleteQuery, [EXPIRATION_DAYS]);
         res.json({ 
             msg: `Pruning complete. ${result.rowCount} expired echo(es) deleted.`,
             deletedCount: result.rowCount
@@ -365,7 +419,8 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
     }
 
     try {
-        const fileName = `seeded_echo_${Date.now()}_${file.originalname.replace(/\s/g, '_')}`;
+        const ext = path.extname(file.originalname).toLowerCase().replace(/[^.a-z0-9]/g, '') || '.mp3';
+        const fileName = `seeded_echo_${Date.now()}_${crypto.randomUUID()}${ext}`;
         const putCommand = new PutObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME, Key: fileName, Body: file.buffer, ContentType: file.mimetype,
         });
@@ -417,22 +472,28 @@ app.get('/admin/api/users', adminAuthMiddleware, async (req, res) => {
 
 app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, res) => {
     const { id } = req.params;
-    if (parseInt(req.user.id) === parseInt(id)) {
-         const adminCountResult = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = TRUE');
-         if (parseInt(adminCountResult.rows[0].count) <= 1) {
-            return res.status(403).json({ error: "Cannot remove admin status from the only admin." });
-         }
-    }
+    const client = await pool.connect();
     try {
-        const query = `UPDATE users SET is_admin = NOT is_admin WHERE id = $1 RETURNING id, username, is_admin;`;
-        const result = await pool.query(query, [id]);
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: "User not found." });
+        await client.query('BEGIN');
+        // Lock the admin count row-level so concurrent requests can't both pass the check
+        const adminCountResult = await client.query('SELECT COUNT(*) FROM users WHERE is_admin = TRUE FOR UPDATE');
+        if (parseInt(req.user.id) === parseInt(id) && parseInt(adminCountResult.rows[0].count) <= 1) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({ error: "Cannot remove admin status from the only admin." });
         }
+        const result = await client.query(
+            `UPDATE users SET is_admin = NOT is_admin WHERE id = $1 RETURNING id, username, is_admin;`,
+            [id]
+        );
+        await client.query('COMMIT');
+        if (result.rowCount === 0) return res.status(404).json({ error: "User not found." });
         res.json(result.rows[0]);
     } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
         console.error(`Admin: Error toggling admin status for user ${id}:`, err);
         res.status(500).json({ error: 'Failed to toggle admin status due to server error.' });
+    } finally {
+        client.release();
     }
 });
 
@@ -440,15 +501,32 @@ app.put('/admin/api/users/:id/toggle-admin', adminAuthMiddleware, async (req, re
 
 app.post('/admin/api/storage/purge-orphans', adminAuthMiddleware, async (req, res) => {
     try {
-        // Step 1: Get all "live" audio URLs from ONLY the echoes table
-        const echoesResult = await pool.query(`SELECT audio_url FROM echoes WHERE audio_url IS NOT NULL`);
+        // Step 1: Page through all live audio URLs (avoids loading entire table into memory)
+        const liveUrls = new Set();
+        let offset = 0;
+        const PAGE = 1000;
+        while (true) {
+            const page = await pool.query(
+                `SELECT audio_url FROM echoes WHERE audio_url IS NOT NULL ORDER BY id LIMIT $1 OFFSET $2`,
+                [PAGE, offset]
+            );
+            page.rows.forEach(r => liveUrls.add(r.audio_url));
+            if (page.rows.length < PAGE) break;
+            offset += PAGE;
+        }
 
-        const liveUrls = new Set(echoesResult.rows.map(r => r.audio_url));
-
-        // Step 2: List all objects in your R2 bucket
-        const listCommand = new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET_NAME });
-        const r2Objects = await s3.send(listCommand);
-        const allR2Files = r2Objects.Contents || [];
+        // Step 2: Page through all R2 objects using ContinuationToken
+        const allR2Files = [];
+        let continuationToken;
+        do {
+            const listCommand = new ListObjectsV2Command({
+                Bucket: process.env.R2_BUCKET_NAME,
+                ...(continuationToken ? { ContinuationToken: continuationToken } : {}),
+            });
+            const r2Page = await s3.send(listCommand);
+            allR2Files.push(...(r2Page.Contents || []));
+            continuationToken = r2Page.IsTruncated ? r2Page.NextContinuationToken : undefined;
+        } while (continuationToken);
 
         // Step 3: Identify the orphaned files
         const r2PublicBase = process.env.R2_PUBLIC_URL_BASE;
@@ -508,20 +586,20 @@ app.get('/echoes', async (req, res) => {
         return res.json([]);
     }
     
-    const EXPIRATION_PERIOD = '20 days'; 
+    const EXPIRATION_DAYS = 20;
 
     try {
         // This query selects all echoes within the rectangular bounding box of the map view.
         // It's the most efficient way to get exactly what the user can see.
         const query = `
             SELECT e.*, u.username
-            FROM echoes e 
-            LEFT JOIN users u ON e.user_id = u.id 
-            WHERE 
+            FROM echoes e
+            LEFT JOIN users u ON e.user_id = u.id
+            WHERE
                 geog && ST_MakeEnvelope($1, $2, $3, $4, 4326)
-                AND e.last_played_at >= NOW() - INTERVAL '${EXPIRATION_PERIOD}';
+                AND e.last_played_at >= NOW() - ($5 * INTERVAL '1 day');
         `;
-        const values = [sw_lng, sw_lat, ne_lng, ne_lat];
+        const values = [sw_lng, sw_lat, ne_lng, ne_lat, EXPIRATION_DAYS];
         const result = await pool.query(query, values);
         res.json(result.rows);
     } catch (err) {
@@ -549,7 +627,8 @@ app.post('/echoes', authMiddleware, async (req, res) => {
         if (!process.env.OPENCAGE_API_KEY) {
             console.error("FATAL: OPENCAGE_API_KEY environment variable not set.");
         } else {
-            const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=${process.env.OPENCAGE_API_KEY}&no_annotations=1&limit=1`;
+            // Key is in query param per OpenCage API requirement — never log this URL
+            const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(`${lat}+${lng}`)}&key=${process.env.OPENCAGE_API_KEY}&no_annotations=1&limit=1`;
             const geoData = await new Promise((resolve, reject) => {
                 https.get(geocodeUrl, (apiRes) => {
                     let data = '';
@@ -668,10 +747,15 @@ app.post('/api/echoes/:id/play', async (req, res) => {
 app.post('/presigned-url', authMiddleware, async (req, res) => {
     const { fileName, fileType } = req.body;
     if (!fileName || !fileType) return res.status(400).json({ error: 'fileName and fileType are required' });
-    const putCommand = new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: fileName, ContentType: fileType });
+    if (!ALLOWED_AUDIO_TYPES.has(fileType)) {
+        return res.status(400).json({ error: 'Invalid file type.' });
+    }
+    // Strip any path components from the filename to prevent traversal
+    const safeKey = path.basename(fileName).replace(/[^a-zA-Z0-9._\-]/g, '_');
+    const putCommand = new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: safeKey, ContentType: fileType });
     try {
         const signedUrl = await getSignedUrl(s3, putCommand, { expiresIn: 60 });
-        res.json({ url: signedUrl });
+        res.json({ url: signedUrl, key: safeKey });
     } catch (err) {
         console.error("Error creating presigned URL:", err);
         res.status(500).send('Server Error');

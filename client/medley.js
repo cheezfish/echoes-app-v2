@@ -2,6 +2,13 @@
 
 const API_URL = 'https://echoes-server.cheezfish.com';
 
+/** Escapes a string for safe insertion into HTML attribute or text content */
+function esc(str) {
+    const d = document.createElement('div');
+    d.textContent = String(str ?? '');
+    return d.innerHTML;
+}
+
 // --- GLOBAL STATE ---
 let map, userPosition;
 let dropTrackBtn, dropModal, spotifySearchInput, spotifyResultsContainer, selectionPreview, selectedItemDisplay, confirmDropBtn;
@@ -130,22 +137,27 @@ function renderDropsOnMap(drops) {
         // --- THIS IS THE UPDATED PART ---
 
         // 1. Define the custom HTML content for our new popup
-        const popupContent = `
-            <div class="medley-popup-content">
-                <h3>${drop.item_name}</h3>
-                <p>by ${drop.artist_name || 'Various Artists'}</p>
-                <iframe 
-                    style="border-radius:8px;" 
-                    src="https://open.spotify.com/embed?uri=${drop.spotify_uri}" 
-                    width="100%" 
-                    height="80" 
-                    frameBorder="0" 
-                    allowfullscreen="" 
-                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                    loading="lazy">
-                </iframe>
-            </div>
-        `;
+        const popupWrap = document.createElement('div');
+        popupWrap.className = 'medley-popup-content';
+        const popupH3 = document.createElement('h3');
+        popupH3.textContent = drop.item_name;
+        const popupP = document.createElement('p');
+        popupP.textContent = `by ${drop.artist_name || 'Various Artists'}`;
+        const iframe = document.createElement('iframe');
+        iframe.style.borderRadius = '8px';
+        // Only allow well-formed spotify: URIs to reach the embed URL
+        const safeUri = /^spotify:(track|album|playlist):[A-Za-z0-9]+$/.test(drop.spotify_uri)
+            ? drop.spotify_uri : '';
+        iframe.src = `https://open.spotify.com/embed?uri=${encodeURIComponent(safeUri)}`;
+        iframe.width = '100%';
+        iframe.height = '80';
+        iframe.frameBorder = '0';
+        iframe.allow = 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture';
+        iframe.loading = 'lazy';
+        popupWrap.appendChild(popupH3);
+        popupWrap.appendChild(popupP);
+        if (safeUri) popupWrap.appendChild(iframe);
+        const popupContent = popupWrap;
 
         // 2. Define the options for the popup, including our custom class
         const popupOptions = {
@@ -182,13 +194,19 @@ function renderSearchResults(data) {
         const name = item.name;
         const artist = item.type === 'track' ? item.artists.map(a => a.name).join(', ') : item.owner.display_name;
         
-        div.innerHTML = `
-            <img src="${image}" alt="${name}">
-            <div class="result-info">
-                <h4>${name}</h4>
-                <p>${artist}</p>
-            </div>
-        `;
+        const img = document.createElement('img');
+        img.src = image;
+        img.alt = esc(name);
+        const info = document.createElement('div');
+        info.className = 'result-info';
+        const h4 = document.createElement('h4');
+        h4.textContent = name;
+        const p = document.createElement('p');
+        p.textContent = artist;
+        info.appendChild(h4);
+        info.appendChild(p);
+        div.appendChild(img);
+        div.appendChild(info);
         div.onclick = () => selectItem(item);
         spotifyResultsContainer.appendChild(div);
     });
@@ -206,13 +224,20 @@ function selectItem(item) {
     };
 
     // --- UPDATED HTML STRUCTURE FOR THE PREVIEW ---
-    selectedItemDisplay.innerHTML = `
-        <img src="${selectedItem.album_art_url}" alt="Album Art">
-        <div class="result-info">
-            <h4>${selectedItem.item_name}</h4>
-            <p>${selectedItem.artist_name}</p>
-        </div>
-    `;
+    selectedItemDisplay.innerHTML = '';
+    const previewImg = document.createElement('img');
+    previewImg.src = selectedItem.album_art_url;
+    previewImg.alt = 'Album Art';
+    const previewInfo = document.createElement('div');
+    previewInfo.className = 'result-info';
+    const previewH4 = document.createElement('h4');
+    previewH4.textContent = selectedItem.item_name;
+    const previewP = document.createElement('p');
+    previewP.textContent = selectedItem.artist_name;
+    previewInfo.appendChild(previewH4);
+    previewInfo.appendChild(previewP);
+    selectedItemDisplay.appendChild(previewImg);
+    selectedItemDisplay.appendChild(previewInfo);
     
     // Show the preview section
     selectionPreview.style.display = 'block';

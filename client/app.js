@@ -18,7 +18,7 @@ const userLocationIcon = L.divIcon({
 // --- GLOBAL STATE ---
 let map, markers, userMarker, mediaRecorder;
 let audioChunks = [];
-let userToken = null, loggedInUser = null, currentUserPosition = null, currentBucketKey = "";
+let loggedInUser = null, currentUserPosition = null, currentBucketKey = "";
 let echoMarkersMap = new Map();
 let currentEchoesInView = [];
 let highlightedEchoId = null;
@@ -137,7 +137,7 @@ const recordingMessages = [
 ];
 
 // --- UI ELEMENT CACHE ---
-let loginBtn, registerBtn, welcomeMessage, loggedOutView, loggedInView, userMenuButton, userMenuDropdown, globalStatusBar, contextActionBtn, nearbyEchoesList, authModal, authForm, modalError, usernameInput, passwordInput, modalTitle, modalSubmitBtn;
+let loginBtn, welcomeMessage, loggedOutView, loggedInView, userPillBtn, userAvatar, userMenuDropdown, toastContainer, contextActionBtn, nearbyEchoesList, bottomSheet, sheetSummary, authModal, authForm, modalError, usernameInput, passwordInput, modalTitle, modalSubmitBtn;
 
 // Helper to format seconds into MM:SS
 const formatTime = (seconds) => {
@@ -146,6 +146,45 @@ const formatTime = (seconds) => {
     const s = Math.round(seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
+
+/** Safely builds a Leaflet popup element — no innerHTML with user data */
+function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng) {
+    if (isWithinInteractionRange) {
+        const wrap = document.createElement('div');
+        const h3 = document.createElement('h3');
+        h3.textContent = echo.location_name || 'An Echo';
+        const p = document.createElement('p');
+        const author = echo.username ? `by ${echo.username}` : 'by an anonymous user';
+        p.textContent = `Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}`;
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.preload = 'none';
+        audio.src = echo.audio_url;
+        audio.addEventListener('play', () => window.keepEchoAlive(echo.id));
+        wrap.appendChild(h3);
+        wrap.appendChild(p);
+        wrap.appendChild(audio);
+        return wrap;
+    } else {
+        const distanceDisplay = distanceToUser < 1000
+            ? `${Math.round(distanceToUser)}m`
+            : `${(distanceToUser / 1000).toFixed(1)}km`;
+        const message = userLatLng
+            ? `Get within 100m to listen. (Currently ${distanceDisplay} away)`
+            : `Find your location to interact with echoes.`;
+        const wrap = document.createElement('div');
+        wrap.className = 'distant-popup';
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message';
+        msgDiv.textContent = 'Too far to hear...';
+        const distDiv = document.createElement('div');
+        distDiv.className = 'distance';
+        distDiv.textContent = message;
+        wrap.appendChild(msgDiv);
+        wrap.appendChild(distDiv);
+        return wrap;
+    }
+}
 
 /** Creates the dynamic "health ring" icon */
 function createHealthIcon(healthPercent, isHighlighted = false) {
@@ -165,15 +204,17 @@ function createHealthIcon(healthPercent, isHighlighted = false) {
 
 document.addEventListener('DOMContentLoaded', () => {
     loginBtn = document.getElementById("login-btn");
-    registerBtn = document.getElementById("register-btn");
     welcomeMessage = document.getElementById("welcome-message");
     loggedOutView = document.getElementById("logged-out-view");
     loggedInView = document.getElementById("logged-in-view");
-    userMenuButton = document.getElementById("user-menu-button");
+    userPillBtn = document.getElementById("user-pill-btn");
+    userAvatar = document.getElementById("user-avatar");
     userMenuDropdown = document.getElementById("user-menu-dropdown");
-    globalStatusBar = document.getElementById("global-status-bar");
+    toastContainer = document.getElementById("toast-container");
     contextActionBtn = document.getElementById("context-action-btn");
     nearbyEchoesList = document.getElementById("nearby-echoes-list");
+    bottomSheet = document.getElementById("bottom-sheet");
+    sheetSummary = document.getElementById("sheet-summary");
     authModal = document.getElementById("auth-modal");
     authForm = document.getElementById("auth-form");
     modalError = document.getElementById("modal-error");
@@ -184,8 +225,23 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
 });
 
+function initBottomSheet() {
+    const handleArea = document.getElementById('sheet-handle-area');
+    let startY = 0, moved = false;
+    handleArea.addEventListener('touchstart', e => { startY = e.touches[0].clientY; moved = false; }, { passive: true });
+    handleArea.addEventListener('touchmove', e => { moved = Math.abs(e.touches[0].clientY - startY) > 10; }, { passive: true });
+    handleArea.addEventListener('touchend', e => {
+        if (moved) {
+            const dy = e.changedTouches[0].clientY - startY;
+            if (dy > 30) bottomSheet && bottomSheet.classList.remove('expanded');
+            else if (dy < -30) bottomSheet && bottomSheet.classList.add('expanded');
+        }
+    });
+}
+
 function initializeApp() {
     setupEventListeners();
+    initBottomSheet();
     checkLoginState();
     map = L.map('map', { zoomControl: true, attributionControl: false }).setView([20, 0], 2);
     L.tileLayer('https://api.maptiler.com/maps/toner-v2/{z}/{x}/{y}.png?key=oeJYklnaUPpZgpHgTszf', { maxZoom: 20, attribution: '© <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
@@ -204,15 +260,16 @@ function initializeApp() {
 
 function setupEventListeners() {
     loginBtn.addEventListener('click', () => openModal('login'));
-    registerBtn.addEventListener('click', () => openModal('register'));
     contextActionBtn.addEventListener('click', handleContextActionClick);
-    userMenuButton.addEventListener('click', toggleUserMenu);
-    window.addEventListener('click', (e) => {
-        if (userMenuDropdown && userMenuButton && !userMenuButton.contains(e.target) && !userMenuDropdown.contains(e.target)) {
+    if (userPillBtn) userPillBtn.addEventListener('click', toggleUserMenu);
+    const closeMenuOnOutsideClick = (e) => {
+        if (userMenuDropdown && userPillBtn && !userPillBtn.contains(e.target) && !userMenuDropdown.contains(e.target)) {
             userMenuDropdown.style.display = 'none';
         }
-    });
-    userMenuDropdown.querySelector('#logout-btn').addEventListener('click', handleLogout);
+    };
+    window.addEventListener('click', closeMenuOnOutsideClick);
+    document.getElementById('logout-btn').addEventListener('click', handleLogout);
+    document.getElementById('sheet-handle-area').addEventListener('click', toggleSheet);
     authModal.querySelector('.close-btn').addEventListener('click', () => authModal.style.display = 'none');
     authModal.addEventListener('click', e => { if (e.target === authModal) authModal.style.display = 'none'; });
     authForm.addEventListener('submit', handleAuthFormSubmit);
@@ -225,7 +282,7 @@ function updateActionButtonState() {
     let isRecording = mediaRecorder && mediaRecorder.state === 'recording';
     
     // Stop prompts before determining the new state, unless we're about to start them again.
-    if (!(isUserInVicinity && userToken && !isRecording)) {
+    if (!(isUserInVicinity && loggedInUser && !isRecording)) {
         stopPromptCycling();
     }
 
@@ -233,11 +290,11 @@ function updateActionButtonState() {
         contextActionBtn.className = 'is-recording';
         let secondsLeft = Math.max(0, Math.round((recordingTimer.targetTime - Date.now()) / 1000));
         contextActionBtn.innerHTML = `<span>Stop (${secondsLeft}s)</span>`;
-    } else if (isUserInVicinity && userToken) {
+    } else if (isUserInVicinity && loggedInUser) {
         contextActionBtn.className = 'record';
         contextActionBtn.title = 'Record an Echo';
         contextActionBtn.innerHTML = `<img src="https://api.iconify.design/material-symbols:mic.svg?color=white" alt="Record"> <span>Record</span>`;
-        startPromptCycling(); // Start prompts only in this specific state
+        startPromptCycling();
     } else {
         contextActionBtn.className = 'find-me';
         contextActionBtn.title = 'Find My Location';
@@ -255,7 +312,7 @@ function updateActionButtonState() {
 function handleContextActionClick() {
     if (mediaRecorder && mediaRecorder.state === 'recording') {
         mediaRecorder.stop();
-    } else if (isUserInVicinity && userToken) {
+    } else if (isUserInVicinity && loggedInUser) {
         handleRecordClick();
     } else {
         handleFindMeClick();
@@ -263,53 +320,27 @@ function handleContextActionClick() {
 }
 
 function toggleUserMenu() { userMenuDropdown.style.display = userMenuDropdown.style.display === 'block' ? 'none' : 'block'; }
+function toggleSheet() { if (bottomSheet) bottomSheet.classList.toggle('expanded'); }
 
-// A global variable to prevent multiple fade cycles from overlapping
-let statusUpdateTimeout = null;
+function showToast(message, type = '', duration = 4000) {
+    if (!toastContainer) return;
+    const toast = document.createElement('div');
+    toast.className = `toast${type ? ' ' + type : ''}`;
+    toast.textContent = message;
+    toastContainer.appendChild(toast);
+    requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('visible')));
+    setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 400);
+    }, duration);
+}
 
-/**
- * Updates the global status bar with a smooth fade-in/fade-out effect.
- * @param {string} message - The text to display.
- * @param {string} type - 'info', 'success', 'error', or '' for default.
- * @param {number} duration - How long to show the message before reverting. 0 for indefinite.
- */
 function updateStatus(message, type = '', duration = 4000) {
-    if (!globalStatusBar) return;
-
-    // Clear any pending status update to prevent weird overlaps
-    clearTimeout(statusUpdateTimeout);
-
-    // If the bar is already showing the same message, do nothing.
-    if (globalStatusBar.textContent === message && !globalStatusBar.classList.contains('fade-out')) {
+    if (duration === 0) {
+        if (sheetSummary) sheetSummary.textContent = message;
         return;
     }
-
-    // 1. Start by fading the current message out
-    globalStatusBar.classList.add('fade-out');
-
-    // 2. After the fade-out is complete (500ms), change the content and fade in
-    setTimeout(() => {
-        globalStatusBar.textContent = message;
-        globalStatusBar.className = 'global-status-bar'; // Reset classes
-        if (type) {
-            globalStatusBar.classList.add(type);
-        }
-        globalStatusBar.classList.remove('fade-out'); // Fade back in
-
-        // 3. If it's a temporary message, set a timeout to revert it
-        if (duration > 0) {
-            statusUpdateTimeout = setTimeout(() => {
-                // Fade out the temporary message
-                globalStatusBar.classList.add('fade-out');
-                
-                // After it fades out, restore the default message by calling the state handler
-                setTimeout(() => {
-                    updateActionButtonState(); 
-                }, 500);
-
-            }, duration);
-        }
-    }, 500); // This duration must match the CSS transition time
+    showToast(message, type, duration);
 }
 
 // --- NEW PROMPT CYCLING FUNCTIONS ---
@@ -354,7 +385,7 @@ async function fetchEchoesForCurrentView() {
         url.searchParams.append('ne_lng', ne.lng);
         url.searchParams.append('ne_lat', ne.lat);
 
-        const response = await fetch(url);
+        const response = await fetch(url, { credentials: 'include' });
         if (!response.ok) throw new Error("Server could not fetch echoes.");
         
         currentEchoesInView = await response.json();
@@ -375,91 +406,81 @@ async function fetchEchoesForCurrentView() {
     }
 }
 
-// client/app.js
-
 function renderNearbyList(echoes) {
-    // 1. Filter echoes (Logic remains the same)
-    const nearbyEchoes = echoes.filter(echo => echo.distance_meters <= INTERACTION_RANGE_METERS);
     nearbyEchoesList.innerHTML = '';
 
-    // 2. Handle empty state
-    if (nearbyEchoes.length === 0) {
-        const message = currentUserPosition ? "No echoes are within listening range. Move closer to a signal." : "Click the compass to find echoes near you.";
-        // This is safe because 'message' is hardcoded by us, not user input
-        nearbyEchoesList.innerHTML = `<p id="empty-message" style="text-align:center; padding: 2rem;">${message}</p>`;
+    if (echoes.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'empty-message';
+        p.textContent = currentUserPosition ? 'No echoes in this area.' : 'Find your location to discover echoes.';
+        nearbyEchoesList.appendChild(p);
+        updateStatus('Explore the map', '', 0);
         return;
     }
-    
-    // 3. Sort by distance
-    nearbyEchoes.sort((a, b) => a.distance_meters - b.distance_meters);
-    
-    // 4. Create the list items SAFELY
-    nearbyEchoes.forEach(echo => {
+
+    const sorted = [...echoes].sort((a, b) => (a.distance_meters || Infinity) - (b.distance_meters || Infinity));
+    const nearby = sorted.filter(e => (e.distance_meters || Infinity) <= INTERACTION_RANGE_METERS);
+
+    const countText = `${sorted.length} echo${sorted.length !== 1 ? 's' : ''} in view${nearby.length > 0 ? ` · ${nearby.length} within range` : ''}`;
+    updateStatus(countText, '', 0);
+
+    sorted.forEach(echo => {
+        const withinRange = (echo.distance_meters || Infinity) <= INTERACTION_RANGE_METERS;
+
         const item = document.createElement('div');
-        item.className = 'my-echo-item';
+        item.className = `echo-row${withinRange ? ' in-range' : ''}`;
         item.dataset.echoId = echo.id;
-        
-        // Prepare the text data
-        const recordedDateTime = new Date(echo.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-        const locationDisplayName = echo.location_name || 'A Discovered Place';
-        const usernameDisplay = echo.username || 'anonymous';
-        
-        // --- SECURITY FIX STARTS HERE ---
-        // Instead of writing a big string of HTML with backticks, we build elements one by one.
-        // This forces the browser to treat user content as plain text, neutralizing scripts.
-        
-        // A. Create the top info row
-        const infoRow = document.createElement('div');
-        infoRow.className = 'info-row';
 
-        const locSpan = document.createElement('span');
-        locSpan.className = 'location-name';
-        locSpan.textContent = locationDisplayName; // <--- SAFE!
-        
-        const authSpan = document.createElement('span');
-        authSpan.className = 'author-info';
-        authSpan.textContent = `by ${usernameDisplay}`; // <--- SAFE!
+        const topRow = document.createElement('div');
+        topRow.className = 'echo-row-top';
 
-        infoRow.appendChild(locSpan);
-        infoRow.appendChild(authSpan);
+        const distBadge = document.createElement('span');
+        distBadge.className = 'dist-badge';
+        if (!currentUserPosition || echo.distance_meters === Infinity) {
+            distBadge.textContent = '—';
+        } else if (echo.distance_meters < 1000) {
+            distBadge.textContent = `${Math.round(echo.distance_meters)}m`;
+            if (withinRange) distBadge.classList.add('near');
+        } else {
+            distBadge.textContent = `${(echo.distance_meters / 1000).toFixed(1)}km`;
+        }
 
-        // B. Create the Audio player
-        const audio = document.createElement('audio');
-        audio.controls = true;
-        audio.preload = 'none';
-        audio.src = echo.audio_url; 
-        audio.onplay = () => window.keepEchoAlive(echo.id);
+        const mainCol = document.createElement('div');
+        mainCol.className = 'echo-row-main';
 
-        // C. Create the bottom meta row
-        const metaRow = document.createElement('div');
-        metaRow.className = 'meta-row';
-        
-        // Date
-        const dateSpan = document.createElement('span');
-        dateSpan.textContent = recordedDateTime;
-        
-        // Duration (NEW)
-        const durationSpan = document.createElement('span');
-        durationSpan.style.marginLeft = "10px";
-        durationSpan.style.color = "#888";
-        durationSpan.innerHTML = `&bull; ${formatTime(echo.duration_seconds)}`; 
-        
-        metaRow.appendChild(dateSpan);
-        metaRow.appendChild(durationSpan);
+        const nameEl = document.createElement('span');
+        nameEl.className = 'echo-row-name';
+        nameEl.textContent = echo.location_name || 'Unnamed place';
 
-        // D. Assemble the item
-        item.appendChild(infoRow);
-        item.appendChild(audio);
-        item.appendChild(metaRow);
-        
-        // --- SECURITY FIX ENDS HERE ---
+        const metaEl = document.createElement('span');
+        metaEl.className = 'echo-row-meta';
+        const author = echo.username || 'anonymous';
+        const date = new Date(echo.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        metaEl.textContent = `${author} · ${date}`;
 
-        // 5. Add Click Listener (Logic remains the same)
+        mainCol.appendChild(nameEl);
+        mainCol.appendChild(metaEl);
+
+        const rightCol = document.createElement('span');
+        rightCol.className = 'echo-row-right';
+        rightCol.textContent = formatTime(echo.duration_seconds);
+
+        topRow.appendChild(distBadge);
+        topRow.appendChild(mainCol);
+        topRow.appendChild(rightCol);
+        item.appendChild(topRow);
+
+        if (withinRange) {
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.preload = 'none';
+            audio.src = echo.audio_url;
+            audio.onplay = () => window.keepEchoAlive(echo.id);
+            item.appendChild(audio);
+        }
+
         item.addEventListener('click', (e) => {
-            // Don't trigger the "Fly To" effect if they clicked the play button
-            if (e.target.tagName !== 'AUDIO' && !e.target.closest('audio')) {
-                handleListItemClick(echo.id);
-            }
+            if (!e.target.closest('audio')) handleListItemClick(echo.id);
         });
 
         nearbyEchoesList.appendChild(item);
@@ -491,23 +512,14 @@ function renderMapMarkers(echoes) {
         // Add this new property to the echo object for use in the list renderer.
         echo.distance_meters = distanceToUser;
 
-        let popupContent;
-        if (isWithinInteractionRange) {
-            const author = echo.username ? `by ${echo.username}` : "by an anonymous user";
-            const locationName = echo.location_name || 'An Echo';
-            popupContent = `<h3>${locationName}</h3><p>Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}</p><audio controls preload="none" onplay="window.keepEchoAlive(${echo.id})" src="${echo.audio_url}"></audio>`;
-        } else {
-            const distanceDisplay = distanceToUser < 1000 ? `${Math.round(distanceToUser)}m` : `${(distanceToUser / 1000).toFixed(1)}km`;
-            const message = userLatLng ? `Get within 100m to listen. (Currently ${distanceDisplay} away)` : `Find your location to interact with echoes.`;
-            popupContent = `<div class="distant-popup"><div class="message">Too far to hear...</div><div class="distance">${message}</div></div>`;
-        }
+        const popupEl = buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng);
 
         const ageMs = new Date() - new Date(echo.last_played_at);
         let healthPercent = Math.max(0, 100 * (1 - (ageMs / ECHO_LIFESPAN_MS)));
         const healthIcon = createHealthIcon(healthPercent, echo.id === highlightedEchoId);
 
         const marker = L.marker(echoLatLng, { icon: healthIcon });
-        marker.bindPopup(popupContent);
+        marker.bindPopup(popupEl);
 
         if (!isWithinInteractionRange) {
             marker.on('add', function() {
@@ -522,12 +534,16 @@ function renderMapMarkers(echoes) {
 }
 
 function handleListItemClick(echoId) { const marker = echoMarkersMap.get(echoId); if (marker) { map.flyTo(marker.getLatLng(), map.getZoom() < 16 ? 16 : map.getZoom()); highlightEcho(echoId); } }
-function handleMarkerClick(echoId) { const listItem = nearbyEchoesList.querySelector(`.my-echo-item[data-echo-id='${echoId}']`); if (listItem) { listItem.scrollIntoView({ behavior: 'smooth', block: 'center' }); highlightEcho(echoId); } }
+function handleMarkerClick(echoId) {
+    if (bottomSheet) bottomSheet.classList.add('expanded');
+    const listItem = nearbyEchoesList.querySelector(`.echo-row[data-echo-id='${echoId}']`);
+    if (listItem) { listItem.scrollIntoView({ behavior: 'smooth', block: 'center' }); highlightEcho(echoId); }
+}
 
 function highlightEcho(echoId) {
     if (highlightedEchoId === echoId) return;
     if (highlightedEchoId) {
-        const prevItem = nearbyEchoesList.querySelector(`.my-echo-item[data-echo-id='${highlightedEchoId}']`);
+        const prevItem = nearbyEchoesList.querySelector(`.echo-row[data-echo-id='${highlightedEchoId}']`);
         if (prevItem) prevItem.classList.remove('highlighted');
         const prevMarker = echoMarkersMap.get(highlightedEchoId);
         if (prevMarker) {
@@ -540,7 +556,7 @@ function highlightEcho(echoId) {
             }
         }
     }
-    const newItem = nearbyEchoesList.querySelector(`.my-echo-item[data-echo-id='${echoId}']`);
+    const newItem = nearbyEchoesList.querySelector(`.echo-row[data-echo-id='${echoId}']`);
     if (newItem) newItem.classList.add('highlighted');
     const newMarker = echoMarkersMap.get(echoId);
     if (newMarker) {
@@ -557,20 +573,13 @@ function highlightEcho(echoId) {
 
 function clearNearbyListAndMarkers() { currentEchoesInView = []; markers.clearLayers(); echoMarkersMap.clear(); renderNearbyList([]); }
 
-window.keepEchoAlive = async (id) => { 
-    try { 
-        // Define headers object
-        const headers = { "Content-Type": "application/json" };
-        
-        // Only add the Authorization header if we actually have a real token
-        if (userToken) {
-            headers['Authorization'] = `Bearer ${userToken}`;
-        }
-
+window.keepEchoAlive = async (id) => {
+    try {
         fetch(`${API_URL}/api/echoes/${id}/play`, {
             method: 'POST',
-            headers: headers
-        }); 
+            headers: { "Content-Type": "application/json" },
+            credentials: 'include',
+        });
 
         // Update the UI immediately (turn the ring red/orange)
         const marker = echoMarkersMap.get(id); 
@@ -777,30 +786,29 @@ async function uploadAndSaveEcho() {
         updateStatus("Preparing upload...", "info", 0);
         
         // 5. Get Presigned URL
-        const presignedResponse = await fetch(`${API_URL}/presigned-url`, { 
-            method: "POST", 
-            headers: { 
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${userToken}` 
-            }, 
-            body: JSON.stringify({ fileName: fileName, fileType: audioBlob.type }) 
+        const presignedResponse = await fetch(`${API_URL}/presigned-url`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: 'include',
+            body: JSON.stringify({ fileName: fileName, fileType: audioBlob.type })
         });
 
         if (!presignedResponse.ok) throw new Error(`Presigned URL failed: ${await presignedResponse.text()}`);
-        const { url: uploadUrl } = await presignedResponse.json();
+        const { url: uploadUrl, key: safeKey } = await presignedResponse.json();
 
         // 6. Upload to R2
         updateStatus("Uploading...", "info", 0);
         await fetch(uploadUrl, { method: "PUT", body: audioBlob, headers: { "Content-Type": audioBlob.type } });
-        const audioUrl = `${R2_PUBLIC_URL_BASE}/${fileName}`;
+        const audioUrl = `${R2_PUBLIC_URL_BASE}/${safeKey}`;
 
         // 7. Save Metadata to DB
         updateStatus("Saving...", "info", 0);
         
         const saveResponse = await fetch(`${API_URL}/echoes`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${userToken}` },
-            body: JSON.stringify({ 
+            headers: { "Content-Type": "application/json" },
+            credentials: 'include',
+            body: JSON.stringify({
                 w3w_address: currentBucketKey, 
                 audio_url: audioUrl, 
                 lat: currentUserPosition.lat, 
@@ -824,9 +832,37 @@ async function uploadAndSaveEcho() {
     }
 }
 
-function checkLoginState() { userToken = localStorage.getItem("echoes_token"); if (userToken) { try { const payload = JSON.parse(atob(userToken.split(".")[1])); loggedInUser = payload.user.username; updateUIAfterLogin(); } catch (err) { console.error("Failed to decode token", err); handleLogout(); } } else { updateUIAfterLogout(); } }
-function handleLogout() { localStorage.removeItem("echoes_token"); userToken = null; loggedInUser = null; if (userMenuDropdown) userMenuDropdown.style.display = 'none'; updateUIAfterLogout(); if (locationWatcherId) { navigator.geolocation.clearWatch(locationWatcherId); locationWatcherId = null; } isUserInVicinity = false; updateActionButtonState(); }
-function updateUIAfterLogin() { loggedOutView.style.display = "none"; loggedInView.style.display = "block"; welcomeMessage.textContent = loggedInUser; updateStatus(`Welcome, ${loggedInUser}!`, 'success', 0); updateActionButtonState(); }
+async function checkLoginState() {
+    try {
+        const res = await fetch(`${API_URL}/api/users/me`, { credentials: 'include' });
+        if (res.ok) {
+            const data = await res.json();
+            loggedInUser = data.username;
+            updateUIAfterLogin();
+        } else {
+            updateUIAfterLogout();
+        }
+    } catch {
+        updateUIAfterLogout();
+    }
+}
+async function handleLogout() {
+    try { await fetch(`${API_URL}/api/users/logout`, { method: 'POST', credentials: 'include' }); } catch { /* ignore */ }
+    loggedInUser = null;
+    if (userMenuDropdown) userMenuDropdown.style.display = 'none';
+    updateUIAfterLogout();
+    if (locationWatcherId) { navigator.geolocation.clearWatch(locationWatcherId); locationWatcherId = null; }
+    isUserInVicinity = false;
+    updateActionButtonState();
+}
+function updateUIAfterLogin() {
+    loggedOutView.style.display = "none";
+    loggedInView.style.display = "block";
+    welcomeMessage.textContent = loggedInUser;
+    if (userAvatar) userAvatar.textContent = loggedInUser.charAt(0).toUpperCase();
+    showToast(`Welcome, ${loggedInUser}.`, 'success');
+    updateActionButtonState();
+}
 function updateUIAfterLogout() {
     loggedInView.style.display = 'none';
     loggedOutView.style.display = 'block';
@@ -834,5 +870,52 @@ function updateUIAfterLogout() {
     updateStatus("Click the compass to explore your area.", '', 0);
     updateActionButtonState();
 }
-function openModal(mode) { modalError.textContent = ""; authForm.reset(); if (mode === 'login') { modalTitle.textContent = "Login"; modalSubmitBtn.textContent = "Login"; authForm.dataset.mode = "login"; } else { modalTitle.textContent = "Register"; modalSubmitBtn.textContent = "Register"; authForm.dataset.mode = "register"; } authModal.style.display = "flex"; }
-async function handleAuthFormSubmit(e) { e.preventDefault(); modalError.textContent = ""; const username = usernameInput.value; const password = passwordInput.value; const mode = authForm.dataset.mode; const endpoint = mode === 'login' ? "/api/users/login" : "/api/users/register"; try { const response = await fetch(`${API_URL}${endpoint}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "An unknown error occurred."); if (mode === 'register') { modalError.textContent = "Registration successful! Please log in."; authForm.reset(); openModal('login'); } else { localStorage.setItem("echoes_token", data.token); checkLoginState(); authModal.style.display = "none"; } } catch (err) { modalError.textContent = err.message; } }
+function openModal(mode) {
+    modalError.textContent = "";
+    authForm.reset();
+    if (mode === 'login') {
+        modalTitle.textContent = "Sign in";
+        modalSubmitBtn.textContent = "Sign in";
+        authForm.dataset.mode = "login";
+        document.getElementById('modal-switch').innerHTML = `No account? <a href="#" id="modal-switch-link">Register</a>`;
+    } else {
+        modalTitle.textContent = "Create account";
+        modalSubmitBtn.textContent = "Register";
+        authForm.dataset.mode = "register";
+        document.getElementById('modal-switch').innerHTML = `Have an account? <a href="#" id="modal-switch-link">Sign in</a>`;
+    }
+    document.getElementById('modal-switch-link').addEventListener('click', (e) => {
+        e.preventDefault();
+        openModal(authForm.dataset.mode === 'login' ? 'register' : 'login');
+    });
+    authModal.style.display = "flex";
+}
+async function handleAuthFormSubmit(e) {
+    e.preventDefault();
+    modalError.textContent = "";
+    const username = usernameInput.value;
+    const password = passwordInput.value;
+    const mode = authForm.dataset.mode;
+    const endpoint = mode === 'login' ? "/api/users/login" : "/api/users/register";
+    try {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: 'include',
+            body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "An unknown error occurred.");
+        if (mode === 'register') {
+            modalError.textContent = "Registration successful! Please log in.";
+            authForm.reset();
+            openModal('login');
+        } else {
+            loggedInUser = data.user.username;
+            updateUIAfterLogin();
+            authModal.style.display = "none";
+        }
+    } catch (err) {
+        modalError.textContent = err.message;
+    }
+}

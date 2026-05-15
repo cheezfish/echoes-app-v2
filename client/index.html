@@ -2,80 +2,73 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Echoes</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" integrity="sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" integrity="sha384-wgw+aLYNQ7dlhK47ZPK7FRACiq7ROZwgFNg0m04avm4CaXS+Z9Y7nMu8yNjBKYC+" crossorigin="anonymous" />
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="my-echoes.css"> 
 </head>
 <body>
-    <header>
-        <h1>Echoes</h1>
-        <div id="user-auth-container">
-            <!-- Logged out users see this -->
-            <div id="logged-out-view" style="display: none;">
-                <button id="login-btn" class="auth-btn">Login</button>
-                <button id="register-btn" class="auth-btn">Register</button>
-            </div>
-            <!-- Logged in users see this -->
-            <div id="logged-in-view" style="display: none;">
-                <div id="user-menu-button" class="auth-btn">
-                    <span id="welcome-message"></span> ▾ <!-- Down arrow character -->
-                </div>
-                <div id="user-menu-dropdown" style="display: none;">
-                    <a href="achievements.html">Achievements</a>
-                    <a href="my-echoes.html">My Echoes</a>
-                    <a href="medley.html" style="color: #1DB954;">Medley (beta)</a>
-                    <a href="#" id="logout-btn">Logout</a>
-                </div>
-            </div>
+
+    <div id="map"></div>
+
+    <div id="wordmark">echoes</div>
+
+    <div id="user-pill">
+        <div id="logged-out-view" style="display: none;">
+            <button id="login-btn" class="pill-btn">Sign in</button>
         </div>
-    </header>
-
-    <!-- NEW Global Status Bar -->
-    <div id="global-status-bar"></div>
-
-    <div id="main-content-grid">
-        <main id="map-container">
-            <div id="map"></div>
-            <!-- NEW Single, Contextual Action Button -->
-            <button id="context-action-btn" title="Find My Location"></button>
-        </main>
-    
-        <aside id="nearby-echoes-panel">
-            <div class="panel-header">
-                <h2>Nearby Echoes</h2>
-            </div>
-            <div id="nearby-echoes-list">
-                <!-- Echoes will be dynamically inserted here -->
-            </div>
-        </aside>
+        <div id="logged-in-view" style="display: none;">
+            <button id="user-pill-btn" class="pill-btn">
+                <span id="user-avatar"></span>
+                <span id="welcome-message"></span>
+            </button>
+        </div>
     </div>
-    
-    <!-- Auth Modal (contents are essential) -->
+
+    <div id="user-menu-dropdown" style="display: none;">
+        <a href="achievements.html">Achievements</a>
+        <a href="my-echoes.html">My Echoes</a>
+        <a href="medley.html">Medley <span class="beta-tag">beta</span></a>
+        <hr class="menu-divider">
+        <a href="#" id="logout-btn">Logout</a>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <button id="context-action-btn" title="Find My Location"></button>
+
+    <div id="bottom-sheet">
+        <div id="sheet-handle-area">
+            <div id="sheet-handle"></div>
+            <p id="sheet-summary">Explore the map</p>
+        </div>
+        <div id="nearby-echoes-list"></div>
+    </div>
+
     <div id="auth-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <button class="close-btn">×</button>
-            <h2 id="modal-title">Login</h2>
+            <h2 id="modal-title">Sign in</h2>
             <form id="auth-form">
                 <div class="form-group">
                     <label for="username">Username</label>
-                    <input type="text" id="username" name="username" required>
+                    <input type="text" id="username" name="username" required autocomplete="username">
                 </div>
                 <div class="form-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
+                    <input type="password" id="password" name="password" required autocomplete="current-password">
                 </div>
-                <button type="submit" id="modal-submit-btn">Login</button>
+                <button type="submit" id="modal-submit-btn">Sign in</button>
+                <p id="modal-switch">No account? <a href="#" id="modal-switch-link">Register</a></p>
                 <p id="modal-error" class="error-message"></p>
             </form>
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <script src="app.js"></script> 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" integrity="sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr" crossorigin="anonymous"></script>
+    <script src="app.js"></script>
 </body>
 </html>

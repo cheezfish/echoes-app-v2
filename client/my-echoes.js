@@ -4,26 +4,26 @@ const API_URL = 'https://echoes-server.cheezfish.com';
 
 const EXPIRATION_THRESHOLD_MS = 20 * 24 * 60 * 60 * 1000; 
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const echoesListContainer = document.getElementById('my-echoes-list-container');
     const loadingMessage = document.getElementById('loading-message');
     const userAuthContainer = document.getElementById('user-auth-container');
-    
-    const token = localStorage.getItem('echoes_token');
 
-    if (!token) {
+    // Auth gate — verify session via cookie
+    let currentUser;
+    try {
+        const meRes = await fetch(`${API_URL}/api/users/me`, { credentials: 'include' });
+        if (!meRes.ok) { window.location.href = 'index.html'; return; }
+        currentUser = await meRes.json();
+    } catch {
         window.location.href = 'index.html';
         return;
     }
 
-    try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        userAuthContainer.innerHTML = `<span id="welcome-message">Echoes by: ${payload.user.username}</span>`;
-    } catch (e) {
-        console.error("Failed to decode token", e);
-        localStorage.removeItem('echoes_token');
-        window.location.href = 'index.html';
-    }
+    const span = document.createElement('span');
+    span.id = 'welcome-message';
+    span.textContent = `Echoes by: ${currentUser.username}`;
+    userAuthContainer.appendChild(span);
 
     // Helper function to format seconds into MM:SS
     const formatTime = (seconds) => {
@@ -37,11 +37,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchMyEchoes() {
         try {
             const response = await fetch(`${API_URL}/api/users/my-echoes`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                credentials: 'include'
             });
             if (!response.ok) {
                 if (response.status === 401 || response.status === 403) {
-                    localStorage.removeItem('echoes_token');
                     window.location.href = 'index.html';
                 }
                 throw new Error('Could not fetch your echoes.');
@@ -79,32 +78,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const locationDisplayName = echo.location_name || echo.w3w_address;
 
-            echoItem.innerHTML = `
-                <div class="info-row">
-                    <span class="location-name">${locationDisplayName}</span>
-                    <span class="date-info">Recorded: ${recordedDateTime}</span>
-                </div>
+            // info row
+            const infoRow = document.createElement('div');
+            infoRow.className = 'info-row';
+            const locSpan = document.createElement('span');
+            locSpan.className = 'location-name';
+            locSpan.textContent = locationDisplayName;
+            const dateSpan = document.createElement('span');
+            dateSpan.className = 'date-info';
+            dateSpan.textContent = `Recorded: ${recordedDateTime}`;
+            infoRow.appendChild(locSpan);
+            infoRow.appendChild(dateSpan);
 
-                <audio controls preload="metadata" src="${echo.audio_url}"></audio>
-                
-                <div class="stats-row">
-                    <span>
-                        <img src="https://api.iconify.design/material-symbols:play-circle-outline.svg?color=%23999" alt="Plays">
-                        Plays: ${echo.play_count}
-                    </span>
-                    <span class="duration-display">
-                        <img src="https://api.iconify.design/material-symbols:timer-outline.svg?color=%23999" alt="Duration">
-                        Duration: ${formatTime(echo.duration_seconds)}
-                    </span>
-                </div>
+            // audio
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.preload = 'metadata';
+            audio.src = echo.audio_url;
 
-                <div class="actions-row">
-                    <span>
-                        Expires: ${expiryDateString}
-                    </span>
-                    <button class="delete-btn" data-id="${echo.id}">Delete</button>
-                </div>
-            `;
+            // stats row
+            const statsRow = document.createElement('div');
+            statsRow.className = 'stats-row';
+            const playsSpan = document.createElement('span');
+            const playsImg = document.createElement('img');
+            playsImg.src = 'https://api.iconify.design/material-symbols:play-circle-outline.svg?color=%23999';
+            playsImg.alt = 'Plays';
+            playsSpan.appendChild(playsImg);
+            playsSpan.appendChild(document.createTextNode(` Plays: ${echo.play_count}`));
+            const durSpan = document.createElement('span');
+            durSpan.className = 'duration-display';
+            const durImg = document.createElement('img');
+            durImg.src = 'https://api.iconify.design/material-symbols:timer-outline.svg?color=%23999';
+            durImg.alt = 'Duration';
+            durSpan.appendChild(durImg);
+            durSpan.appendChild(document.createTextNode(` Duration: ${formatTime(echo.duration_seconds)}`));
+            statsRow.appendChild(playsSpan);
+            statsRow.appendChild(durSpan);
+
+            // actions row
+            const actionsRow = document.createElement('div');
+            actionsRow.className = 'actions-row';
+            const expirySpan = document.createElement('span');
+            expirySpan.textContent = `Expires: ${expiryDateString}`;
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.dataset.id = echo.id;
+            deleteBtn.textContent = 'Delete';
+            actionsRow.appendChild(expirySpan);
+            actionsRow.appendChild(deleteBtn);
+
+            echoItem.appendChild(infoRow);
+            echoItem.appendChild(audio);
+            echoItem.appendChild(statsRow);
+            echoItem.appendChild(actionsRow);
             echoesListContainer.appendChild(echoItem);
         });
 
@@ -125,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(`${API_URL}/api/echoes/${echoId}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
+                credentials: 'include'
             });
             if (!response.ok) {
                 const errData = await response.json();

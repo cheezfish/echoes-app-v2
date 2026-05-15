@@ -2,30 +2,31 @@
 
 const API_URL = 'https://echoes-server.cheezfish.com';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const gridContainer = document.getElementById('achievements-grid-container');
     const loadingMessage = document.getElementById('loading-message');
     const userAuthContainer = document.getElementById('user-auth-container');
-    
-    const token = localStorage.getItem('echoes_token');
 
-    if (!token) {
+    // Auth gate — verify session via cookie
+    let currentUser;
+    try {
+        const meRes = await fetch(`${API_URL}/api/users/me`, { credentials: 'include' });
+        if (!meRes.ok) { window.location.href = 'index.html'; return; }
+        currentUser = await meRes.json();
+    } catch {
         window.location.href = 'index.html';
         return;
     }
 
-    try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        userAuthContainer.innerHTML = `<span id="welcome-message">${payload.user.username}</span>`;
-    } catch (e) {
-        localStorage.removeItem('echoes_token');
-        window.location.href = 'index.html';
-    }
+    const span = document.createElement('span');
+    span.id = 'welcome-message';
+    span.textContent = currentUser.username;
+    userAuthContainer.appendChild(span);
 
     async function fetchAchievements() {
         try {
             const response = await fetch(`${API_URL}/api/achievements`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                credentials: 'include'
             });
 
             if (!response.ok) {
@@ -51,26 +52,37 @@ document.addEventListener('DOMContentLoaded', () => {
             card.className = 'achievement-card';
             
             const isUnlocked = !!ach.unlocked_at;
-            let unlockedDateHtml = '';
-            
+            if (!isUnlocked) card.classList.add('locked');
+
+            const iconUrl = `https://api.iconify.design/${encodeURIComponent(ach.icon)}.svg?color=${isUnlocked ? '%2300aaff' : '%23555'}`;
+
+            const img = document.createElement('img');
+            img.className = 'achievement-icon';
+            img.src = iconUrl;
+            img.alt = ach.name;
+
+            const h3 = document.createElement('h3');
+            h3.className = 'achievement-name';
+            h3.textContent = ach.name;
+
+            const desc = document.createElement('p');
+            desc.className = 'achievement-description';
+            desc.textContent = ach.description;
+
+            card.appendChild(img);
+            card.appendChild(h3);
+            card.appendChild(desc);
+
             if (isUnlocked) {
                 const date = new Date(ach.unlocked_at).toLocaleDateString('en-US', {
                     year: 'numeric', month: 'long', day: 'numeric'
                 });
-                unlockedDateHtml = `<p class="achievement-unlocked-date">Unlocked on ${date}</p>`;
-            } else {
-                card.classList.add('locked');
+                const dateP = document.createElement('p');
+                dateP.className = 'achievement-unlocked-date';
+                dateP.textContent = `Unlocked on ${date}`;
+                card.appendChild(dateP);
             }
 
-            // Use Iconify API for the icons
-            const iconUrl = `https://api.iconify.design/${ach.icon}.svg?color=${isUnlocked ? '%2300aaff' : '%23555'}`;
-
-            card.innerHTML = `
-                <img class="achievement-icon" src="${iconUrl}" alt="${ach.name}">
-                <h3 class="achievement-name">${ach.name}</h3>
-                <p class="achievement-description">${ach.description}</p>
-                ${unlockedDateHtml}
-            `;
             gridContainer.appendChild(card);
         });
     }

@@ -5,16 +5,13 @@
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#1DB954",
-  "icons": [
-    // ... icon definitions ...
-  ]
-}
-
-"share_target": {
-    "action": "/medley.html", // Send the user to the Medley page
+  "icons": [],
+  "share_target": {
+    "action": "/medley.html",
     "method": "GET",
     "enctype": "application/x-www-form-urlencoded",
     "params": {
-      "text": "shared_text" // We'll look for a query param named 'shared_text'
+      "text": "shared_text"
     }
+  }
 }

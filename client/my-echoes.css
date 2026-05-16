@@ -98,6 +98,30 @@ body {
     border-color: #d9534f;
     color: #d9534f;
 }
+.expiry-urgent {
+    color: #f87171;
+    font-weight: 600;
+}
+
+.echo-transcript {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.4);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 0.5rem;
+}
+.echo-transcript summary {
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.3);
+    user-select: none;
+    margin-bottom: 0.4rem;
+}
+.echo-transcript summary:hover { color: rgba(255, 255, 255, 0.55); }
+.echo-transcript p {
+    margin: 0;
+    line-height: 1.55;
+    font-style: italic;
+}
+
 .delete-btn:disabled {
     border-color: rgba(255, 255, 255, 0.08);
     color: rgba(255, 255, 255, 0.2);

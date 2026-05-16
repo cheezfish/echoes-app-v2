@@ -112,7 +112,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const actionsRow = document.createElement('div');
             actionsRow.className = 'actions-row';
             const expirySpan = document.createElement('span');
+            const msUntilExpiry = expiryDate - Date.now();
+            const daysLeft = msUntilExpiry / (1000 * 60 * 60 * 24);
             expirySpan.textContent = `Expires: ${expiryDateString}`;
+            if (daysLeft < 3) expirySpan.className = 'expiry-urgent';
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'delete-btn';
             deleteBtn.dataset.id = echo.id;
@@ -123,6 +126,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             echoItem.appendChild(infoRow);
             echoItem.appendChild(audio);
             echoItem.appendChild(statsRow);
+            if (echo.transcript && echo.transcript_status === 'done') {
+                const details = document.createElement('details');
+                details.className = 'echo-transcript';
+                const summary = document.createElement('summary');
+                summary.textContent = 'Transcript';
+                const tp = document.createElement('p');
+                tp.textContent = echo.transcript;
+                details.appendChild(summary);
+                details.appendChild(tp);
+                echoItem.appendChild(details);
+            }
             echoItem.appendChild(actionsRow);
             echoesListContainer.appendChild(echoItem);
         });

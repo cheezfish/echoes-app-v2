@@ -4,7 +4,7 @@ const API_URL = 'https://echoes-server.cheezfish.com';
 const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev';
 
 // --- CONFIG & ICONS ---
-const MAX_RECORDING_SECONDS = 60;
+const MAX_RECORDING_SECONDS = 180;
 const INTERACTION_RANGE_METERS = 100; // The close-range for listening
 const ECHO_LIFESPAN_MS = 20 * 24 * 60 * 60 * 1000;
 const centralEchoIconUrl = "https://api.iconify.design/material-symbols:graphic-eq.svg";
@@ -161,6 +161,17 @@ function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng
         wrap.appendChild(h3);
         wrap.appendChild(p);
         wrap.appendChild(buildAudioPlayer(echo.audio_url, () => window.keepEchoAlive(echo.id)));
+        if (echo.transcript && echo.transcript_status === 'done') {
+            const details = document.createElement('details');
+            details.className = 'echo-transcript';
+            const summary = document.createElement('summary');
+            summary.textContent = 'Transcript';
+            const tp = document.createElement('p');
+            tp.textContent = echo.transcript;
+            details.appendChild(summary);
+            details.appendChild(tp);
+            wrap.appendChild(details);
+        }
         return wrap;
     } else {
         const distanceDisplay = distanceToUser < 1000
@@ -240,7 +251,10 @@ function initializeApp() {
     setupEventListeners();
     initBottomSheet();
     checkLoginState();
-    map = L.map('map', { zoomControl: true, attributionControl: false }).setView([20, 0], 2);
+    const savedMapState = JSON.parse(localStorage.getItem('echoes_map') || 'null');
+    const initCenter = savedMapState ? [savedMapState.lat, savedMapState.lng] : [20, 0];
+    const initZoom  = savedMapState ? savedMapState.zoom : 2;
+    map = L.map('map', { zoomControl: true, attributionControl: false }).setView(initCenter, initZoom);
     L.tileLayer('https://api.maptiler.com/maps/toner-v2/{z}/{x}/{y}.png?key=oeJYklnaUPpZgpHgTszf', { maxZoom: 20, attribution: '© <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
     L.control.attribution({ position: 'topright' }).addTo(map);
     markers = L.markerClusterGroup({ disableClusteringAtZoom: 15 });
@@ -265,6 +279,8 @@ function initializeApp() {
     }
 
     map.on('moveend', () => {
+        const c = map.getCenter();
+        localStorage.setItem('echoes_map', JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }));
         clearTimeout(fetchTimeout);
         fetchTimeout = setTimeout(refreshMapView, 500);
     });
@@ -305,9 +321,13 @@ function updateActionButtonState() {
     }
 
     if (isRecording) {
-        contextActionBtn.className = 'is-recording';
-        let secondsLeft = Math.max(0, Math.round((recordingTimer.targetTime - Date.now()) / 1000));
-        contextActionBtn.innerHTML = `<span>Stop (${secondsLeft}s)</span>`;
+        const elapsed = Math.round((Date.now() - recordingTimer.startTime) / 1000);
+        const secondsLeft = Math.max(0, Math.round((recordingTimer.targetTime - Date.now()) / 1000));
+        const mm = Math.floor(elapsed / 60);
+        const ss = String(elapsed % 60).padStart(2, '0');
+        const isWarning = secondsLeft <= 30;
+        contextActionBtn.className = isWarning ? 'is-recording is-recording-warning' : 'is-recording';
+        contextActionBtn.innerHTML = `<span>Stop (${mm}:${ss})</span>`;
     } else if (isUserInVicinity && loggedInUser) {
         contextActionBtn.className = 'record';
         contextActionBtn.title = 'Record an Echo';

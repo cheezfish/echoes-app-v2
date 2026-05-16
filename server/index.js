@@ -216,7 +216,7 @@ app.get('/api/users/my-echoes', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     try {
         const query = `
-            SELECT id, w3w_address, audio_url, created_at, last_played_at, play_count, location_name, duration_seconds
+            SELECT id, w3w_address, audio_url, created_at, last_played_at, play_count, location_name, duration_seconds, transcript, transcript_status
             FROM echoes
             WHERE user_id = $1
             ORDER BY created_at DESC;

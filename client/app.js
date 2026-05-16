@@ -22,6 +22,7 @@ let pendingRecording = null;
 let loggedInUser = null, currentUserPosition = null, currentBucketKey = "";
 let echoMarkersMap = new Map();
 let clusterMarkersLayer = null;
+let pendingReplyToEchoId = null;
 let currentEchoesInView = [];
 let highlightedEchoId = null;
 let locationWatcherId = null;
@@ -172,6 +173,44 @@ function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng
             details.appendChild(tp);
             wrap.appendChild(details);
         }
+
+        // Reply thread — async loaded
+        const threadDiv = document.createElement('div');
+        threadDiv.className = 'echo-thread';
+        wrap.appendChild(threadDiv);
+        fetch(`${API_URL}/echoes/${echo.id}/replies`)
+            .then(r => r.json())
+            .then(replies => {
+                if (replies.length > 0) {
+                    const label = document.createElement('p');
+                    label.className = 'thread-label';
+                    label.textContent = `${replies.length} repl${replies.length === 1 ? 'y' : 'ies'}`;
+                    threadDiv.appendChild(label);
+                    replies.forEach(reply => {
+                        const row = document.createElement('div');
+                        row.className = 'thread-reply-row';
+                        const meta = document.createElement('span');
+                        meta.className = 'thread-reply-meta';
+                        meta.textContent = `${reply.username || 'anon'} · ${new Date(reply.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+                        row.appendChild(meta);
+                        row.appendChild(buildAudioPlayer(reply.audio_url, null));
+                        threadDiv.appendChild(row);
+                    });
+                }
+                if (loggedInUser) {
+                    const replyBtn = document.createElement('button');
+                    replyBtn.className = 'reply-btn';
+                    replyBtn.textContent = '+ Reply';
+                    replyBtn.addEventListener('click', () => {
+                        pendingReplyToEchoId = echo.id;
+                        map.closePopup();
+                        handleRecordClick();
+                    });
+                    threadDiv.appendChild(replyBtn);
+                }
+            })
+            .catch(() => {});
+
         return wrap;
     } else {
         const distanceDisplay = distanceToUser < 1000
@@ -512,6 +551,17 @@ function renderNearbyList(echoes) {
 
     const countText = `${sorted.length} echo${sorted.length !== 1 ? 's' : ''} in view${nearby.length > 0 ? ` · ${nearby.length} within range` : ''}`;
     updateStatus(countText, '', 0);
+
+    if (nearby.length === 0 && sorted.length > 0 && currentUserPosition) {
+        const closest = sorted[0];
+        const dist = closest.distance_meters < 1000
+            ? `${Math.round(closest.distance_meters)}m`
+            : `${(closest.distance_meters / 1000).toFixed(1)}km`;
+        const hint = document.createElement('p');
+        hint.className = 'empty-message';
+        hint.textContent = `Nearest echo is ${dist} away — walk closer to listen.`;
+        nearbyEchoesList.appendChild(hint);
+    }
 
     sorted.forEach(echo => {
         const withinRange = (echo.distance_meters || Infinity) <= INTERACTION_RANGE_METERS;
@@ -886,6 +936,8 @@ function showRecordingPreview() {
     pendingRecording = { blob, blobUrl, duration };
 
     const panel = document.getElementById('recording-preview');
+    const heading = panel.querySelector('h4');
+    if (heading) heading.textContent = pendingReplyToEchoId ? 'Reply to echo' : 'Review your echo';
     const playerWrap = document.getElementById('preview-player-wrap');
     playerWrap.innerHTML = '';
     playerWrap.appendChild(buildAudioPlayer(blobUrl, null));
@@ -896,6 +948,7 @@ function showRecordingPreview() {
 function dismissPreview() {
     if (pendingRecording?.blobUrl) URL.revokeObjectURL(pendingRecording.blobUrl);
     pendingRecording = null;
+    pendingReplyToEchoId = null;
     document.getElementById('recording-preview').classList.remove('visible');
     updateActionButtonState();
 }
@@ -923,6 +976,8 @@ async function confirmPostEcho() {
         const audioUrl = `${R2_PUBLIC_URL_BASE}/${safeKey}`;
 
         updateStatus("Saving...", "info", 0);
+        const replyToId = pendingReplyToEchoId;
+        pendingReplyToEchoId = null;
         const saveResponse = await fetch(`${API_URL}/echoes`, {
             method: "POST", headers: { "Content-Type": "application/json" }, credentials: 'include',
             body: JSON.stringify({
@@ -930,14 +985,15 @@ async function confirmPostEcho() {
                 audio_url: audioUrl,
                 lat: currentUserPosition.lat,
                 lng: currentUserPosition.lng,
-                duration
+                duration,
+                ...(replyToId ? { parent_id: replyToId } : {})
             })
         });
         if (!saveResponse.ok) throw new Error('Save failed');
 
-        updateStatus("Echo saved!", "success");
+        updateStatus(replyToId ? "Reply posted!" : "Echo saved!", "success");
         triggerRippleAnimation(currentUserPosition.lat, currentUserPosition.lng);
-        fetchEchoesForCurrentView();
+        if (!replyToId) fetchEchoesForCurrentView();
     } catch (err) {
         console.error("Echo upload failed:", err);
         updateStatus(`Error: ${err.message}`, "error");

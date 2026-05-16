@@ -15,8 +15,28 @@
 
     <main class="my-echoes-main">
         <h1 class="page-heading">My Echoes</h1>
+
+        <div id="page-tabs">
+            <button class="page-tab active" data-tab="echoes">Echoes</button>
+            <button class="page-tab" data-tab="walks">Walks</button>
+        </div>
+
         <div id="my-echoes-list-container">
             <p id="loading-message">Loading your echoes...</p>
+        </div>
+
+        <div id="my-walks-container" style="display:none">
+            <div id="walks-toolbar">
+                <button id="new-walk-btn" class="pill-btn">+ New Walk</button>
+            </div>
+            <div id="new-walk-form" style="display:none">
+                <input type="text" id="walk-title-input" placeholder="Walk name…" maxlength="80">
+                <button id="create-walk-btn">Create</button>
+                <button id="cancel-walk-btn">Cancel</button>
+            </div>
+            <div id="walks-list">
+                <p id="walks-loading-message">Loading your walks...</p>
+            </div>
         </div>
     </main>
 

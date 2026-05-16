@@ -98,6 +98,29 @@ async function runMigrations() {
             );
 
             CREATE INDEX IF NOT EXISTS idx_echoes_geohash ON echoes(geohash);
+
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES echoes(id) ON DELETE CASCADE;
+            CREATE INDEX IF NOT EXISTS idx_echoes_parent_id ON echoes(parent_id);
+
+            CREATE TABLE IF NOT EXISTS walks (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                title TEXT NOT NULL,
+                description TEXT,
+                is_public BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+
+            CREATE TABLE IF NOT EXISTS walk_echoes (
+                id SERIAL PRIMARY KEY,
+                walk_id INTEGER NOT NULL REFERENCES walks(id) ON DELETE CASCADE,
+                echo_id INTEGER NOT NULL REFERENCES echoes(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(walk_id, echo_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_walk_echoes_walk_id ON walk_echoes(walk_id);
         `);
         // Backfill geohash for existing rows that have a geog but no geohash
         await client.query(`
@@ -216,10 +239,14 @@ app.get('/api/users/my-echoes', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     try {
         const query = `
-            SELECT id, w3w_address, audio_url, created_at, last_played_at, play_count, location_name, duration_seconds, transcript, transcript_status
-            FROM echoes
-            WHERE user_id = $1
-            ORDER BY created_at DESC;
+            SELECT e.id, e.w3w_address, e.audio_url, e.created_at, e.last_played_at,
+                   e.play_count, e.location_name, e.duration_seconds,
+                   e.transcript, e.transcript_status, e.parent_id,
+                   p.location_name AS parent_location_name
+            FROM echoes e
+            LEFT JOIN echoes p ON e.parent_id = p.id
+            WHERE e.user_id = $1
+            ORDER BY e.created_at DESC;
         `;
         const result = await pool.query(query, [userId]);
         res.json(result.rows);
@@ -668,6 +695,7 @@ app.get('/echoes/clusters', async (req, res) => {
                 geog && ST_MakeEnvelope($1, $2, $3, $4, 4326)
                 AND geog IS NOT NULL
                 AND COALESCE(is_hidden, FALSE) = FALSE
+                AND parent_id IS NULL
                 AND last_played_at >= NOW() - ($6 * INTERVAL '1 day')
             GROUP BY cell
             ORDER BY count DESC;
@@ -702,6 +730,7 @@ app.get('/echoes', async (req, res) => {
             LEFT JOIN users u ON e.user_id = u.id
             WHERE
                 geog && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+                AND e.parent_id IS NULL
                 AND e.last_played_at >= NOW() - ($5 * INTERVAL '1 day');
         `;
         const values = [sw_lng, sw_lat, ne_lng, ne_lat, EXPIRATION_DAYS];
@@ -716,49 +745,55 @@ app.get('/echoes', async (req, res) => {
 // server/index.js - Update POST /echoes
 
 app.post('/echoes', authMiddleware, async (req, res) => {
-    // 1. Get duration directly
-    const { w3w_address, audio_url, lat, lng, duration } = req.body;
+    const { w3w_address, audio_url, lat, lng, duration, parent_id } = req.body;
     const user_id = req.user.id;
 
-    // 2. Validate (No longer checking for audio_blob_base64)
     if (!w3w_address || !audio_url || lat === undefined || lng === undefined) {
         return res.status(400).json({ error: 'All fields are required' });
     }
 
     let friendlyLocationName = 'An unknown location';
-    
-    // 3. Keep Geocoding Logic
-    try {
-        if (!process.env.OPENCAGE_API_KEY) {
-            console.error("FATAL: OPENCAGE_API_KEY environment variable not set.");
-        } else {
-            // Key is in query param per OpenCage API requirement — never log this URL
-            const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(`${lat}+${lng}`)}&key=${process.env.OPENCAGE_API_KEY}&no_annotations=1&limit=1`;
-            const geoData = await new Promise((resolve, reject) => {
-                https.get(geocodeUrl, (apiRes) => {
-                    let data = '';
-                    apiRes.on('data', chunk => data += chunk);
-                    apiRes.on('end', () => resolve(JSON.parse(data)));
-                }).on('error', err => reject(err));
-            });
 
-            if (geoData && geoData.results && geoData.results.length > 0) {
-                const components = geoData.results[0].components;
-                friendlyLocationName = components.road || components.neighbourhood || components.suburb || components.city || components.state || 'A discovered place';
-            }
+    if (parent_id) {
+        // Replies inherit the parent's location name — skip geocoding
+        try {
+            const parentRes = await pool.query('SELECT location_name FROM echoes WHERE id = $1', [parent_id]);
+            if (parentRes.rows[0]) friendlyLocationName = parentRes.rows[0].location_name;
+        } catch (err) {
+            console.error('Error fetching parent echo location:', err);
         }
-    } catch (err) {
-        console.error("Error during geocoding phase:", err);
+    } else {
+        try {
+            if (!process.env.OPENCAGE_API_KEY) {
+                console.error("FATAL: OPENCAGE_API_KEY environment variable not set.");
+            } else {
+                // Key is in query param per OpenCage API requirement — never log this URL
+                const geocodeUrl = `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(`${lat}+${lng}`)}&key=${process.env.OPENCAGE_API_KEY}&no_annotations=1&limit=1`;
+                const geoData = await new Promise((resolve, reject) => {
+                    https.get(geocodeUrl, (apiRes) => {
+                        let data = '';
+                        apiRes.on('data', chunk => data += chunk);
+                        apiRes.on('end', () => resolve(JSON.parse(data)));
+                    }).on('error', err => reject(err));
+                });
+
+                if (geoData && geoData.results && geoData.results.length > 0) {
+                    const components = geoData.results[0].components;
+                    friendlyLocationName = components.road || components.neighbourhood || components.suburb || components.city || components.state || 'A discovered place';
+                }
+            }
+        } catch (err) {
+            console.error("Error during geocoding phase:", err);
+        }
     }
 
-    // 4. Insert into DB using the passed duration
     try {
         const insertQuery = `
-            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at, location_name, duration_seconds) 
-            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7) 
+            INSERT INTO echoes (w3w_address, audio_url, lat, lng, user_id, last_played_at, location_name, duration_seconds, parent_id)
+            VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, $6, $7, $8)
             RETURNING id;
         `;
-        const insertValues = [w3w_address, audio_url, lat, lng, user_id, friendlyLocationName, duration || 0];
+        const insertValues = [w3w_address, audio_url, lat, lng, user_id, friendlyLocationName, duration || 0, parent_id || null];
         const insertResult = await pool.query(insertQuery, insertValues);
         const newEchoId = insertResult.rows[0].id;
         
@@ -778,6 +813,134 @@ app.post('/echoes', authMiddleware, async (req, res) => {
         res.status(500).json({ error: 'Failed to save echo to database.' });
     }
 });
+
+// ── ECHO REPLIES ──────────────────────────────────────────────────────────────
+
+app.get('/echoes/:id/replies', async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT e.*, u.username FROM echoes e
+             LEFT JOIN users u ON e.user_id = u.id
+             WHERE e.parent_id = $1 AND COALESCE(e.is_hidden, FALSE) = FALSE
+             ORDER BY e.created_at ASC`,
+            [req.params.id]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching replies:', err);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+// ── WALKS ─────────────────────────────────────────────────────────────────────
+
+app.get('/api/walks/mine', authMiddleware, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT w.*, COUNT(we.id)::int AS echo_count
+             FROM walks w
+             LEFT JOIN walk_echoes we ON we.walk_id = w.id
+             WHERE w.user_id = $1
+             GROUP BY w.id
+             ORDER BY w.created_at DESC`,
+            [req.user.id]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching walks:', err);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+app.post('/api/walks', authMiddleware, async (req, res) => {
+    const { title, description } = req.body;
+    if (!title || !title.trim()) return res.status(400).json({ error: 'Title is required.' });
+    try {
+        const result = await pool.query(
+            `INSERT INTO walks (user_id, title, description) VALUES ($1, $2, $3) RETURNING *`,
+            [req.user.id, title.trim(), description || null]
+        );
+        res.status(201).json({ ...result.rows[0], echo_count: 0 });
+    } catch (err) {
+        console.error('Error creating walk:', err);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+app.get('/api/walks/:id', async (req, res) => {
+    try {
+        const walkRes = await pool.query('SELECT * FROM walks WHERE id = $1', [req.params.id]);
+        if (walkRes.rowCount === 0) return res.status(404).json({ error: 'Walk not found.' });
+        const echoRes = await pool.query(
+            `SELECT we.position, e.id AS echo_id, e.location_name, e.audio_url,
+                    e.duration_seconds, e.lat, e.lng, e.created_at, u.username
+             FROM walk_echoes we
+             JOIN echoes e ON we.echo_id = e.id
+             LEFT JOIN users u ON e.user_id = u.id
+             WHERE we.walk_id = $1
+             ORDER BY we.position ASC`,
+            [req.params.id]
+        );
+        res.json({ ...walkRes.rows[0], echoes: echoRes.rows });
+    } catch (err) {
+        console.error('Error fetching walk:', err);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+app.delete('/api/walks/:id', authMiddleware, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'DELETE FROM walks WHERE id = $1 AND user_id = $2 RETURNING id',
+            [req.params.id, req.user.id]
+        );
+        if (result.rowCount === 0) return res.status(403).json({ error: 'Not permitted.' });
+        res.json({ message: 'Walk deleted.' });
+    } catch (err) {
+        console.error('Error deleting walk:', err);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+app.post('/api/walks/:id/echoes', authMiddleware, async (req, res) => {
+    const { echo_id } = req.body;
+    if (!echo_id) return res.status(400).json({ error: 'echo_id required.' });
+    try {
+        const walkRes = await pool.query('SELECT id FROM walks WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+        if (walkRes.rowCount === 0) return res.status(403).json({ error: 'Not permitted.' });
+        const posRes = await pool.query('SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM walk_echoes WHERE walk_id = $1', [req.params.id]);
+        const nextPos = posRes.rows[0].next_pos;
+        await pool.query(
+            'INSERT INTO walk_echoes (walk_id, echo_id, position) VALUES ($1, $2, $3) ON CONFLICT (walk_id, echo_id) DO NOTHING',
+            [req.params.id, echo_id, nextPos]
+        );
+        res.status(201).json({ message: 'Echo added to walk.' });
+    } catch (err) {
+        console.error('Error adding echo to walk:', err);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+app.delete('/api/walks/:id/echoes/:echoId', authMiddleware, async (req, res) => {
+    try {
+        const walkRes = await pool.query('SELECT id FROM walks WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+        if (walkRes.rowCount === 0) return res.status(403).json({ error: 'Not permitted.' });
+        await pool.query('DELETE FROM walk_echoes WHERE walk_id = $1 AND echo_id = $2', [req.params.id, req.params.echoId]);
+        // Compact positions
+        await pool.query(
+            `UPDATE walk_echoes we SET position = sub.rn - 1
+             FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY position) AS rn FROM walk_echoes WHERE walk_id = $1) sub
+             WHERE we.id = sub.id`,
+            [req.params.id]
+        );
+        res.json({ message: 'Echo removed from walk.' });
+    } catch (err) {
+        console.error('Error removing echo from walk:', err);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 app.delete('/api/echoes/:id', authMiddleware, async (req, res) => {
     const echoId = req.params.id;

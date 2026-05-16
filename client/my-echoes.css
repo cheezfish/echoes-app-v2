@@ -9,6 +9,29 @@ body {
     min-height: 100vh;
 }
 
+/* ── TABS ── */
+#page-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+.page-tab {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.82rem;
+    padding: 0.35em 1em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.page-tab.active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #eee;
+}
+
+/* ── ECHO LIST ── */
 #my-echoes-list-container {
     display: flex;
     flex-direction: column;
@@ -31,6 +54,7 @@ body {
     flex-direction: column;
     gap: 0.75rem;
     transition: border-color 0.2s;
+    position: relative;
 }
 .my-echo-item:hover {
     border-color: rgba(255, 255, 255, 0.14);
@@ -48,6 +72,11 @@ body {
     font-size: 1rem;
     font-weight: 600;
     color: #eee;
+}
+.my-echo-item .location-name.is-reply {
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.88rem;
 }
 
 .my-echo-item .date-info {
@@ -81,23 +110,9 @@ body {
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 0.78rem;
     color: rgba(255, 255, 255, 0.3);
+    gap: 0.5rem;
 }
 
-.delete-btn {
-    background: none;
-    border: 1px solid rgba(217, 83, 79, 0.4);
-    color: rgba(217, 83, 79, 0.7);
-    padding: 0.25em 0.8em;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.78rem;
-    transition: all 0.2s;
-}
-.delete-btn:hover {
-    background: rgba(217, 83, 79, 0.12);
-    border-color: #d9534f;
-    color: #d9534f;
-}
 .expiry-urgent {
     color: #f87171;
     font-weight: 600;
@@ -116,14 +131,225 @@ body {
     margin-bottom: 0.4rem;
 }
 .echo-transcript summary:hover { color: rgba(255, 255, 255, 0.55); }
-.echo-transcript p {
-    margin: 0;
-    line-height: 1.55;
-    font-style: italic;
+.echo-transcript p { margin: 0; line-height: 1.55; font-style: italic; }
+
+.add-to-walk-btn {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.4);
+    padding: 0.2em 0.65em;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.add-to-walk-btn:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #eee;
 }
 
+.delete-btn {
+    background: none;
+    border: 1px solid rgba(217, 83, 79, 0.4);
+    color: rgba(217, 83, 79, 0.7);
+    padding: 0.25em 0.8em;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    transition: all 0.2s;
+}
+.delete-btn:hover {
+    background: rgba(217, 83, 79, 0.12);
+    border-color: #d9534f;
+    color: #d9534f;
+}
 .delete-btn:disabled {
     border-color: rgba(255, 255, 255, 0.08);
     color: rgba(255, 255, 255, 0.2);
     cursor: not-allowed;
 }
+
+/* ── ADD TO WALK DROPDOWN ── */
+.walk-select-menu {
+    position: absolute;
+    bottom: 2.5rem;
+    right: 1.25rem;
+    background: rgba(22, 22, 22, 0.97);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 0.4rem;
+    z-index: 50;
+    min-width: 160px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+.walk-select-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.82rem;
+    padding: 0.45rem 0.65rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.walk-select-menu button:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.walk-select-menu .new-walk-from-echo {
+    color: rgba(96, 165, 250, 0.8);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 0.25rem;
+    padding-top: 0.55rem;
+}
+.walk-select-menu p {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.3);
+    padding: 0.4rem 0.65rem;
+    margin: 0;
+}
+
+/* ── WALKS TAB ── */
+#walks-toolbar {
+    margin-bottom: 1rem;
+}
+#new-walk-form {
+    display: none;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+#walk-title-input {
+    flex: 1;
+    min-width: 160px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #eee;
+    font-size: 0.9rem;
+    padding: 0.45rem 0.75rem;
+    outline: none;
+}
+#walk-title-input:focus { border-color: rgba(255, 255, 255, 0.25); }
+#create-walk-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #eee;
+    font-size: 0.85rem;
+    padding: 0.45rem 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+#create-walk-btn:hover { background: rgba(255, 255, 255, 0.16); }
+#cancel-walk-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 0.45rem 0.5rem;
+}
+#cancel-walk-btn:hover { color: rgba(255, 255, 255, 0.6); }
+
+#walks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.walk-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    transition: border-color 0.2s;
+}
+.walk-card:hover { border-color: rgba(255, 255, 255, 0.13); }
+
+.walk-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.walk-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #eee;
+    flex: 1;
+}
+.walk-meta {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.3);
+    white-space: nowrap;
+}
+.walk-header-actions {
+    display: flex;
+    gap: 0.4rem;
+}
+.walk-expand-btn {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.75rem;
+    padding: 0.2em 0.65em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.walk-expand-btn:hover { border-color: rgba(255,255,255,0.25); color: #eee; }
+
+.walk-echo-list {
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.walk-echo-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.walk-echo-row:last-child { border-bottom: none; }
+
+.walk-echo-num {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.25);
+    font-weight: 600;
+    min-width: 16px;
+    text-align: center;
+}
+.walk-echo-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+.walk-echo-name {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.walk-echo-remove {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0 0.25rem;
+    line-height: 1;
+    transition: color 0.2s;
+    flex-shrink: 0;
+}
+.walk-echo-remove:hover { color: #f87171; }

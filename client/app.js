@@ -447,10 +447,8 @@ async function fetchAndRenderClusters(precision) {
         url.searchParams.append('ne_lat', ne.lat);
         url.searchParams.append('precision', precision);
         const res = await fetch(url);
-        console.log('[Clusters] HTTP', res.status, url.toString());
-        if (!res.ok) { console.error('[Clusters] server error', await res.text()); return; }
+        if (!res.ok) return;
         const clusters = await res.json();
-        console.log('[Clusters] received', clusters.length, 'cells', clusters);
         clearClusterMarkers();
         if (clusters.length === 0) {
             updateStatus("No echoes in this region yet.", "info", 0);
@@ -1010,9 +1008,17 @@ async function handleAuthFormSubmit(e) {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "An unknown error occurred.");
         if (mode === 'register') {
-            modalError.textContent = "Registration successful! Please log in.";
-            authForm.reset();
-            openModal('login');
+            const loginRes = await fetch(`${API_URL}/api/users/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ username, password })
+            });
+            const loginData = await loginRes.json();
+            if (!loginRes.ok) throw new Error(loginData.error || 'Registration succeeded but login failed.');
+            loggedInUser = loginData.user.username;
+            updateUIAfterLogin();
+            authModal.style.display = 'none';
         } else {
             loggedInUser = data.user.username;
             updateUIAfterLogin();

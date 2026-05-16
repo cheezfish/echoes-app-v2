@@ -54,6 +54,61 @@ async function _initClerk() {
     });
 }
 
+// --- SERVICE WORKER + PUSH ---
+
+async function _registerSW() {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        window._swReg = reg;
+    } catch (err) {
+        console.warn('[SW] Registration failed:', err);
+    }
+}
+
+window.subscribeToPush = async function() {
+    if (!('PushManager' in window) || !window._swReg) return null;
+    try {
+        const keyRes = await fetch(`${_API_URL}/api/push/vapid-key`);
+        const { publicKey } = await keyRes.json();
+        const sub = await window._swReg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: _urlBase64ToUint8Array(publicKey)
+        });
+        await window.authFetch(`${_API_URL}/api/push/subscribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint, p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))), auth: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))) })
+        });
+        window._pushSub = sub;
+        return sub;
+    } catch (err) {
+        console.warn('[Push] Subscribe failed:', err);
+        return null;
+    }
+};
+
+window.unsubscribeFromPush = async function() {
+    if (!window._pushSub) return;
+    const endpoint = window._pushSub.endpoint;
+    await window._pushSub.unsubscribe();
+    await window.authFetch(`${_API_URL}/api/push/subscribe`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint })
+    });
+    window._pushSub = null;
+};
+
+function _urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+_registerSW();
+
 // Wait for Clerk CDN script before initialising
 if (window.Clerk) {
     _initClerk();

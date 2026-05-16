@@ -17,17 +17,24 @@ const cookieParser = require('cookie-parser');
 const Sentiment = require('sentiment');
 const sentimentAnalyzer = new Sentiment();
 const { clerkMiddleware, getAuth, createClerkClient } = require('@clerk/express');
+const webpush = require('web-push');
 
 const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
 // --- STARTUP ENV VALIDATION ---
-const REQUIRED_ENV = ['JWT_SECRET', 'CLERK_SECRET_KEY', 'CLERK_PUBLISHABLE_KEY', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'R2_PUBLIC_URL_BASE'];
+const REQUIRED_ENV = ['JWT_SECRET', 'CLERK_SECRET_KEY', 'CLERK_PUBLISHABLE_KEY', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'R2_PUBLIC_URL_BASE', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_EMAIL'];
 const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missingEnv.length > 0) {
     console.error(`FATAL: Missing required environment variables: ${missingEnv.join(', ')}`);
     process.exit(1);
 }
-// REMOVED: const mm = require('music-metadata/lib/core'); -> This caused the crash
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+        `mailto:${process.env.VAPID_EMAIL}`,
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+    );
+}
 
 const s3 = new S3Client({
     region: 'auto',
@@ -146,6 +153,22 @@ async function runMigrations() {
                 lng REAL,
                 discarded_at TIMESTAMPTZ DEFAULT NOW()
             );
+
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS last_known_lat REAL;
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS last_known_lng REAL;
+
+            ALTER TABLE echoes ADD COLUMN IF NOT EXISTS expiry_notified BOOLEAN DEFAULT FALSE;
+
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                endpoint TEXT NOT NULL UNIQUE,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                preferences JSONB NOT NULL DEFAULT '{"new_echo_scanning":true,"new_echo_listening":true,"first_listen":true,"reply":true,"expiry_warning":true,"milestone_listens":false,"weekly_digest":false}',
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
         `);
         // Backfill geohash for existing rows that have a geog but no geohash
         await client.query(`
@@ -300,6 +323,128 @@ app.post('/api/users/sync', async (req, res) => {
     } catch (err) {
         console.error('[Sync] Error:', err.message);
         res.status(500).json({ error: 'Failed to sync user.' });
+    }
+});
+
+// --- PUSH NOTIFICATION HELPERS ---
+
+async function sendPush(subscription, payload) {
+    try {
+        await webpush.sendNotification(
+            { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
+            JSON.stringify(payload)
+        );
+    } catch (err) {
+        if (err.statusCode === 410 || err.statusCode === 404) {
+            pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [subscription.endpoint]).catch(() => {});
+        }
+    }
+}
+
+async function pushToUser(userId, prefKey, payload) {
+    try {
+        const subs = await pool.query(
+            `SELECT endpoint, p256dh, auth FROM push_subscriptions
+             WHERE user_id = $1 AND (preferences->$2)::boolean = true`,
+            [userId, prefKey]
+        );
+        for (const sub of subs.rows) await sendPush(sub, payload);
+    } catch (_) {}
+}
+
+async function notifyNearbyUsers(lat, lng, echoId, locationName, excludeUserId) {
+    try {
+        const nearby = await pool.query(`
+            SELECT ps.endpoint, ps.p256dh, ps.auth, ps.preferences,
+                   ST_Distance(
+                       ST_MakePoint(u.last_known_lng, u.last_known_lat)::geography,
+                       ST_MakePoint($2, $1)::geography
+                   ) AS dist_meters
+            FROM push_subscriptions ps
+            JOIN users u ON ps.user_id = u.id
+            WHERE u.last_known_lat IS NOT NULL
+              AND u.id != $3
+              AND ST_DWithin(
+                  ST_MakePoint(u.last_known_lng, u.last_known_lat)::geography,
+                  ST_MakePoint($2, $1)::geography,
+                  500
+              )`,
+            [lat, lng, excludeUserId]
+        );
+        for (const sub of nearby.rows) {
+            const prefs = sub.preferences || {};
+            const dist = sub.dist_meters;
+            if (dist <= 100 && prefs.new_echo_listening) {
+                await sendPush(sub, {
+                    title: 'Echo within earshot',
+                    body: `A new echo just appeared at ${locationName} — you're close enough to listen.`,
+                    url: '/'
+                });
+            } else if (dist <= 500 && prefs.new_echo_scanning) {
+                await sendPush(sub, {
+                    title: 'Echo nearby',
+                    body: `A new echo appeared ${Math.round(dist)}m from you at ${locationName}.`,
+                    url: '/'
+                });
+            }
+        }
+    } catch (_) {}
+}
+
+// --- PUSH ROUTES ---
+
+app.get('/api/push/vapid-key', (req, res) => {
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+app.post('/api/push/subscribe', authMiddleware, async (req, res) => {
+    const { endpoint, p256dh, auth } = req.body;
+    if (!endpoint || !p256dh || !auth) return res.status(400).json({ error: 'Invalid subscription.' });
+    try {
+        await pool.query(
+            `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (endpoint) DO UPDATE SET user_id = $1, p256dh = $3, auth = $4`,
+            [req.user.id, endpoint, p256dh, auth]
+        );
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to save subscription.' });
+    }
+});
+
+app.delete('/api/push/subscribe', authMiddleware, async (req, res) => {
+    const { endpoint } = req.body;
+    await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2', [endpoint, req.user.id]);
+    res.json({ ok: true });
+});
+
+app.patch('/api/push/preferences', authMiddleware, async (req, res) => {
+    const { endpoint, preferences } = req.body;
+    if (!endpoint || !preferences) return res.status(400).json({ error: 'endpoint and preferences required.' });
+    const allowed = ['new_echo_scanning','new_echo_listening','first_listen','reply','expiry_warning','milestone_listens','weekly_digest'];
+    const safe = {};
+    for (const k of allowed) if (k in preferences) safe[k] = !!preferences[k];
+    try {
+        await pool.query(
+            `UPDATE push_subscriptions SET preferences = preferences || $1::jsonb WHERE endpoint = $2 AND user_id = $3`,
+            [JSON.stringify(safe), endpoint, req.user.id]
+        );
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to update preferences.' });
+    }
+});
+
+app.get('/api/push/preferences', authMiddleware, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT preferences FROM push_subscriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+            [req.user.id]
+        );
+        res.json(result.rows[0]?.preferences || null);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed.' });
     }
 });
 
@@ -875,8 +1020,23 @@ app.post('/echoes', authMiddleware, async (req, res) => {
 
         res.status(201).json(finalResult.rows[0]);
 
-        // Fire-and-forget transcription (after response sent)
+        // Fire-and-forget: transcription + push notifications
         transcribeAndModerate(newEchoId, audio_url);
+
+        if (parent_id) {
+            // Notify parent echo's owner of the reply
+            const parentRow = await pool.query('SELECT user_id, location_name FROM echoes WHERE id = $1', [parent_id]);
+            if (parentRow.rows.length && parentRow.rows[0].user_id !== user_id) {
+                pushToUser(parentRow.rows[0].user_id, 'reply', {
+                    title: 'Someone replied to your echo',
+                    body: `A reply was left at ${parentRow.rows[0].location_name}.`,
+                    url: '/my-echoes.html'
+                });
+            }
+        } else {
+            // Notify users nearby
+            notifyNearbyUsers(lat, lng, newEchoId, friendlyLocationName, user_id);
+        }
     } catch (err) {
         console.error('Create Echo DB Error:', err);
         res.status(500).json({ error: 'Failed to save echo to database.' });
@@ -1070,9 +1230,31 @@ app.post('/api/echoes/:id/play', async (req, res) => {
         );
         const playLogId = logResult.rows[0].id;
 
-        // Update listener's last_active_at
+        // Update listener's last_active_at and known location
         if (listenerId) {
-            pool.query('UPDATE users SET last_active_at = NOW() WHERE id = $1', [listenerId]).catch(() => {});
+            const locUpdate = lat != null && lng != null
+                ? 'UPDATE users SET last_active_at = NOW(), last_known_lat = $2, last_known_lng = $3 WHERE id = $1'
+                : 'UPDATE users SET last_active_at = NOW() WHERE id = $1';
+            const locParams = lat != null && lng != null ? [listenerId, lat, lng] : [listenerId];
+            pool.query(locUpdate, locParams).catch(() => {});
+        }
+
+        // Push notifications: first listen + milestones
+        const newPlayCount = listenedEcho.play_count;
+        if (listenedEcho.user_id && listenedEcho.user_id !== listenerId) {
+            if (newPlayCount === 1) {
+                pushToUser(listenedEcho.user_id, 'first_listen', {
+                    title: 'Your echo was heard',
+                    body: `Someone just listened to your echo at ${listenedEcho.location_name}.`,
+                    url: '/my-echoes.html'
+                });
+            } else if ([5, 10, 25, 50, 100].includes(newPlayCount)) {
+                pushToUser(listenedEcho.user_id, 'milestone_listens', {
+                    title: `${newPlayCount} listens!`,
+                    body: `Your echo at ${listenedEcho.location_name} has been heard ${newPlayCount} times.`,
+                    url: '/my-echoes.html'
+                });
+            }
         }
 
         if (listenerId && listenedEcho.user_id !== listenerId) {
@@ -1267,4 +1449,31 @@ app.post('/presigned-url', authMiddleware, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+// --- EXPIRY NOTIFICATION CRON (every 6 hours) ---
+async function runExpiryCron() {
+    try {
+        const expiring = await pool.query(`
+            SELECT e.id, e.user_id, e.location_name
+            FROM echoes e
+            WHERE e.expiry_notified = FALSE
+              AND e.last_played_at < NOW() - INTERVAL '17 days'
+              AND e.last_played_at > NOW() - INTERVAL '20 days'
+              AND e.user_id IS NOT NULL
+        `);
+        for (const echo of expiring.rows) {
+            await pushToUser(echo.user_id, 'expiry_warning', {
+                title: 'Your echo is fading',
+                body: `Your echo at ${echo.location_name} hasn't been heard in a while and will disappear in 3 days.`,
+                url: '/my-echoes.html'
+            });
+            await pool.query('UPDATE echoes SET expiry_notified = TRUE WHERE id = $1', [echo.id]);
+        }
+        if (expiring.rows.length > 0) console.log(`[ExpiryCron] Notified ${expiring.rows.length} expiring echoes.`);
+    } catch (err) {
+        console.error('[ExpiryCron] Error:', err.message);
+    }
+}
+setInterval(runExpiryCron, 6 * 60 * 60 * 1000);
+setTimeout(runExpiryCron, 30000); // run 30s after startup
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

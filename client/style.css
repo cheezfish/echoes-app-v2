@@ -917,6 +917,10 @@ body.sheet-expanded #context-action-btn {
 }
 
 /* ── INSTRUCTIONAL ECHO ──────────────────────────────────────────────────────── */
+.inst-marker-wrapper {
+    background: none !important;
+    border: none !important;
+}
 .inst-icon {
     position: relative;
     width: 40px;

@@ -930,7 +930,7 @@ function injectInstructionalEcho(lat, lng) {
     };
 
     const icon = L.divIcon({
-        className: '',
+        className: 'inst-marker-wrapper',
         iconSize: [40, 40],
         iconAnchor: [20, 20],
         popupAnchor: [0, -22],

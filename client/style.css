@@ -916,70 +916,48 @@ body.sheet-expanded #context-action-btn {
     text-decoration: underline;
 }
 
-/* ── ONBOARDING OVERLAY ──────────────────────────────────────────────────────── */
-#onboarding-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 8000;
-    background: rgba(0, 0, 0, 0.92);
+/* ── INSTRUCTIONAL ECHO ──────────────────────────────────────────────────────── */
+.inst-icon {
+    position: relative;
+    width: 40px;
+    height: 40px;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
-    animation: fade-in 0.6s ease;
-    transition: opacity 0.6s ease;
 }
-#onboarding-overlay.fade-out { opacity: 0; pointer-events: none; }
-#onboarding-icon {
-    font-size: 2.8rem;
-    margin-bottom: 2.5rem;
-    animation: ob-pulse 3s ease-in-out infinite;
+.inst-icon span {
+    font-size: 1.3rem;
+    color: rgba(255, 255, 255, 0.9);
+    position: relative;
+    z-index: 1;
     line-height: 1;
 }
-#onboarding-text {
-    font-size: 1.2rem;
-    color: rgba(255, 255, 255, 0.88);
-    text-align: center;
-    max-width: 340px;
-    line-height: 1.6;
-    min-height: 4.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: opacity 0.35s ease;
-    font-weight: 400;
-    letter-spacing: 0.01em;
-}
-#onboarding-text.line-hidden { opacity: 0; }
-#onboarding-play {
-    margin-top: 2.5rem;
-    background: none;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 999px;
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 0.85rem;
-    padding: 0.6rem 1.6rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    letter-spacing: 0.04em;
-}
-#onboarding-play:hover { border-color: rgba(255,255,255,0.4); color: rgba(255,255,255,0.9); }
-#onboarding-skip {
+.inst-ring {
     position: absolute;
-    top: 1.5rem;
-    right: 1.5rem;
-    background: none;
-    border: none;
-    color: rgba(255, 255, 255, 0.2);
-    font-size: 0.78rem;
-    cursor: pointer;
-    padding: 0.5rem;
-    letter-spacing: 0.05em;
-    transition: color 0.2s ease;
+    inset: -6px;
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    border-radius: 50%;
+    animation: inst-pulse 2.4s ease-in-out infinite;
 }
-#onboarding-skip:hover { color: rgba(255, 255, 255, 0.5); }
-@keyframes ob-pulse {
-    0%, 100% { opacity: 0.2; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.06); }
+@keyframes inst-pulse {
+    0%, 100% { transform: scale(1);   opacity: 0.35; }
+    50%       { transform: scale(1.5); opacity: 0;    }
+}
+.instructional-popup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+.inst-badge {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.inst-hint {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.4);
+    text-align: center;
+    padding: 0.6rem 0 0.4rem;
+    letter-spacing: 0.02em;
 }

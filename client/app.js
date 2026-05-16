@@ -33,6 +33,7 @@ const deepLinkedEchoId = new URLSearchParams(window.location.search).get('echo')
 let recordingTimer;
 let activeWalk = null;
 let isUserInVicinity = false;
+let instructionalEcho = null;
 
 // --- NEW: DYNAMIC PROMPT STATE ---
 let promptInterval = null;
@@ -156,6 +157,20 @@ const formatTime = (seconds) => {
 
 /** Safely builds a Leaflet popup element — no innerHTML with user data */
 function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng) {
+    if (echo.is_instructional && isWithinInteractionRange) {
+        const wrap = document.createElement('div');
+        wrap.className = 'instructional-popup';
+        const badge = document.createElement('div');
+        badge.className = 'inst-badge';
+        badge.textContent = '◎ your first echo';
+        wrap.appendChild(badge);
+        wrap.appendChild(buildAudioPlayer(
+            echo.audio_url,
+            null,
+            (pct) => { if (pct >= 0.85) markOnboardingComplete(); }
+        ));
+        return wrap;
+    }
     if (isWithinInteractionRange) {
         const wrap = document.createElement('div');
         const h3 = document.createElement('h3');
@@ -353,6 +368,7 @@ function initializeApp() {
     markers = L.markerClusterGroup({ disableClusteringAtZoom: 15, animate: false });
     map.addLayer(markers);
     map.on('movestart', () => { isUserInVicinity = false; updateActionButtonState(); });
+    wireInstructionalAutoPlay();
 
     function refreshMapView() {
         const zoom = map.getZoom();
@@ -604,6 +620,19 @@ async function fetchAndRenderClusters(precision) {
 function renderNearbyList(echoes) {
     nearbyEchoesList.innerHTML = '';
 
+    if (instructionalEcho && !localStorage.getItem('echoes_welcomed')) {
+        const hint = document.createElement('p');
+        hint.className = 'inst-hint';
+        const dist = currentUserPosition
+            ? Math.round(L.latLng(currentUserPosition.lat, currentUserPosition.lng)
+                .distanceTo(L.latLng(instructionalEcho.lat, instructionalEcho.lng)))
+            : null;
+        hint.textContent = dist !== null
+            ? `◎ An echo is waiting ${dist}m away`
+            : '◎ An echo is waiting nearby';
+        nearbyEchoesList.appendChild(hint);
+    }
+
     if (echoes.length === 0) {
         const p = document.createElement('p');
         p.className = 'empty-message';
@@ -705,13 +734,15 @@ function renderMapMarkers(echoes) {
     echoMarkersMap.clear();
 
     if (!currentUserPosition) {
-        // If we don't know the user's location, we can't calculate distance.
-        // Treat all echoes as distant for now.
         console.warn("Cannot calculate true distance; currentUserPosition is not set.");
     }
     const userLatLng = currentUserPosition ? L.latLng(currentUserPosition.lat, currentUserPosition.lng) : null;
 
-    echoes.forEach(echo => {
+    const allEchoes = (instructionalEcho && !localStorage.getItem('echoes_welcomed'))
+        ? [instructionalEcho, ...echoes]
+        : echoes;
+
+    allEchoes.forEach(echo => {
         if (!echo.lat || !echo.lng) return;
 
         const echoLatLng = L.latLng(echo.lat, echo.lng);
@@ -726,14 +757,18 @@ function renderMapMarkers(echoes) {
 
         const popupEl = buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng);
 
-        const ageMs = new Date() - new Date(echo.last_played_at);
-        let healthPercent = Math.max(0, 100 * (1 - (ageMs / ECHO_LIFESPAN_MS)));
-        const healthIcon = createHealthIcon(healthPercent, echo.id === highlightedEchoId);
+        const icon = echo.is_instructional
+            ? createInstructionalIcon()
+            : (() => {
+                const ageMs = new Date() - new Date(echo.last_played_at);
+                const healthPercent = Math.max(0, 100 * (1 - (ageMs / ECHO_LIFESPAN_MS)));
+                return createHealthIcon(healthPercent, echo.id === highlightedEchoId);
+            })();
 
-        const marker = L.marker(echoLatLng, { icon: healthIcon });
+        const marker = L.marker(echoLatLng, { icon });
         marker.bindPopup(popupEl);
 
-        if (!isWithinInteractionRange) {
+        if (!isWithinInteractionRange && !echo.is_instructional) {
             marker.on('add', function() {
                  if (this._icon) L.DomUtil.addClass(this._icon, 'distant-echo');
             });
@@ -882,80 +917,52 @@ function endWalk() {
     updateWalkBanner();
 }
 
-// ── ONBOARDING OVERLAY ────────────────────────────────────────────────────────
+// ── INSTRUCTIONAL ECHO ────────────────────────────────────────────────────────
 
 const ONBOARDING_AUDIO_URL = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev/onboarding.mp3';
 
-function showOnboardingIfNeeded() {
-    if (localStorage.getItem('echoes_welcomed')) return;
+function injectInstructionalEcho(lat, lng) {
+    if (localStorage.getItem('echoes_welcomed') || instructionalEcho) return;
+    // Place ~80m NE of user
+    const dLat = 80 / 111000;
+    const dLng = 80 / (111000 * Math.cos(lat * Math.PI / 180));
+    instructionalEcho = {
+        id: 'instructional',
+        lat: lat + dLat,
+        lng: lng + dLng,
+        location_name: 'An echo',
+        audio_url: ONBOARDING_AUDIO_URL,
+        username: null,
+        user_id: null,
+        created_at: new Date().toISOString(),
+        last_played_at: new Date().toISOString(),
+        is_instructional: true,
+        parent_id: null,
+        transcript: null,
+    };
+}
 
-    const lines = [
-        { text: "Every place holds more than it shows.",                          start: 0.0   },
-        { text: "The street you cut through every morning.",                       start: 2.82  },
-        { text: "The bench that always seems occupied.",                           start: 5.16  },
-        { text: "The doorway that smells different in the rain.",                  start: 8.22  },
-        { text: "Things happened there. People felt things. Most of it disappears.", start: 11.36 },
-        { text: "But some people leave a trace.",                                  start: 16.82 },
-        { text: "A voice, an echo of a moment they couldn't let go of.",           start: 19.4  },
-        { text: "Get close enough and you'll hear it.",                            start: 23.5  },
-        { text: "Not forever.",                                                    start: 25.84 },
-        { text: "Echoes fade.",                                                    start: 27.38 },
-        { text: "But every listen gives them a little more time.",                 start: 29.24 },
-        { text: "You can leave one too.",                                          start: 32.86 },
-        { text: "Your voice, your place, your reason.",                            start: 34.88 },
-        { text: "Tap the map. There's more out here than you think.",              start: 37.3  },
-    ];
+function createInstructionalIcon() {
+    return L.divIcon({
+        className: '',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+        popupAnchor: [0, -22],
+        html: `<div class="inst-icon"><div class="inst-ring"></div><span>◎</span></div>`,
+    });
+}
 
-    const overlay = document.createElement('div');
-    overlay.id = 'onboarding-overlay';
-    overlay.innerHTML = `
-        <div id="onboarding-icon">◎</div>
-        <p id="onboarding-text" class="line-hidden"></p>
-        <button id="onboarding-play">listen</button>
-        <button id="onboarding-skip">skip</button>
-    `;
-    document.body.appendChild(overlay);
+function markOnboardingComplete() {
+    localStorage.setItem('echoes_welcomed', '1');
+    instructionalEcho = null;
+    if (currentEchoesInView.length) renderMapMarkers(currentEchoesInView);
+}
 
-    const textEl  = document.getElementById('onboarding-text');
-    const playBtn = document.getElementById('onboarding-play');
-    let currentIdx = -1;
-    let audio = null;
-
-    function setLine(idx) {
-        if (idx === currentIdx) return;
-        currentIdx = idx;
-        textEl.classList.add('line-hidden');
-        setTimeout(() => {
-            textEl.textContent = idx >= 0 ? lines[idx].text : '';
-            if (idx >= 0) textEl.classList.remove('line-hidden');
-        }, 350);
-    }
-
-    function dismiss() {
-        if (audio) audio.pause();
-        overlay.classList.add('fade-out');
-        overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
-        localStorage.setItem('echoes_welcomed', '1');
-    }
-
-    function startAudio() {
-        playBtn.remove();
-        audio = new Audio(ONBOARDING_AUDIO_URL);
-        audio.addEventListener('timeupdate', () => {
-            const t = audio.currentTime;
-            let idx = -1;
-            for (let i = 0; i < lines.length; i++) {
-                if (t >= lines[i].start) idx = i;
-                else break;
-            }
-            setLine(idx);
-        });
-        audio.addEventListener('ended', dismiss);
-        audio.play();
-    }
-
-    playBtn.addEventListener('click', startAudio);
-    document.getElementById('onboarding-skip').addEventListener('click', dismiss);
+function wireInstructionalAutoPlay() {
+    map.on('popupopen', (e) => {
+        const playBtn = e.popup.getElement()?.querySelector('.instructional-popup .ap-play-btn');
+        if (playBtn) setTimeout(() => playBtn.click(), 400);
+    });
 }
 
 // ── WALK DISCOVERY ────────────────────────────────────────────────────────────
@@ -1102,7 +1109,7 @@ function onLocationUpdate(position) {
     currentBucketKey = `sq_${latStr}_${lngStr}`;
     if (!isUserInVicinity) {
         navigator.vibrate?.(200);
-        showOnboardingIfNeeded();
+        injectInstructionalEcho(currentUserPosition.lat, currentUserPosition.lng);
     }
     isUserInVicinity = true;
     updateActionButtonState();

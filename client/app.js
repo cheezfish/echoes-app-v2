@@ -929,18 +929,14 @@ function injectInstructionalEcho(lat, lng) {
         is_instructional: true,
     };
 
-    const icon = L.divIcon({
-        className: 'inst-marker-wrapper',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
-        popupAnchor: [0, -22],
-        html: `<div class="inst-icon"><div class="inst-ring"></div><span>◎</span></div>`,
-    });
-
-    instructionalMarker = L.marker([instructionalEcho.lat, instructionalEcho.lng], {
-        icon,
-        zIndexOffset: 2000,
+    instructionalMarker = L.circleMarker([instructionalEcho.lat, instructionalEcho.lng], {
+        radius: 18,
+        color: '#ffffff',
+        fillColor: '#ffffff',
+        fillOpacity: 0.25,
+        weight: 2,
     }).addTo(map);
+    console.log('[onboarding] circleMarker added to map', instructionalMarker);
 
     // Popup content updates based on proximity — rebuild on each open
     instructionalMarker.on('click', () => {

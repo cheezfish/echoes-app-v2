@@ -28,6 +28,8 @@ let currentEchoesInView = [];
 let highlightedEchoId = null;
 let locationWatcherId = null;
 let fetchTimeout = null;
+let walksLoaded = false;
+const deepLinkedEchoId = new URLSearchParams(window.location.search).get('echo');
 let recordingTimer;
 let activeWalk = null;
 let isUserInVicinity = false;
@@ -159,8 +161,17 @@ function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng
         const h3 = document.createElement('h3');
         h3.textContent = echo.location_name || 'An Echo';
         const p = document.createElement('p');
-        const author = echo.username ? `by ${echo.username}` : 'by an anonymous user';
-        p.textContent = `Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}`;
+        const dateStr = new Date(echo.created_at).toLocaleDateString();
+        if (echo.username && echo.user_id) {
+            const authorLink = document.createElement('a');
+            authorLink.href = `profile.html?id=${echo.user_id}`;
+            authorLink.className = 'echo-author-link';
+            authorLink.textContent = echo.username;
+            p.append(`Recorded on: ${dateStr} by `);
+            p.appendChild(authorLink);
+        } else {
+            p.textContent = `Recorded on: ${dateStr} by an anonymous user`;
+        }
         wrap.appendChild(h3);
         wrap.appendChild(p);
         let _playLogId = null;
@@ -217,6 +228,19 @@ function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng
                 }
             })
             .catch(() => {});
+
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'share-echo-btn';
+        shareBtn.textContent = 'Share';
+        shareBtn.addEventListener('click', () => {
+            const url = `${location.origin}/?echo=${echo.id}`;
+            if (navigator.share) {
+                navigator.share({ title: echo.location_name || 'An Echo', url });
+            } else {
+                navigator.clipboard.writeText(url).then(() => showToast('Link copied', 'success'));
+            }
+        });
+        wrap.appendChild(shareBtn);
 
         return wrap;
     } else {
@@ -357,6 +381,9 @@ function initializeApp() {
     // Load on initial view (map starts at zoom 2 — show clusters once tiles settle)
     map.once('load', refreshMapView);
     setTimeout(refreshMapView, 1000);
+
+    // Handle deep-linked echo (?echo=id) after initial markers load
+    if (deepLinkedEchoId) setTimeout(handleDeepLinkedEcho, 1500);
 }
 
 function setupEventListeners() {
@@ -375,6 +402,17 @@ function setupEventListeners() {
     document.getElementById('preview-discard-btn').addEventListener('click', dismissPreview);
     document.getElementById('walk-banner-next').addEventListener('click', advanceWalk);
     document.getElementById('walk-banner-end').addEventListener('click', endWalk);
+
+    document.querySelectorAll('.sheet-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.sheet-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const isWalks = btn.dataset.tab === 'walks';
+            document.getElementById('nearby-echoes-list').style.display = isWalks ? 'none' : '';
+            document.getElementById('walks-browse-list').style.display = isWalks ? '' : 'none';
+            if (isWalks && !walksLoaded) loadPublicWalks();
+        });
+    });
 }
 
 // --- CORE UI MANAGEMENT ---
@@ -844,6 +882,96 @@ function endWalk() {
     updateWalkBanner();
 }
 
+// ── ONBOARDING OVERLAY ────────────────────────────────────────────────────────
+
+function showOnboardingIfNeeded() {
+    if (localStorage.getItem('echoes_welcomed')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'onboarding-overlay';
+    overlay.innerHTML = `
+        <div id="onboarding-card">
+            <div id="onboarding-icon">◎</div>
+            <h2>How Echoes works</h2>
+            <p>People leave short audio recordings at real places. Walk within <strong>100 metres</strong> of a marker to unlock and hear it.</p>
+            <p class="onboarding-sub">Tap the map to explore. The closer you get, the more you hear.</p>
+            <button id="onboarding-dismiss" class="pill-btn">Got it</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    document.getElementById('onboarding-dismiss').addEventListener('click', () => {
+        overlay.classList.add('fade-out');
+        overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+        localStorage.setItem('echoes_welcomed', '1');
+    });
+}
+
+// ── WALK DISCOVERY ────────────────────────────────────────────────────────────
+
+async function loadPublicWalks() {
+    const list = document.getElementById('walks-browse-list');
+    list.innerHTML = '<p class="empty-message">Loading walks…</p>';
+    try {
+        const res = await fetch(`${API_URL}/api/walks/public`);
+        const walks = await res.json();
+        walksLoaded = true;
+        list.innerHTML = '';
+        if (!walks.length) {
+            list.innerHTML = '<p class="empty-message">No walks yet — be the first to create one.</p>';
+            return;
+        }
+        walks.forEach(w => list.appendChild(buildWalkBrowseCard(w)));
+    } catch (_) {
+        list.innerHTML = '<p class="empty-message">Could not load walks.</p>';
+    }
+}
+
+function buildWalkBrowseCard(walk) {
+    const card = document.createElement('div');
+    card.className = 'walk-browse-card';
+    const info = document.createElement('div');
+    info.className = 'walk-browse-info';
+    const title = document.createElement('div');
+    title.className = 'walk-browse-title';
+    title.textContent = walk.title;
+    const meta = document.createElement('div');
+    meta.className = 'walk-browse-meta';
+    meta.textContent = `${walk.echo_count} echo${walk.echo_count !== 1 ? 's' : ''} · by ${walk.username}`;
+    info.appendChild(title);
+    info.appendChild(meta);
+    const startBtn = document.createElement('button');
+    startBtn.className = 'pill-btn walk-browse-start';
+    startBtn.textContent = 'Start Walk';
+    startBtn.addEventListener('click', () => startWalk(walk.id));
+    card.appendChild(info);
+    card.appendChild(startBtn);
+    return card;
+}
+
+// ── ECHO DEEP-LINK ────────────────────────────────────────────────────────────
+
+async function handleDeepLinkedEcho() {
+    if (!deepLinkedEchoId) return;
+    try {
+        const res = await fetch(`${API_URL}/echoes/${deepLinkedEchoId}`);
+        if (!res.ok) return;
+        const echo = await res.json();
+        map.flyTo([echo.lat, echo.lng], 17, { duration: 1.2 });
+        map.once('moveend', () => {
+            const marker = echoMarkersMap.get(Number(deepLinkedEchoId));
+            if (marker) {
+                marker.openPopup();
+            } else {
+                // Marker may not be in view yet — refresh then open
+                fetchEchoesForCurrentView();
+                setTimeout(() => {
+                    const m = echoMarkersMap.get(Number(deepLinkedEchoId));
+                    if (m) m.openPopup();
+                }, 1200);
+            }
+        });
+    } catch (_) {}
+}
+
 function advanceWalk() {
     if (!activeWalk) return;
     activeWalk.currentIndex++;
@@ -919,7 +1047,10 @@ function onLocationUpdate(position) {
     const latStr = currentUserPosition.lat.toFixed(4);
     const lngStr = currentUserPosition.lng.toFixed(4);
     currentBucketKey = `sq_${latStr}_${lngStr}`;
-    if (!isUserInVicinity) navigator.vibrate?.(200);
+    if (!isUserInVicinity) {
+        navigator.vibrate?.(200);
+        showOnboardingIfNeeded();
+    }
     isUserInVicinity = true;
     updateActionButtonState();
     updateWalkBanner();

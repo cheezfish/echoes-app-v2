@@ -1080,6 +1080,24 @@ app.post('/echoes', authMiddleware, async (req, res) => {
     }
 });
 
+// ── SINGLE ECHO LOOKUP (for deep-links) ───────────────────────────────────────
+
+app.get('/echoes/:id', async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT e.*, u.username FROM echoes e
+             LEFT JOIN users u ON e.user_id = u.id
+             WHERE e.id = $1 AND COALESCE(e.is_hidden, FALSE) = FALSE`,
+            [req.params.id]
+        );
+        if (!result.rows.length) return res.status(404).json({ msg: 'Not found.' });
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Error fetching echo:', err);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
 // ── ECHO REPLIES ──────────────────────────────────────────────────────────────
 
 app.get('/echoes/:id/replies', async (req, res) => {
@@ -1202,6 +1220,63 @@ app.delete('/api/walks/:id/echoes/:echoId', authMiddleware, async (req, res) => 
         res.json({ message: 'Echo removed from walk.' });
     } catch (err) {
         console.error('Error removing echo from walk:', err);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+// ── PUBLIC WALK BROWSE ────────────────────────────────────────────────────────
+
+app.get('/api/walks/public', async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+        const result = await pool.query(
+            `SELECT w.id, w.title, w.description, w.created_at,
+                    u.username, COUNT(we.id)::int AS echo_count
+             FROM walks w
+             JOIN users u ON w.user_id = u.id
+             LEFT JOIN walk_echoes we ON we.walk_id = w.id
+             WHERE w.is_public = TRUE
+             GROUP BY w.id, u.username
+             HAVING COUNT(we.id) > 0
+             ORDER BY w.created_at DESC LIMIT $1`,
+            [limit]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Error fetching public walks:', err);
+        res.status(500).json({ error: 'Server error.' });
+    }
+});
+
+// ── PUBLIC PROFILE ────────────────────────────────────────────────────────────
+
+app.get('/api/users/:id/profile', async (req, res) => {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) return res.status(400).json({ msg: 'Invalid user id.' });
+    try {
+        const [userRes, echoRes, walkRes] = await Promise.all([
+            pool.query('SELECT id, username FROM users WHERE id = $1', [userId]),
+            pool.query(
+                `SELECT id, location_name, audio_url, duration_seconds, lat, lng,
+                        play_count, created_at
+                 FROM echoes
+                 WHERE user_id = $1 AND parent_id IS NULL
+                   AND COALESCE(is_hidden, FALSE) = FALSE
+                 ORDER BY created_at DESC LIMIT 30`,
+                [userId]
+            ),
+            pool.query(
+                `SELECT w.id, w.title, w.created_at, COUNT(we.id)::int AS echo_count
+                 FROM walks w LEFT JOIN walk_echoes we ON we.walk_id = w.id
+                 WHERE w.user_id = $1 AND w.is_public = TRUE
+                 GROUP BY w.id ORDER BY w.created_at DESC`,
+                [userId]
+            )
+        ]);
+        if (!userRes.rows.length) return res.status(404).json({ msg: 'Not found.' });
+        res.json({ ...userRes.rows[0], echoes: echoRes.rows, walks: walkRes.rows });
+    } catch (err) {
+        console.error('Error fetching profile:', err);
         res.status(500).json({ error: 'Server error.' });
     }
 });

@@ -835,3 +835,129 @@ body.sheet-expanded #context-action-btn {
 @media (max-width: 768px) {
     .leaflet-control-zoom { display: none !important; }
 }
+
+/* ── SHEET TABS ─────────────────────────────────────────────────────────────── */
+#sheet-tabs {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem 0;
+}
+.sheet-tab {
+    flex: 1;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 0.4rem 0;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.sheet-tab.active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* ── WALK BROWSE CARDS ───────────────────────────────────────────────────────── */
+#walks-browse-list { padding-bottom: 1rem; }
+.walk-browse-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.walk-browse-info { flex: 1; min-width: 0; }
+.walk-browse-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.88);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.walk-browse-meta {
+    font-size: 0.74rem;
+    color: rgba(255, 255, 255, 0.35);
+    margin-top: 0.15rem;
+}
+.walk-browse-start {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.75rem;
+    flex-shrink: 0;
+}
+
+/* ── SHARE BUTTON ────────────────────────────────────────────────────────────── */
+.share-echo-btn {
+    margin-top: 0.6rem;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.75rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    color: rgba(255, 255, 255, 0.45);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+.share-echo-btn:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── AUTHOR LINK ─────────────────────────────────────────────────────────────── */
+.echo-author-link {
+    color: rgba(255, 255, 255, 0.5);
+    text-decoration: none;
+}
+.echo-author-link:hover {
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: underline;
+}
+
+/* ── ONBOARDING OVERLAY ──────────────────────────────────────────────────────── */
+#onboarding-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 8000;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0 1rem 2.5rem;
+    animation: fade-in 0.35s ease;
+    transition: opacity 0.3s ease;
+}
+#onboarding-overlay.fade-out { opacity: 0; pointer-events: none; }
+#onboarding-card {
+    background: rgba(18, 18, 18, 0.97);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 2rem 1.75rem;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+}
+#onboarding-icon {
+    font-size: 2.4rem;
+    opacity: 0.5;
+    margin-bottom: 0.75rem;
+    line-height: 1;
+}
+#onboarding-card h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 0.75rem;
+}
+#onboarding-card p {
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.55;
+    margin: 0 0 0.5rem;
+}
+#onboarding-card strong { color: rgba(255, 255, 255, 0.85); }
+.onboarding-sub { font-size: 0.8rem !important; color: rgba(255,255,255,0.35) !important; }
+#onboarding-dismiss { margin-top: 1.25rem; }

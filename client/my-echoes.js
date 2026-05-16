@@ -8,15 +8,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const walksList = document.getElementById('walks-list');
     const pageNavUser = document.getElementById('page-nav-user');
 
-    let currentUser;
-    try {
-        const meRes = await fetch(`${API_URL}/api/users/me`, { credentials: 'include' });
-        if (!meRes.ok) { window.location.href = 'index.html'; return; }
-        currentUser = await meRes.json();
-    } catch {
-        window.location.href = 'index.html';
-        return;
-    }
+    // Auth gate — wait for Clerk auth state
+    const currentUser = await new Promise(resolve => {
+        window.addEventListener('auth:ready', e => resolve(e.detail?.user), { once: true });
+        if (window.clerkUser !== undefined) resolve(window.clerkUser);
+    });
+    if (!currentUser) { window.location.href = 'index.html'; return; }
 
     if (pageNavUser) pageNavUser.textContent = currentUser.username;
 
@@ -50,7 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function fetchMyEchoes() {
         try {
-            const response = await fetch(`${API_URL}/api/users/my-echoes`, { credentials: 'include' });
+            const response = await window.authFetch(`${API_URL}/api/users/my-echoes`);
             if (!response.ok) {
                 if (response.status === 401 || response.status === 403) window.location.href = 'index.html';
                 throw new Error('Could not fetch your echoes.');
@@ -182,8 +179,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         button.textContent = 'Deleting...';
         button.disabled = true;
         try {
-            const response = await fetch(`${API_URL}/api/echoes/${echoId}`, {
-                method: 'DELETE', credentials: 'include'
+            const response = await window.authFetch(`${API_URL}/api/echoes/${echoId}`, {
+                method: 'DELETE',
             });
             if (!response.ok) {
                 const errData = await response.json();

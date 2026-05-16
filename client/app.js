@@ -140,7 +140,7 @@ const recordingMessages = [
 ];
 
 // --- UI ELEMENT CACHE ---
-let loginBtn, welcomeMessage, loggedOutView, loggedInView, userPillBtn, userAvatar, userMenuDropdown, toastContainer, contextActionBtn, nearbyEchoesList, bottomSheet, sheetSummary, authModal, authForm, modalError, usernameInput, passwordInput, modalTitle, modalSubmitBtn;
+let loginBtn, welcomeMessage, loggedOutView, loggedInView, userPillBtn, userAvatar, userMenuDropdown, toastContainer, contextActionBtn, nearbyEchoesList, bottomSheet, sheetSummary;
 
 // Helper to format seconds into MM:SS
 const formatTime = (seconds) => {
@@ -262,13 +262,6 @@ document.addEventListener('DOMContentLoaded', () => {
     nearbyEchoesList = document.getElementById("nearby-echoes-list");
     bottomSheet = document.getElementById("bottom-sheet");
     sheetSummary = document.getElementById("sheet-summary");
-    authModal = document.getElementById("auth-modal");
-    authForm = document.getElementById("auth-form");
-    modalError = document.getElementById("modal-error");
-    usernameInput = document.getElementById("username");
-    passwordInput = document.getElementById("password");
-    modalTitle = document.getElementById("modal-title");
-    modalSubmitBtn = document.getElementById("modal-submit-btn");
     initializeApp();
 });
 
@@ -289,7 +282,16 @@ function initBottomSheet() {
 function initializeApp() {
     setupEventListeners();
     initBottomSheet();
-    checkLoginState();
+    // Auth state comes from auth.js via Clerk — update UI when ready
+    window.addEventListener('auth:ready', (e) => {
+        const user = e.detail?.user;
+        if (user) {
+            loggedInUser = user.username;
+            updateUIAfterLogin();
+        } else {
+            updateUIAfterLogout();
+        }
+    });
     const savedMapState = JSON.parse(localStorage.getItem('echoes_map') || 'null');
     const initCenter = savedMapState ? [savedMapState.lat, savedMapState.lng] : [20, 0];
     const initZoom  = savedMapState ? savedMapState.zoom : 2;
@@ -344,7 +346,7 @@ function initializeApp() {
 }
 
 function setupEventListeners() {
-    loginBtn.addEventListener('click', () => openModal('login'));
+    loginBtn.addEventListener('click', () => window.signIn());
     contextActionBtn.addEventListener('click', handleContextActionClick);
     if (userPillBtn) userPillBtn.addEventListener('click', toggleUserMenu);
     const closeMenuOnOutsideClick = (e) => {
@@ -357,9 +359,6 @@ function setupEventListeners() {
     document.getElementById('sheet-handle-area').addEventListener('click', toggleSheet);
     document.getElementById('preview-post-btn').addEventListener('click', confirmPostEcho);
     document.getElementById('preview-discard-btn').addEventListener('click', dismissPreview);
-    authModal.querySelector('.close-btn').addEventListener('click', () => authModal.style.display = 'none');
-    authModal.addEventListener('click', e => { if (e.target === authModal) authModal.style.display = 'none'; });
-    authForm.addEventListener('submit', handleAuthFormSubmit);
 }
 
 // --- CORE UI MANAGEMENT ---
@@ -480,7 +479,7 @@ async function fetchEchoesForCurrentView() {
         url.searchParams.append('ne_lng', ne.lng);
         url.searchParams.append('ne_lat', ne.lat);
 
-        const response = await fetch(url, { credentials: 'include' });
+        const response = await fetch(url);
         if (!response.ok) throw new Error("Server could not fetch echoes.");
         
         currentEchoesInView = await response.json();
@@ -698,9 +697,8 @@ async function handleReportEcho(echoId) {
     const reason = prompt('Why are you reporting this echo?\n(e.g. offensive content, spam, inappropriate)');
     if (!reason || !reason.trim()) return;
     try {
-        const res = await fetch(`${API_URL}/api/echoes/${echoId}/report`, {
+        const res = await window.authFetch(`${API_URL}/api/echoes/${echoId}/report`, {
             method: 'POST',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reason: reason.trim() })
         });
@@ -758,7 +756,6 @@ window.keepEchoAlive = async (id) => {
         fetch(`${API_URL}/api/echoes/${id}/play`, {
             method: 'POST',
             headers: { "Content-Type": "application/json" },
-            credentials: 'include',
         });
 
         // Update the UI immediately (turn the ring red/orange)
@@ -978,8 +975,8 @@ async function confirmPostEcho() {
     const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
     try {
         updateStatus("Preparing upload...", "info", 0);
-        const presignedResponse = await fetch(`${API_URL}/presigned-url`, {
-            method: "POST", headers: { "Content-Type": "application/json" }, credentials: 'include',
+        const presignedResponse = await window.authFetch(`${API_URL}/presigned-url`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fileName, fileType: blob.type })
         });
         if (!presignedResponse.ok) throw new Error('Presigned URL failed');
@@ -992,8 +989,8 @@ async function confirmPostEcho() {
         updateStatus("Saving...", "info", 0);
         const replyToId = pendingReplyToEchoId;
         pendingReplyToEchoId = null;
-        const saveResponse = await fetch(`${API_URL}/echoes`, {
-            method: "POST", headers: { "Content-Type": "application/json" }, credentials: 'include',
+        const saveResponse = await window.authFetch(`${API_URL}/echoes`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 w3w_address: currentBucketKey,
                 audio_url: audioUrl,
@@ -1018,33 +1015,16 @@ async function confirmPostEcho() {
 }
 
 async function uploadAndSaveEcho() {
-    // Legacy path — kept for any direct callers but now goes through preview
     showRecordingPreview();
 }
 
-
-async function checkLoginState() {
-    try {
-        const res = await fetch(`${API_URL}/api/users/me`, { credentials: 'include' });
-        if (res.ok) {
-            const data = await res.json();
-            loggedInUser = data.username;
-            updateUIAfterLogin();
-        } else {
-            updateUIAfterLogout();
-        }
-    } catch {
-        updateUIAfterLogout();
-    }
-}
 async function handleLogout() {
-    try { await fetch(`${API_URL}/api/users/logout`, { method: 'POST', credentials: 'include' }); } catch { /* ignore */ }
     loggedInUser = null;
     if (userMenuDropdown) userMenuDropdown.style.display = 'none';
-    updateUIAfterLogout();
     if (locationWatcherId) { navigator.geolocation.clearWatch(locationWatcherId); locationWatcherId = null; }
     isUserInVicinity = false;
     updateActionButtonState();
+    await window.signOut();
 }
 function updateUIAfterLogin() {
     loggedOutView.style.display = "none";
@@ -1057,64 +1037,6 @@ function updateUIAfterLogin() {
 function updateUIAfterLogout() {
     loggedInView.style.display = 'none';
     loggedOutView.style.display = 'block';
-    // Use the new updateStatus function to set the default logged-out message
     updateStatus("Click the compass to explore your area.", '', 0);
     updateActionButtonState();
-}
-function openModal(mode) {
-    modalError.textContent = "";
-    authForm.reset();
-    if (mode === 'login') {
-        modalTitle.textContent = "Sign in";
-        modalSubmitBtn.textContent = "Sign in";
-        authForm.dataset.mode = "login";
-        document.getElementById('modal-switch').innerHTML = `No account? <a href="#" id="modal-switch-link">Register</a>`;
-    } else {
-        modalTitle.textContent = "Create account";
-        modalSubmitBtn.textContent = "Register";
-        authForm.dataset.mode = "register";
-        document.getElementById('modal-switch').innerHTML = `Have an account? <a href="#" id="modal-switch-link">Sign in</a>`;
-    }
-    document.getElementById('modal-switch-link').addEventListener('click', (e) => {
-        e.preventDefault();
-        openModal(authForm.dataset.mode === 'login' ? 'register' : 'login');
-    });
-    authModal.style.display = "flex";
-}
-async function handleAuthFormSubmit(e) {
-    e.preventDefault();
-    modalError.textContent = "";
-    const username = usernameInput.value;
-    const password = passwordInput.value;
-    const mode = authForm.dataset.mode;
-    const endpoint = mode === 'login' ? "/api/users/login" : "/api/users/register";
-    try {
-        const response = await fetch(`${API_URL}${endpoint}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: 'include',
-            body: JSON.stringify({ username, password })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "An unknown error occurred.");
-        if (mode === 'register') {
-            const loginRes = await fetch(`${API_URL}/api/users/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ username, password })
-            });
-            const loginData = await loginRes.json();
-            if (!loginRes.ok) throw new Error(loginData.error || 'Registration succeeded but login failed.');
-            loggedInUser = loginData.user.username;
-            updateUIAfterLogin();
-            authModal.style.display = 'none';
-        } else {
-            loggedInUser = data.user.username;
-            updateUIAfterLogin();
-            authModal.style.display = "none";
-        }
-    } catch (err) {
-        modalError.textContent = err.message;
-    }
 }

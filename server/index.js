@@ -16,9 +16,12 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const Sentiment = require('sentiment');
 const sentimentAnalyzer = new Sentiment();
+const { clerkMiddleware, getAuth, createClerkClient } = require('@clerk/express');
+
+const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
 // --- STARTUP ENV VALIDATION ---
-const REQUIRED_ENV = ['JWT_SECRET', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'R2_PUBLIC_URL_BASE'];
+const REQUIRED_ENV = ['JWT_SECRET', 'CLERK_SECRET_KEY', 'CLERK_PUBLISHABLE_KEY', 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET_NAME', 'R2_PUBLIC_URL_BASE'];
 const missingEnv = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missingEnv.length > 0) {
     console.error(`FATAL: Missing required environment variables: ${missingEnv.join(', ')}`);
@@ -49,6 +52,15 @@ const { checkAndAwardAchievements } = require('./services/achievements');
 async function runMigrations() {
     const client = await pool.connect();
     try {
+        // Clerk auth migration
+        await client.query(`
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS clerk_id TEXT;
+            ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+        `);
+        await client.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_id ON users(clerk_id) WHERE clerk_id IS NOT NULL;
+        `);
+
         await client.query(`
             ALTER TABLE echoes ADD COLUMN IF NOT EXISTS geohash TEXT;
             ALTER TABLE echoes ADD COLUMN IF NOT EXISTS country_code TEXT;
@@ -151,6 +163,7 @@ app.set('trust proxy', 1); // Behind Cloudflare
 app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
+app.use(clerkMiddleware());
 
 // --- RATE LIMITERS ---
 const authLimiter = rateLimit({
@@ -232,6 +245,49 @@ app.get('/api/users/me', authMiddleware, (req, res) => {
 app.post('/api/users/logout', (req, res) => {
     res.clearCookie('echoes_token', { httpOnly: true, secure: true, sameSite: 'Lax' });
     res.json({ msg: 'Logged out.' });
+});
+
+// Clerk user sync — creates DB row on first sign-in, returns existing on subsequent calls
+app.post('/api/users/sync', async (req, res) => {
+    const { userId } = getAuth(req);
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+
+    try {
+        const existing = await pool.query(
+            'SELECT id, username FROM users WHERE clerk_id = $1',
+            [userId]
+        );
+        if (existing.rows.length) return res.json(existing.rows[0]);
+
+        // New Clerk user — fetch profile to build a username
+        const clerkUser = await clerkClient.users.getUser(userId);
+        let base = '';
+        if (clerkUser.firstName) {
+            base = clerkUser.firstName.toLowerCase().replace(/[^a-z0-9_]/g, '');
+        } else if (clerkUser.emailAddresses?.[0]) {
+            base = clerkUser.emailAddresses[0].emailAddress
+                .split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+        }
+        if (base.length < 3) base = 'echo_user';
+        base = base.slice(0, 17);
+
+        // Deduplicate
+        let username = base;
+        for (let i = 1; i <= 100; i++) {
+            const taken = await pool.query('SELECT 1 FROM users WHERE username = $1', [username]);
+            if (!taken.rows.length) break;
+            username = `${base}${i}`;
+        }
+
+        const result = await pool.query(
+            'INSERT INTO users (username, clerk_id) VALUES ($1, $2) RETURNING id, username',
+            [username, userId]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('[Sync] Error:', err.message);
+        res.status(500).json({ error: 'Failed to sync user.' });
+    }
 });
 
 // --- USER-SPECIFIC ROUTES (Protected) ---

@@ -7,24 +7,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loadingMessage = document.getElementById('loading-message');
     const pageNavUser = document.getElementById('page-nav-user');
 
-    // Auth gate — verify session via cookie
-    let currentUser;
-    try {
-        const meRes = await fetch(`${API_URL}/api/users/me`, { credentials: 'include' });
-        if (!meRes.ok) { window.location.href = 'index.html'; return; }
-        currentUser = await meRes.json();
-    } catch {
-        window.location.href = 'index.html';
-        return;
-    }
+    // Auth gate — wait for Clerk auth state
+    const currentUser = await new Promise(resolve => {
+        window.addEventListener('auth:ready', e => resolve(e.detail?.user), { once: true });
+        if (window.clerkUser !== undefined) resolve(window.clerkUser);
+    });
+    if (!currentUser) { window.location.href = 'index.html'; return; }
 
     if (pageNavUser) pageNavUser.textContent = currentUser.username;
 
     async function fetchAchievements() {
         try {
-            const response = await fetch(`${API_URL}/api/achievements`, {
-                credentials: 'include'
-            });
+            const response = await window.authFetch(`${API_URL}/api/achievements`);
 
             if (!response.ok) {
                 throw new Error('Could not fetch your achievements.');

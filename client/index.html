@@ -56,29 +56,11 @@
         <div id="nearby-echoes-list"></div>
     </div>
 
-    <div id="auth-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <button class="close-btn">×</button>
-            <h2 id="modal-title">Sign in</h2>
-            <form id="auth-form">
-                <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" name="username" required autocomplete="username">
-                </div>
-                <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required autocomplete="current-password">
-                </div>
-                <button type="submit" id="modal-submit-btn">Sign in</button>
-                <p id="modal-switch">No account? <a href="#" id="modal-switch-link">Register</a></p>
-                <p id="modal-error" class="error-message"></p>
-            </form>
-        </div>
-    </div>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" integrity="sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/leaflet.smoothwheelzoom/SmoothWheelZoom.js"></script>
+    <script crossorigin="anonymous" src="https://game-oryx-89.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js" type="text/javascript"></script>
+    <script src="auth.js"></script>
     <script src="audio-player.js"></script>
     <script src="app.js"></script>
 </body>

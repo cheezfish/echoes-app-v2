@@ -776,6 +776,37 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
     }
 });
 
+// ONE-TIME: merge a Clerk user into an existing username account
+app.post('/admin/api/merge-clerk-user', adminAuthMiddleware, async (req, res) => {
+    const { clerk_id, target_username } = req.body;
+    if (!clerk_id || !target_username) return res.status(400).json({ error: 'clerk_id and target_username required.' });
+    try {
+        // Find target user
+        const target = await pool.query('SELECT id FROM users WHERE username = $1', [target_username]);
+        if (!target.rows.length) return res.status(404).json({ error: `User "${target_username}" not found.` });
+        const targetId = target.rows[0].id;
+
+        // Find duplicate Clerk-created user (if any)
+        const dupe = await pool.query('SELECT id FROM users WHERE clerk_id = $1 AND id != $2', [clerk_id, targetId]);
+
+        if (dupe.rows.length) {
+            const dupeId = dupe.rows[0].id;
+            // Reassign any echoes from the dupe to the target
+            await pool.query('UPDATE echoes SET user_id = $1 WHERE user_id = $2', [targetId, dupeId]);
+            await pool.query('UPDATE walks SET user_id = $1 WHERE user_id = $2', [targetId, dupeId]);
+            await pool.query('DELETE FROM users WHERE id = $1', [dupeId]);
+        }
+
+        // Link clerk_id to target
+        await pool.query('UPDATE users SET clerk_id = $1 WHERE id = $2', [clerk_id, targetId]);
+
+        res.json({ ok: true, merged: dupe.rows.length > 0, targetId });
+    } catch (err) {
+        console.error('[MergeClerkUser]', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/admin/api/users', adminAuthMiddleware, async (req, res) => {
     try {
         const query = `SELECT id, username, created_at, is_admin FROM users ORDER BY created_at DESC;`;

@@ -34,6 +34,7 @@ let recordingTimer;
 let activeWalk = null;
 let isUserInVicinity = false;
 let instructionalEcho = null;
+let instructionalMarker = null;
 
 // --- NEW: DYNAMIC PROMPT STATE ---
 let promptInterval = null;
@@ -738,11 +739,7 @@ function renderMapMarkers(echoes) {
     }
     const userLatLng = currentUserPosition ? L.latLng(currentUserPosition.lat, currentUserPosition.lng) : null;
 
-    const allEchoes = (instructionalEcho && !localStorage.getItem('echoes_welcomed'))
-        ? [instructionalEcho, ...echoes]
-        : echoes;
-
-    allEchoes.forEach(echo => {
+    echoes.forEach(echo => {
         if (!echo.lat || !echo.lng) return;
 
         const echoLatLng = L.latLng(echo.lat, echo.lng);
@@ -757,18 +754,14 @@ function renderMapMarkers(echoes) {
 
         const popupEl = buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng);
 
-        const icon = echo.is_instructional
-            ? createInstructionalIcon()
-            : (() => {
-                const ageMs = new Date() - new Date(echo.last_played_at);
-                const healthPercent = Math.max(0, 100 * (1 - (ageMs / ECHO_LIFESPAN_MS)));
-                return createHealthIcon(healthPercent, echo.id === highlightedEchoId);
-            })();
+        const ageMs = new Date() - new Date(echo.last_played_at);
+        const healthPercent = Math.max(0, 100 * (1 - (ageMs / ECHO_LIFESPAN_MS)));
+        const icon = createHealthIcon(healthPercent, echo.id === highlightedEchoId);
 
         const marker = L.marker(echoLatLng, { icon });
         marker.bindPopup(popupEl);
 
-        if (!isWithinInteractionRange && !echo.is_instructional) {
+        if (!isWithinInteractionRange) {
             marker.on('add', function() {
                  if (this._icon) L.DomUtil.addClass(this._icon, 'distant-echo');
             });
@@ -922,8 +915,7 @@ function endWalk() {
 const ONBOARDING_AUDIO_URL = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev/onboarding.mp3';
 
 function injectInstructionalEcho(lat, lng) {
-    if (localStorage.getItem('echoes_welcomed') || instructionalEcho) return;
-    // Place ~80m NE of user
+    if (localStorage.getItem('echoes_welcomed') || instructionalMarker) return;
     const dLat = 80 / 111000;
     const dLng = 80 / (111000 * Math.cos(lat * Math.PI / 180));
     instructionalEcho = {
@@ -932,30 +924,40 @@ function injectInstructionalEcho(lat, lng) {
         lng: lng + dLng,
         location_name: 'An echo',
         audio_url: ONBOARDING_AUDIO_URL,
-        username: null,
-        user_id: null,
-        created_at: new Date().toISOString(),
-        last_played_at: new Date().toISOString(),
         is_instructional: true,
-        parent_id: null,
-        transcript: null,
     };
-}
 
-function createInstructionalIcon() {
-    return L.divIcon({
+    const icon = L.divIcon({
         className: '',
         iconSize: [40, 40],
         iconAnchor: [20, 20],
         popupAnchor: [0, -22],
         html: `<div class="inst-icon"><div class="inst-ring"></div><span>◎</span></div>`,
     });
+
+    instructionalMarker = L.marker([instructionalEcho.lat, instructionalEcho.lng], {
+        icon,
+        zIndexOffset: 2000,
+    }).addTo(map);
+
+    // Popup content updates based on proximity — rebuild on each open
+    instructionalMarker.on('click', () => {
+        const userLatLng = currentUserPosition
+            ? L.latLng(currentUserPosition.lat, currentUserPosition.lng)
+            : null;
+        const dist = userLatLng
+            ? userLatLng.distanceTo(L.latLng(instructionalEcho.lat, instructionalEcho.lng))
+            : Infinity;
+        const inRange = dist <= INTERACTION_RANGE_METERS;
+        const popup = buildPopupEl(instructionalEcho, inRange, dist, userLatLng);
+        instructionalMarker.unbindPopup().bindPopup(popup).openPopup();
+    });
 }
 
 function markOnboardingComplete() {
     localStorage.setItem('echoes_welcomed', '1');
+    if (instructionalMarker) { map.removeLayer(instructionalMarker); instructionalMarker = null; }
     instructionalEcho = null;
-    if (currentEchoesInView.length) renderMapMarkers(currentEchoesInView);
 }
 
 function wireInstructionalAutoPlay() {

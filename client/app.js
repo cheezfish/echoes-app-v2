@@ -918,8 +918,9 @@ function injectInstructionalEcho(lat, lng) {
     console.log('[onboarding] inject called, welcomed:', localStorage.getItem('echoes_welcomed'), 'marker:', !!instructionalMarker);
     if (localStorage.getItem('echoes_welcomed') || instructionalMarker) return;
     console.log('[onboarding] injecting marker at', lat, lng);
-    const dLat = 80 / 111000;
-    const dLng = 80 / (111000 * Math.cos(lat * Math.PI / 180));
+    // Place 60m due north — simple, accurate, safely within 100m unlock range
+    const dLat = 60 / 111000;
+    const dLng = 0;
     instructionalEcho = {
         id: 'instructional',
         lat: lat + dLat,

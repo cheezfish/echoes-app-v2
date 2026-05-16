@@ -884,25 +884,78 @@ function endWalk() {
 
 // ── ONBOARDING OVERLAY ────────────────────────────────────────────────────────
 
+const ONBOARDING_AUDIO_URL = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev/onboarding.mp3';
+
 function showOnboardingIfNeeded() {
     if (localStorage.getItem('echoes_welcomed')) return;
+
+    const lines = [
+        { text: "Every place holds more than it shows.",                          start: 0.0   },
+        { text: "The street you cut through every morning.",                       start: 2.82  },
+        { text: "The bench that always seems occupied.",                           start: 5.16  },
+        { text: "The doorway that smells different in the rain.",                  start: 8.22  },
+        { text: "Things happened there. People felt things. Most of it disappears.", start: 11.36 },
+        { text: "But some people leave a trace.",                                  start: 16.82 },
+        { text: "A voice, an echo of a moment they couldn't let go of.",           start: 19.4  },
+        { text: "Get close enough and you'll hear it.",                            start: 23.5  },
+        { text: "Not forever.",                                                    start: 25.84 },
+        { text: "Echoes fade.",                                                    start: 27.38 },
+        { text: "But every listen gives them a little more time.",                 start: 29.24 },
+        { text: "You can leave one too.",                                          start: 32.86 },
+        { text: "Your voice, your place, your reason.",                            start: 34.88 },
+        { text: "Tap the map. There's more out here than you think.",              start: 37.3  },
+    ];
+
     const overlay = document.createElement('div');
     overlay.id = 'onboarding-overlay';
     overlay.innerHTML = `
-        <div id="onboarding-card">
-            <div id="onboarding-icon">◎</div>
-            <h2>How Echoes works</h2>
-            <p>People leave short audio recordings at real places. Walk within <strong>100 metres</strong> of a marker to unlock and hear it.</p>
-            <p class="onboarding-sub">Tap the map to explore. The closer you get, the more you hear.</p>
-            <button id="onboarding-dismiss" class="pill-btn">Got it</button>
-        </div>
+        <div id="onboarding-icon">◎</div>
+        <p id="onboarding-text" class="line-hidden"></p>
+        <button id="onboarding-play">listen</button>
+        <button id="onboarding-skip">skip</button>
     `;
     document.body.appendChild(overlay);
-    document.getElementById('onboarding-dismiss').addEventListener('click', () => {
+
+    const textEl  = document.getElementById('onboarding-text');
+    const playBtn = document.getElementById('onboarding-play');
+    let currentIdx = -1;
+    let audio = null;
+
+    function setLine(idx) {
+        if (idx === currentIdx) return;
+        currentIdx = idx;
+        textEl.classList.add('line-hidden');
+        setTimeout(() => {
+            textEl.textContent = idx >= 0 ? lines[idx].text : '';
+            if (idx >= 0) textEl.classList.remove('line-hidden');
+        }, 350);
+    }
+
+    function dismiss() {
+        if (audio) audio.pause();
         overlay.classList.add('fade-out');
         overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
         localStorage.setItem('echoes_welcomed', '1');
-    });
+    }
+
+    function startAudio() {
+        playBtn.remove();
+        audio = new Audio(ONBOARDING_AUDIO_URL);
+        audio.addEventListener('timeupdate', () => {
+            const t = audio.currentTime;
+            let idx = -1;
+            for (let i = 0; i < lines.length; i++) {
+                if (t >= lines[i].start) idx = i;
+                else break;
+            }
+            setLine(idx);
+        });
+        audio.addEventListener('ended', dismiss);
+        audio.play();
+    }
+
+    playBtn.addEventListener('click', startAudio);
+    document.getElementById('onboarding-skip').addEventListener('click', dismiss);
 }
 
 // ── WALK DISCOVERY ────────────────────────────────────────────────────────────

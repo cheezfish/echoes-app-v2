@@ -170,6 +170,8 @@ async function runMigrations() {
             );
             CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
         `);
+        // Ensure the primary admin account is flagged
+        await client.query(`UPDATE users SET is_admin = TRUE WHERE username = 'cheezfish'`);
         // Backfill geohash for existing rows that have a geog but no geohash
         await client.query(`
             UPDATE echoes
@@ -776,31 +778,32 @@ app.post('/admin/api/echoes/seed', adminAuthMiddleware, upload.single('audioFile
     }
 });
 
-// ONE-TIME: merge a Clerk user into an existing username account
-app.post('/admin/api/merge-clerk-user', adminAuthMiddleware, async (req, res) => {
-    const { clerk_id, target_username } = req.body;
-    if (!clerk_id || !target_username) return res.status(400).json({ error: 'clerk_id and target_username required.' });
+// ONE-TIME: merge your Clerk account into an existing username
+// Auth: Clerk Bearer token — proves you own the Clerk account being merged
+app.post('/admin/api/merge-clerk-user', async (req, res) => {
+    const { target_username } = req.body;
+    if (!target_username) return res.status(400).json({ error: 'target_username required.' });
+
+    // Verify Clerk token and extract clerk_id
+    const { userId: clerkId } = getAuth(req);
+    if (!clerkId) return res.status(401).json({ error: 'Sign in with Clerk first.' });
+
     try {
-        // Find target user
         const target = await pool.query('SELECT id FROM users WHERE username = $1', [target_username]);
         if (!target.rows.length) return res.status(404).json({ error: `User "${target_username}" not found.` });
         const targetId = target.rows[0].id;
 
-        // Find duplicate Clerk-created user (if any)
-        const dupe = await pool.query('SELECT id FROM users WHERE clerk_id = $1 AND id != $2', [clerk_id, targetId]);
-
+        // Remove any duplicate Clerk-synced user, reassigning their content
+        const dupe = await pool.query('SELECT id FROM users WHERE clerk_id = $1 AND id != $2', [clerkId, targetId]);
         if (dupe.rows.length) {
             const dupeId = dupe.rows[0].id;
-            // Reassign any echoes from the dupe to the target
             await pool.query('UPDATE echoes SET user_id = $1 WHERE user_id = $2', [targetId, dupeId]);
             await pool.query('UPDATE walks SET user_id = $1 WHERE user_id = $2', [targetId, dupeId]);
             await pool.query('DELETE FROM users WHERE id = $1', [dupeId]);
         }
 
-        // Link clerk_id to target
-        await pool.query('UPDATE users SET clerk_id = $1 WHERE id = $2', [clerk_id, targetId]);
-
-        res.json({ ok: true, merged: dupe.rows.length > 0, targetId });
+        await pool.query('UPDATE users SET clerk_id = $1 WHERE id = $2', [clerkId, targetId]);
+        res.json({ ok: true, merged: dupe.rows.length > 0, targetId, clerkId });
     } catch (err) {
         console.error('[MergeClerkUser]', err.message);
         res.status(500).json({ error: err.message });

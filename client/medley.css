@@ -3,9 +3,13 @@
 .beta-tag {
     font-size: 0.6em;
     font-weight: normal;
-    color: #ffc107;
+    color: rgba(251, 191, 36, 0.85);
     vertical-align: middle;
-    margin-left: 5px;
+    margin-left: 4px;
+}
+
+#page-title-pill {
+    cursor: default;
 }
 
 #map {

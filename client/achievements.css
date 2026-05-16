@@ -1,68 +1,77 @@
-/* Styles for the Achievements page */
+body {
+    background-color: #080808;
+}
 
 .achievements-main {
-    padding: calc(52px + 1.5rem) 1.5rem 1.5rem;
-    max-width: 1200px;
+    padding: 5rem 1.25rem 2rem;
+    max-width: 1100px;
     margin: 0 auto;
-    width: 100%;
-    overflow-y: auto;
-    height: 100vh;
+    min-height: 100vh;
 }
 
 #achievements-grid-container {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
 }
 
 .achievement-card {
-    background-color: #222;
-    border: 1px solid #333;
-    border-radius: 8px;
-    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 1.5rem 1.25rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    transition: all 0.2s ease-in-out;
+    transition: border-color 0.2s, transform 0.2s;
 }
 
 .achievement-card.locked {
-    opacity: 0.4;
-    filter: grayscale(80%);
+    opacity: 0.35;
+    filter: grayscale(100%);
 }
 
 .achievement-card:not(.locked):hover {
-    transform: translateY(-5px);
-    border-color: #007bff;
+    border-color: rgba(255, 255, 255, 0.18);
+    transform: translateY(-3px);
 }
 
 .achievement-icon {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     margin-bottom: 1rem;
 }
 
 .achievement-name {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #fff;
-    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #eee;
+    margin-bottom: 0.4rem;
 }
 
 .achievement-card.locked .achievement-name {
-    color: #888;
+    color: rgba(255, 255, 255, 0.3);
 }
 
 .achievement-description {
-    font-size: 0.9rem;
-    color: #aaa;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.4);
+    line-height: 1.5;
     flex-grow: 1;
 }
 
 .achievement-unlocked-date {
-    font-size: 0.8rem;
-    color: #00aaff;
-    margin-top: 1rem;
+    font-size: 0.75rem;
+    color: rgba(96, 165, 250, 0.8);
+    margin-top: 0.75rem;
     font-style: italic;
+}
+
+#loading-message {
+    text-align: center;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.3);
+    padding: 4rem 0;
+    grid-column: 1 / -1;
 }

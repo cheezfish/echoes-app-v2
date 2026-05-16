@@ -59,6 +59,48 @@ html, body {
     flex-shrink: 0;
 }
 
+/* ── SUB-PAGE FLOATING NAV ── */
+#page-back {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 400;
+}
+.back-pill {
+    text-decoration: none;
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+}
+.page-user-label {
+    position: fixed;
+    top: 1.35rem;
+    right: 1.25rem;
+    z-index: 400;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.35);
+    white-space: nowrap;
+    pointer-events: none;
+}
+.page-heading {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.01em;
+    margin: 0 0 1.75rem;
+}
+.page-title-pill-static {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 400;
+    pointer-events: none;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: default;
+}
+
 /* ── WORDMARK ── */
 #wordmark {
     position: fixed;

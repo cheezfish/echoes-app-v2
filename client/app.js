@@ -726,6 +726,7 @@ function onLocationUpdate(position) {
     const latStr = currentUserPosition.lat.toFixed(4);
     const lngStr = currentUserPosition.lng.toFixed(4);
     currentBucketKey = `sq_${latStr}_${lngStr}`;
+    if (!isUserInVicinity) navigator.vibrate?.(200);
     isUserInVicinity = true;
     updateActionButtonState();
 

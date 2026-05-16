@@ -256,13 +256,15 @@ function initializeApp() {
         if (zoom > 12) {
             clearClusterMarkers();
             fetchEchoesForCurrentView();
-        } else if (zoom >= 5) {
-            clearNearbyListAndMarkers();
-            fetchAndRenderClusters(zoom < 9 ? 3 : 5);
         } else {
+            // Show clusters at all zoom levels below 13
+            // precision 2 = continent, 3 = country, 5 = city
+            let precision;
+            if (zoom < 4) precision = 2;
+            else if (zoom < 9) precision = 3;
+            else precision = 5;
             clearNearbyListAndMarkers();
-            clearClusterMarkers();
-            updateStatus("Zoom in to discover echoes.", "info", 0);
+            fetchAndRenderClusters(precision);
         }
     }
 
@@ -447,8 +449,10 @@ async function fetchAndRenderClusters(precision) {
         url.searchParams.append('ne_lat', ne.lat);
         url.searchParams.append('precision', precision);
         const res = await fetch(url);
-        if (!res.ok) return;
+        console.log('[Clusters] HTTP', res.status, url.toString());
+        if (!res.ok) { console.error('[Clusters] server error', await res.text()); return; }
         const clusters = await res.json();
+        console.log('[Clusters] received', clusters.length, 'cells', clusters);
         clearClusterMarkers();
         if (clusters.length === 0) {
             updateStatus("No echoes in this region yet.", "info", 0);

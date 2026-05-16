@@ -1144,24 +1144,16 @@ function startLocationWatcher() {
         // OPTIMIZATION: Tighter settings for "Real Time" feel
         const options = {
             enableHighAccuracy: true,
-            timeout: Infinity,  // watcher runs indefinitely; let the browser decide when to give up
+            timeout: 30000,
             maximumAge: 2000
         };
         locationWatcherId = navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, options); 
     } 
 }
 
-function onLocationError(error) {
-    if (error.code === 1) {
-        // PERMISSION_DENIED — show this, user needs to act
-        updateStatus('Location access denied. Enable it in browser settings.', 'error');
-    }
-    // TIMEOUT (code 3) and POSITION_UNAVAILABLE (code 2) are transient — watcher keeps trying, don't alarm the user
-    isUserInVicinity = false;
-    updateActionButtonState();
-}
-function handleFindMeClick() { updateStatus("Locating...", "info"); if (!("geolocation" in navigator)) return updateStatus("Geolocation not supported.", "error"); const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }; navigator.geolocation.getCurrentPosition(position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startLocationWatcher(); }, onLocationError, options); }
-function handleRecordClick() { if (!('geolocation' in navigator)) return updateStatus("Geolocation not supported.", "error"); const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }; navigator.geolocation.getCurrentPosition( position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startRecordingProcess(); }, err => { onLocationError(err); updateStatus("Could not get location.", "error"); }, options ); }
+function onLocationError(error) { updateStatus(`Error: ${error.message}`, 'error'); isUserInVicinity = false; updateActionButtonState(); }
+function handleFindMeClick() { updateStatus("Locating...", "info"); if (!("geolocation" in navigator)) return updateStatus("Geolocation not supported.", "error"); const options = { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }; navigator.geolocation.getCurrentPosition(position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startLocationWatcher(); }, onLocationError, options); }
+function handleRecordClick() { if (!('geolocation' in navigator)) return updateStatus("Geolocation not supported.", "error"); const options = { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }; navigator.geolocation.getCurrentPosition( position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startRecordingProcess(); }, err => { onLocationError(err); updateStatus("Could not get location.", "error"); }, options ); }
 
 async function startRecordingProcess() {
     try {

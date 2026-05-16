@@ -317,9 +317,7 @@ function initializeApp() {
         zoomSnap: 0,
         zoomDelta: 0.25,
         bounceAtZoomLimits: false,
-        scrollWheelZoom: false,
-        smoothWheelZoom: true,
-        smoothSensitivity: 1.2,
+        scrollWheelZoom: true,
     }).setView(initCenter, initZoom);
     L.tileLayer('https://api.maptiler.com/maps/toner-v2/{z}/{x}/{y}.webp?key=oeJYklnaUPpZgpHgTszf', {
         maxZoom: 20,

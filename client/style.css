@@ -923,45 +923,69 @@ body.sheet-expanded #context-action-btn {
 }
 .inst-icon {
     position: relative;
-    width: 40px;
-    height: 40px;
+    width: 48px;
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
-.inst-icon span {
-    font-size: 1.3rem;
-    color: rgba(255, 255, 255, 0.9);
+.inst-core {
+    font-size: 1.4rem;
+    color: #f0c070;
     position: relative;
-    z-index: 1;
+    z-index: 2;
     line-height: 1;
+    text-shadow: 0 0 12px rgba(240, 192, 112, 0.7);
 }
 .inst-ring {
     position: absolute;
-    inset: -6px;
-    border: 1.5px solid rgba(255, 255, 255, 0.35);
     border-radius: 50%;
-    animation: inst-pulse 2.4s ease-in-out infinite;
+    border: 1.5px solid rgba(240, 192, 112, 0.55);
+    animation: inst-sonar 2.6s ease-out infinite;
 }
-@keyframes inst-pulse {
-    0%, 100% { transform: scale(1);   opacity: 0.35; }
-    50%       { transform: scale(1.5); opacity: 0;    }
+.inst-ring-1 { inset: -4px; animation-delay: 0s; }
+.inst-ring-2 { inset: -4px; animation-delay: 1.3s; }
+@keyframes inst-sonar {
+    0%   { transform: scale(1);   opacity: 0.6; }
+    100% { transform: scale(2.4); opacity: 0;   }
 }
 .instructional-popup {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.55rem;
 }
 .inst-badge {
-    font-size: 0.72rem;
-    color: rgba(255, 255, 255, 0.35);
-    letter-spacing: 0.08em;
+    font-size: 0.7rem;
+    color: rgba(240, 192, 112, 0.6);
+    letter-spacing: 0.1em;
     text-transform: uppercase;
 }
-.inst-hint {
+.inst-volume-nudge {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.04em;
+}
+.inst-too-far {
     font-size: 0.82rem;
-    color: rgba(255, 255, 255, 0.4);
-    text-align: center;
-    padding: 0.6rem 0 0.4rem;
-    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.35);
+}
+.inst-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    color: rgba(240, 192, 112, 0.8);
+    padding: 0.7rem 1rem 0.5rem;
+    border-left: 2px solid rgba(240, 192, 112, 0.3);
+    animation: inst-hint-breathe 2.8s ease-in-out infinite;
+}
+.inst-arrow {
+    display: inline-block;
+    font-size: 1rem;
+    flex-shrink: 0;
+    transition: transform 0.5s ease;
+}
+@keyframes inst-hint-breathe {
+    0%, 100% { opacity: 0.65; }
+    50%       { opacity: 1;    }
 }

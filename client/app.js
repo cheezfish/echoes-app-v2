@@ -158,13 +158,26 @@ const formatTime = (seconds) => {
 
 /** Safely builds a Leaflet popup element — no innerHTML with user data */
 function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng) {
-    if (echo.is_instructional && isWithinInteractionRange) {
+    if (echo.is_instructional) {
         const wrap = document.createElement('div');
         wrap.className = 'instructional-popup';
         const badge = document.createElement('div');
         badge.className = 'inst-badge';
-        badge.textContent = '◎ your first echo';
+        badge.textContent = 'a message from echoes';
         wrap.appendChild(badge);
+        if (!isWithinInteractionRange) {
+            const tooFar = document.createElement('p');
+            tooFar.className = 'inst-too-far';
+            tooFar.textContent = distanceToUser < Infinity
+                ? `Walk ${Math.round(distanceToUser)}m closer to hear it`
+                : 'Walk closer to hear it';
+            wrap.appendChild(tooFar);
+            return wrap;
+        }
+        const volNudge = document.createElement('p');
+        volNudge.className = 'inst-volume-nudge';
+        volNudge.textContent = '↑ turn your volume up';
+        wrap.appendChild(volNudge);
         wrap.appendChild(buildAudioPlayer(
             echo.audio_url,
             null,
@@ -622,15 +635,28 @@ function renderNearbyList(echoes) {
     nearbyEchoesList.innerHTML = '';
 
     if (instructionalEcho && !localStorage.getItem('echoes_welcomed')) {
-        const hint = document.createElement('p');
+        const hint = document.createElement('div');
         hint.className = 'inst-hint';
+        const arrow = document.createElement('span');
+        arrow.className = 'inst-arrow';
+        arrow.textContent = '↑';
+        if (currentUserPosition) {
+            const bearing = _instBearing(
+                currentUserPosition,
+                { lat: instructionalEcho.lat, lng: instructionalEcho.lng }
+            );
+            arrow.style.transform = `rotate(${bearing}deg)`;
+        }
         const dist = currentUserPosition
             ? Math.round(L.latLng(currentUserPosition.lat, currentUserPosition.lng)
                 .distanceTo(L.latLng(instructionalEcho.lat, instructionalEcho.lng)))
             : null;
-        hint.textContent = dist !== null
-            ? `◎ An echo is waiting ${dist}m away`
-            : '◎ An echo is waiting nearby';
+        const text = document.createElement('span');
+        text.textContent = dist !== null
+            ? `an echo is waiting ${dist}m away`
+            : 'an echo is waiting nearby';
+        hint.appendChild(arrow);
+        hint.appendChild(text);
         nearbyEchoesList.appendChild(hint);
     }
 
@@ -914,32 +940,37 @@ function endWalk() {
 
 const ONBOARDING_AUDIO_URL = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev/onboarding.mp3';
 
+function _instBearing(from, to) {
+    const dLng = (to.lng - from.lng) * Math.PI / 180;
+    const lat1 = from.lat * Math.PI / 180;
+    const lat2 = to.lat * Math.PI / 180;
+    const y = Math.sin(dLng) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
 function injectInstructionalEcho(lat, lng) {
-    console.log('[onboarding] inject called, welcomed:', localStorage.getItem('echoes_welcomed'), 'marker:', !!instructionalMarker);
     if (localStorage.getItem('echoes_welcomed') || instructionalMarker) return;
-    console.log('[onboarding] injecting marker at', lat, lng);
-    // Place 60m due north — simple, accurate, safely within 100m unlock range
-    const dLat = 60 / 111000;
-    const dLng = 0;
+    const dLat = 60 / 111000;  // 60m due north
     instructionalEcho = {
         id: 'instructional',
         lat: lat + dLat,
-        lng: lng + dLng,
+        lng: lng,
         location_name: 'An echo',
         audio_url: ONBOARDING_AUDIO_URL,
         is_instructional: true,
     };
 
-    instructionalMarker = L.circleMarker([instructionalEcho.lat, instructionalEcho.lng], {
-        radius: 18,
-        color: '#ffffff',
-        fillColor: '#ffffff',
-        fillOpacity: 0.25,
-        weight: 2,
+    const iconHtml = `<div class="inst-icon">
+        <div class="inst-core">◎</div>
+        <div class="inst-ring inst-ring-1"></div>
+        <div class="inst-ring inst-ring-2"></div>
+    </div>`;
+    instructionalMarker = L.marker([instructionalEcho.lat, instructionalEcho.lng], {
+        icon: L.divIcon({ html: iconHtml, className: 'inst-marker-wrapper', iconSize: [48, 48], iconAnchor: [24, 24] }),
+        zIndexOffset: 1000,
     }).addTo(map);
-    console.log('[onboarding] circleMarker added to map', instructionalMarker);
 
-    // Popup content updates based on proximity — rebuild on each open
     instructionalMarker.on('click', () => {
         const userLatLng = currentUserPosition
             ? L.latLng(currentUserPosition.lat, currentUserPosition.lng)

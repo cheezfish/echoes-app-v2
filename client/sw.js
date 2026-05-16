@@ -1,5 +1,5 @@
-// client/sw.js — cache-first for static assets, network-first for API calls
-const CACHE_NAME = 'echoes-v1';
+// client/sw.js — network-first for JS/CSS/HTML, cache-first for tiles/audio
+const CACHE_NAME = 'echoes-v3';
 const STATIC_ASSETS = ['/', '/index.html', '/style.css', '/my-echoes.css', '/app.js', '/my-echoes.js', '/achievements.js', '/achievements.css'];
 
 self.addEventListener('install', event => {
@@ -21,13 +21,28 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
-    // Let API calls, R2 audio, and Leaflet tiles go straight to network
+    // External requests (API, R2, tiles, CDN) — always network
     if (url.hostname !== self.location.hostname) {
         event.respondWith(fetch(event.request));
         return;
     }
 
-    // Cache-first for same-origin static assets
+    // JS, CSS, HTML — network-first so deploys take effect immediately
+    const ext = url.pathname.split('.').pop();
+    if (['js', 'css', 'html', ''].includes(ext)) {
+        event.respondWith(
+            fetch(event.request)
+                .then(res => {
+                    const clone = res.clone();
+                    caches.open(CACHE_NAME).then(c => c.put(event.request, clone));
+                    return res;
+                })
+                .catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
+    // Everything else — cache-first
     event.respondWith(
         caches.match(event.request).then(cached => cached || fetch(event.request))
     );

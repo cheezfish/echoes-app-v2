@@ -1,6 +1,6 @@
 // client/sw.js — network-first for JS/CSS/HTML, cache-first for tiles/audio
 const CACHE_NAME = 'echoes-v3';
-const STATIC_ASSETS = ['/', '/index.html', '/style.css', '/my-echoes.css', '/app.js', '/my-echoes.js', '/achievements.js', '/achievements.css'];
+const STATIC_ASSETS = ['/', '/index.html', '/style.css', '/my-echoes.css', '/audio-player.js', '/app.js', '/my-echoes.js', '/achievements.js', '/achievements.css'];
 
 self.addEventListener('install', event => {
     self.skipWaiting();

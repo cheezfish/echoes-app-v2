@@ -87,11 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             infoRow.appendChild(locSpan);
             infoRow.appendChild(dateSpan);
 
-            // audio
-            const audio = document.createElement('audio');
-            audio.controls = true;
-            audio.preload = 'metadata';
-            audio.src = echo.audio_url;
+            const audio = buildAudioPlayer(echo.audio_url, null);
 
             // stats row
             const statsRow = document.createElement('div');

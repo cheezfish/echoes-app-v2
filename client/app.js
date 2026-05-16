@@ -18,6 +18,7 @@ const userLocationIcon = L.divIcon({
 // --- GLOBAL STATE ---
 let map, markers, userMarker, mediaRecorder;
 let audioChunks = [];
+let pendingRecording = null;
 let loggedInUser = null, currentUserPosition = null, currentBucketKey = "";
 let echoMarkersMap = new Map();
 let clusterMarkersLayer = null;
@@ -157,14 +158,9 @@ function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng
         const p = document.createElement('p');
         const author = echo.username ? `by ${echo.username}` : 'by an anonymous user';
         p.textContent = `Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}`;
-        const audio = document.createElement('audio');
-        audio.controls = true;
-        audio.preload = 'none';
-        audio.src = echo.audio_url;
-        audio.addEventListener('play', () => window.keepEchoAlive(echo.id));
         wrap.appendChild(h3);
         wrap.appendChild(p);
-        wrap.appendChild(audio);
+        wrap.appendChild(buildAudioPlayer(echo.audio_url, () => window.keepEchoAlive(echo.id)));
         return wrap;
     } else {
         const distanceDisplay = distanceToUser < 1000
@@ -290,6 +286,8 @@ function setupEventListeners() {
     window.addEventListener('click', closeMenuOnOutsideClick);
     document.getElementById('logout-btn').addEventListener('click', handleLogout);
     document.getElementById('sheet-handle-area').addEventListener('click', toggleSheet);
+    document.getElementById('preview-post-btn').addEventListener('click', confirmPostEcho);
+    document.getElementById('preview-discard-btn').addEventListener('click', dismissPreview);
     authModal.querySelector('.close-btn').addEventListener('click', () => authModal.style.display = 'none');
     authModal.addEventListener('click', e => { if (e.target === authModal) authModal.style.display = 'none'; });
     authForm.addEventListener('submit', handleAuthFormSubmit);
@@ -544,12 +542,7 @@ function renderNearbyList(echoes) {
         item.appendChild(topRow);
 
         if (withinRange) {
-            const audio = document.createElement('audio');
-            audio.controls = true;
-            audio.preload = 'none';
-            audio.src = echo.audio_url;
-            audio.onplay = () => window.keepEchoAlive(echo.id);
-            item.appendChild(audio);
+            item.appendChild(buildAudioPlayer(echo.audio_url, () => window.keepEchoAlive(echo.id)));
         }
 
         // Report button — only visible on hover via CSS
@@ -776,7 +769,7 @@ async function startRecordingProcess() {
         mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
         audioChunks = [];
         mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-        mediaRecorder.onstop = uploadAndSaveEcho;
+        mediaRecorder.onstop = showRecordingPreview;
         mediaRecorder.start();
         stopPromptCycling();
         updateStatus(recordingMessages[Math.floor(Math.random() * recordingMessages.length)], 'success', 7000);
@@ -852,91 +845,95 @@ function getBlobDuration(blob) {
 
 // client/app.js
 
-async function uploadAndSaveEcho() {
-    // 1. Calculate duration immediately (The "Wall Clock" Method)
-    const endTime = Date.now();
-    let calculatedDuration = 0;
-    
-    if (recordingTimer && recordingTimer.startTime) {
-        calculatedDuration = Math.round((endTime - recordingTimer.startTime) / 1000);
-    }
-    // Ensure it's at least 1 second
-    if (calculatedDuration < 1) calculatedDuration = 1;
+function showRecordingPreview() {
+    const duration = recordingTimer?.startTime
+        ? Math.max(1, Math.round((Date.now() - recordingTimer.startTime) / 1000))
+        : 1;
 
-    // 2. Cleanup timers
-    if (mediaRecorder && mediaRecorder.recordingPromptInterval) {
-        clearInterval(mediaRecorder.recordingPromptInterval);
-    }
-    if (recordingTimer) {
-        clearInterval(recordingTimer.intervalId);
-    }
+    if (mediaRecorder?.recordingPromptInterval) clearInterval(mediaRecorder.recordingPromptInterval);
+    if (recordingTimer) { clearInterval(recordingTimer.intervalId); recordingTimer = null; }
 
-    const collectedChunks = [...audioChunks];
+    const chunks = [...audioChunks];
     mediaRecorder = null;
     audioChunks = [];
-    updateActionButtonState();
-    
-    // 3. Validation
-    if (collectedChunks.length === 0) {
+
+    if (chunks.length === 0) {
         updateStatus("Recording too short.", "error");
+        updateActionButtonState();
         return;
     }
 
-    updateStatus("Processing...", "info", 0);
+    const blob = new Blob(chunks, { type: 'audio/webm' });
+    const blobUrl = URL.createObjectURL(blob);
+    pendingRecording = { blob, blobUrl, duration };
 
-    // 4. Prepare Blob
-    const audioBlob = new Blob(collectedChunks, { type: "audio/webm" });
+    const panel = document.getElementById('recording-preview');
+    const playerWrap = document.getElementById('preview-player-wrap');
+    playerWrap.innerHTML = '';
+    playerWrap.appendChild(buildAudioPlayer(blobUrl, null));
+    panel.classList.add('visible');
+    updateActionButtonState();
+}
+
+function dismissPreview() {
+    if (pendingRecording?.blobUrl) URL.revokeObjectURL(pendingRecording.blobUrl);
+    pendingRecording = null;
+    document.getElementById('recording-preview').classList.remove('visible');
+    updateActionButtonState();
+}
+
+async function confirmPostEcho() {
+    if (!pendingRecording) return;
+    const { blob, duration } = pendingRecording;
+    const postBtn = document.getElementById('preview-post-btn');
+    postBtn.disabled = true;
+    postBtn.textContent = 'Posting…';
+    dismissPreview();
+
     const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
-
     try {
         updateStatus("Preparing upload...", "info", 0);
-        
-        // 5. Get Presigned URL
         const presignedResponse = await fetch(`${API_URL}/presigned-url`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: 'include',
-            body: JSON.stringify({ fileName: fileName, fileType: audioBlob.type })
+            method: "POST", headers: { "Content-Type": "application/json" }, credentials: 'include',
+            body: JSON.stringify({ fileName, fileType: blob.type })
         });
-
-        if (!presignedResponse.ok) throw new Error(`Presigned URL failed: ${await presignedResponse.text()}`);
+        if (!presignedResponse.ok) throw new Error('Presigned URL failed');
         const { url: uploadUrl, key: safeKey } = await presignedResponse.json();
 
-        // 6. Upload to R2
         updateStatus("Uploading...", "info", 0);
-        await fetch(uploadUrl, { method: "PUT", body: audioBlob, headers: { "Content-Type": audioBlob.type } });
+        await fetch(uploadUrl, { method: "PUT", body: blob, headers: { "Content-Type": blob.type } });
         const audioUrl = `${R2_PUBLIC_URL_BASE}/${safeKey}`;
 
-        // 7. Save Metadata to DB
         updateStatus("Saving...", "info", 0);
-        
         const saveResponse = await fetch(`${API_URL}/echoes`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: 'include',
+            method: "POST", headers: { "Content-Type": "application/json" }, credentials: 'include',
             body: JSON.stringify({
-                w3w_address: currentBucketKey, 
-                audio_url: audioUrl, 
-                lat: currentUserPosition.lat, 
-                lng: currentUserPosition.lng, 
-                duration: calculatedDuration // <--- Using the math result
+                w3w_address: currentBucketKey,
+                audio_url: audioUrl,
+                lat: currentUserPosition.lat,
+                lng: currentUserPosition.lng,
+                duration
             })
         });
+        if (!saveResponse.ok) throw new Error('Save failed');
 
-        if (!saveResponse.ok) throw new Error(`Save metadata failed: ${await saveResponse.text()}`);
-        
-        updateStatus("Echo saved successfully!", "success");
-
-        // NEW: Trigger the visual ripple
+        updateStatus("Echo saved!", "success");
         triggerRippleAnimation(currentUserPosition.lat, currentUserPosition.lng);
-
         fetchEchoesForCurrentView();
-
     } catch (err) {
-        console.error("Full echo process failed:", err);
+        console.error("Echo upload failed:", err);
         updateStatus(`Error: ${err.message}`, "error");
+    } finally {
+        postBtn.disabled = false;
+        postBtn.textContent = 'Post Echo';
     }
 }
+
+async function uploadAndSaveEcho() {
+    // Legacy path — kept for any direct callers but now goes through preview
+    showRecordingPreview();
+}
+
 
 async function checkLoginState() {
     try {

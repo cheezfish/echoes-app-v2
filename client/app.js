@@ -28,6 +28,7 @@ let highlightedEchoId = null;
 let locationWatcherId = null;
 let fetchTimeout = null;
 let recordingTimer;
+let activeWalk = null;
 let isUserInVicinity = false;
 
 // --- NEW: DYNAMIC PROMPT STATE ---
@@ -282,6 +283,15 @@ function initBottomSheet() {
 function initializeApp() {
     setupEventListeners();
     initBottomSheet();
+    // Restore walk in progress, or start a pending one from My Echoes
+    const pendingWalkId = localStorage.getItem('echoes_pending_walk');
+    if (pendingWalkId) {
+        localStorage.removeItem('echoes_pending_walk');
+        setTimeout(() => startWalk(pendingWalkId), 1000);
+    } else {
+        _restoreActiveWalk();
+    }
+
     // Auth state comes from auth.js via Clerk — update UI when ready
     window.addEventListener('auth:ready', (e) => {
         const user = e.detail?.user;
@@ -359,6 +369,8 @@ function setupEventListeners() {
     document.getElementById('sheet-handle-area').addEventListener('click', toggleSheet);
     document.getElementById('preview-post-btn').addEventListener('click', confirmPostEcho);
     document.getElementById('preview-discard-btn').addEventListener('click', dismissPreview);
+    document.getElementById('walk-banner-next').addEventListener('click', advanceWalk);
+    document.getElementById('walk-banner-end').addEventListener('click', endWalk);
 }
 
 // --- CORE UI MANAGEMENT ---
@@ -770,7 +782,96 @@ window.keepEchoAlive = async (id) => {
     } 
 };
 
-// client/app.js - Faster Location Logic
+// ── WALK GUIDANCE ─────────────────────────────────────────────────────────────
+
+function _bearingArrow(deg) {
+    const dirs = ['↑','↗','→','↘','↓','↙','←','↖'];
+    return dirs[Math.round(deg / 45) % 8];
+}
+
+function _bearingDeg(lat1, lng1, lat2, lng2) {
+    const toR = d => d * Math.PI / 180;
+    const dL = toR(lng2 - lng1);
+    const y = Math.sin(dL) * Math.cos(toR(lat2));
+    const x = Math.cos(toR(lat1)) * Math.sin(toR(lat2)) - Math.sin(toR(lat1)) * Math.cos(toR(lat2)) * Math.cos(dL);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function _distM(lat1, lng1, lat2, lng2) {
+    return map.distance([lat1, lng1], [lat2, lng2]);
+}
+
+async function startWalk(walkId) {
+    try {
+        const res = await fetch(`${API_URL}/api/walks/${walkId}`);
+        if (!res.ok) throw new Error('Could not load walk');
+        const data = await res.json();
+        if (!data.echoes?.length) { showToast('This walk has no echoes yet.', 'error'); return; }
+        activeWalk = { id: walkId, title: data.title, echoes: data.echoes, currentIndex: 0 };
+        localStorage.setItem('echoes_active_walk', JSON.stringify(activeWalk));
+        updateWalkBanner();
+        showToast(`Walk started: ${data.title}`, 'success');
+        const first = activeWalk.echoes[0];
+        map.flyTo([first.lat, first.lng], Math.max(map.getZoom(), 15));
+    } catch (err) {
+        showToast('Could not start walk.', 'error');
+    }
+}
+
+function endWalk() {
+    activeWalk = null;
+    localStorage.removeItem('echoes_active_walk');
+    updateWalkBanner();
+}
+
+function advanceWalk() {
+    if (!activeWalk) return;
+    activeWalk.currentIndex++;
+    if (activeWalk.currentIndex >= activeWalk.echoes.length) {
+        showToast('Walk complete!', 'success');
+        endWalk();
+        return;
+    }
+    localStorage.setItem('echoes_active_walk', JSON.stringify(activeWalk));
+    const next = activeWalk.echoes[activeWalk.currentIndex];
+    map.flyTo([next.lat, next.lng], Math.max(map.getZoom(), 15));
+    updateWalkBanner();
+}
+
+function updateWalkBanner() {
+    const banner = document.getElementById('walk-banner');
+    if (!banner) return;
+    if (!activeWalk) { banner.style.display = 'none'; return; }
+
+    const target = activeWalk.echoes[activeWalk.currentIndex];
+    const total  = activeWalk.echoes.length;
+    const idx    = activeWalk.currentIndex;
+    const nextBtn = document.getElementById('walk-banner-next');
+
+    let distText = '—', arrowChar = '·', arrived = false;
+    if (currentUserPosition && target.lat && target.lng) {
+        const dist = _distM(currentUserPosition.lat, currentUserPosition.lng, target.lat, target.lng);
+        distText = dist < 1000 ? `${Math.round(dist)}m` : `${(dist / 1000).toFixed(1)}km`;
+        arrowChar = _bearingArrow(_bearingDeg(currentUserPosition.lat, currentUserPosition.lng, target.lat, target.lng));
+        arrived = dist <= 100;
+    }
+
+    document.getElementById('walk-banner-arrow').textContent    = arrived ? '📍' : arrowChar;
+    document.getElementById('walk-banner-dist').textContent     = arrived ? "You're here" : distText;
+    document.getElementById('walk-banner-location').textContent = target.location_name || 'Echo';
+    document.getElementById('walk-banner-step').textContent     = `${idx + 1}/${total}`;
+    nextBtn.style.display = arrived ? '' : 'none';
+    banner.style.display = 'flex';
+}
+
+function _restoreActiveWalk() {
+    try {
+        const stored = localStorage.getItem('echoes_active_walk');
+        if (stored) activeWalk = JSON.parse(stored);
+    } catch { localStorage.removeItem('echoes_active_walk'); }
+}
+
+// ── END WALK GUIDANCE ─────────────────────────────────────────────────────────
 
 // Global variable to track last fetch position to throttle API calls
 let lastFetchPosition = null;
@@ -801,6 +902,7 @@ function onLocationUpdate(position) {
     if (!isUserInVicinity) navigator.vibrate?.(200);
     isUserInVicinity = true;
     updateActionButtonState();
+    updateWalkBanner();
 
     // 4. DATA FETCH (Throttled logic)
     // Only fetch new echoes if we have moved > 50 meters from the last fetch

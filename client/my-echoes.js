@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!cachedWalks) {
             try {
-                const res = await fetch(`${API_URL}/api/walks/mine`, { credentials: 'include' });
+                const res = await window.authFetch(`${API_URL}/api/walks/mine`);
                 cachedWalks = await res.json();
             } catch { cachedWalks = []; }
         }
@@ -228,10 +228,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 item.addEventListener('click', async () => {
                     menu.remove();
                     try {
-                        const res = await fetch(`${API_URL}/api/walks/${walk.id}/echoes`, {
+                        const res = await window.authFetch(`${API_URL}/api/walks/${walk.id}/echoes`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            credentials: 'include',
                             body: JSON.stringify({ echo_id: echoId })
                         });
                         if (!res.ok) throw new Error('Failed');
@@ -251,18 +250,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             const title = prompt('Walk name:');
             if (!title?.trim()) return;
             try {
-                const wRes = await fetch(`${API_URL}/api/walks`, {
+                const wRes = await window.authFetch(`${API_URL}/api/walks`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
                     body: JSON.stringify({ title: title.trim() })
                 });
                 const newWalk = await wRes.json();
                 cachedWalks = null; // invalidate cache
-                await fetch(`${API_URL}/api/walks/${newWalk.id}/echoes`, {
+                await window.authFetch(`${API_URL}/api/walks/${newWalk.id}/echoes`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
                     body: JSON.stringify({ echo_id: echoId })
                 });
                 anchorBtn.textContent = '✓ Added';
@@ -287,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function fetchMyWalks() {
         walksList.innerHTML = '<p id="walks-loading-message">Loading your walks...</p>';
         try {
-            const res = await fetch(`${API_URL}/api/walks/mine`, { credentials: 'include' });
+            const res = await window.authFetch(`${API_URL}/api/walks/mine`);
             if (!res.ok) throw new Error('Could not fetch walks.');
             cachedWalks = await res.json();
             renderWalks(cachedWalks);
@@ -324,6 +321,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const actions = document.createElement('span');
         actions.className = 'walk-header-actions';
 
+        const startBtn = document.createElement('button');
+        startBtn.className = 'walk-expand-btn';
+        startBtn.textContent = '▶ Start';
+        startBtn.title = 'Open map and start guided walk';
+        startBtn.addEventListener('click', () => {
+            localStorage.setItem('echoes_pending_walk', walk.id);
+            window.location.href = 'index.html';
+        });
+
         const expandBtn = document.createElement('button');
         expandBtn.className = 'walk-expand-btn';
         expandBtn.textContent = 'View';
@@ -334,8 +340,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         deleteBtn.addEventListener('click', async () => {
             if (!confirm(`Delete walk "${walk.title}"?`)) return;
             try {
-                const res = await fetch(`${API_URL}/api/walks/${walk.id}`, {
-                    method: 'DELETE', credentials: 'include'
+                const res = await window.authFetch(`${API_URL}/api/walks/${walk.id}`, {
+                    method: 'DELETE'
                 });
                 if (!res.ok) throw new Error('Failed');
                 cachedWalks = null;
@@ -345,6 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch { alert('Could not delete walk.'); }
         });
 
+        actions.appendChild(startBtn);
         actions.appendChild(expandBtn);
         actions.appendChild(deleteBtn);
         header.appendChild(titleEl);
@@ -365,7 +372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (expanded && echoListEl.children.length === 0) {
                 echoListEl.innerHTML = '<p style="color:rgba(255,255,255,0.3);font-size:0.8rem">Loading…</p>';
                 try {
-                    const res = await fetch(`${API_URL}/api/walks/${walk.id}`, { credentials: 'include' });
+                    const res = await window.authFetch(`${API_URL}/api/walks/${walk.id}`);
                     const data = await res.json();
                     echoListEl.innerHTML = '';
                     if (data.echoes.length === 0) {
@@ -406,8 +413,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         removeBtn.title = 'Remove from walk';
         removeBtn.addEventListener('click', async () => {
             try {
-                await fetch(`${API_URL}/api/walks/${walkId}/echoes/${echo.echo_id}`, {
-                    method: 'DELETE', credentials: 'include'
+                await window.authFetch(`${API_URL}/api/walks/${walkId}/echoes/${echo.echo_id}`, {
+                    method: 'DELETE'
                 });
                 cachedWalks = null;
                 row.style.transition = 'opacity 0.3s';
@@ -444,10 +451,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const title = document.getElementById('walk-title-input').value.trim();
         if (!title) return;
         try {
-            const res = await fetch(`${API_URL}/api/walks`, {
+            const res = await window.authFetch(`${API_URL}/api/walks`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
                 body: JSON.stringify({ title })
             });
             if (!res.ok) throw new Error('Failed to create walk.');

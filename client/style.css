@@ -281,6 +281,73 @@ body.sheet-expanded #context-action-btn {
 }
 
 /* ── BOTTOM SHEET ── */
+/* ── WALK BANNER ── */
+#walk-banner {
+    position: fixed;
+    bottom: 68px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 410;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(12, 12, 12, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.8);
+    white-space: nowrap;
+    max-width: calc(100vw - 2rem);
+    overflow: hidden;
+}
+#walk-banner-arrow {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+#walk-banner-dist {
+    font-weight: 600;
+    color: #fff;
+    min-width: 2.5rem;
+    flex-shrink: 0;
+}
+#walk-banner-location {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgba(255, 255, 255, 0.65);
+}
+#walk-banner-step {
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+#walk-banner-next {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    color: #fff;
+    font-size: 0.78rem;
+    padding: 0.2em 0.7em;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+#walk-banner-next:hover { background: rgba(255, 255, 255, 0.2); }
+#walk-banner-end {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0 0.2rem;
+    flex-shrink: 0;
+    transition: color 0.15s;
+}
+#walk-banner-end:hover { color: rgba(255, 255, 255, 0.7); }
+
 #bottom-sheet {
     position: fixed;
     bottom: 0;

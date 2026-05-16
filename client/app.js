@@ -915,7 +915,9 @@ function endWalk() {
 const ONBOARDING_AUDIO_URL = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev/onboarding.mp3';
 
 function injectInstructionalEcho(lat, lng) {
+    console.log('[onboarding] inject called, welcomed:', localStorage.getItem('echoes_welcomed'), 'marker:', !!instructionalMarker);
     if (localStorage.getItem('echoes_welcomed') || instructionalMarker) return;
+    console.log('[onboarding] injecting marker at', lat, lng);
     const dLat = 80 / 111000;
     const dLng = 80 / (111000 * Math.cos(lat * Math.PI / 180));
     instructionalEcho = {

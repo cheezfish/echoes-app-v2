@@ -147,6 +147,83 @@
     background: #4ade80;
 }
 
+.danger-zone-card {
+    padding: 1.25rem 1.5rem;
+}
+
+.danger-zone-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0 0 0.4rem 0;
+}
+
+.danger-zone-desc {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.35);
+    margin: 0 0 1rem 0;
+    line-height: 1.4;
+}
+
+.danger-btn {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #f87171;
+    font-size: 0.85rem;
+}
+
+.danger-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+}
+
+.danger-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Confirm modal */
+#delete-confirm-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 1.5rem;
+}
+
+.delete-modal-box {
+    background: #1a1a1a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 340px;
+    width: 100%;
+    text-align: center;
+}
+
+.delete-modal-box h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 0.75rem 0;
+}
+
+.delete-modal-box p {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.45);
+    margin: 0 0 1.5rem 0;
+    line-height: 1.5;
+}
+
+.delete-modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+}
+
 #auth-gate {
     text-align: center;
     padding: 4rem 2rem;

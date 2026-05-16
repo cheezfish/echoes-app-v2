@@ -285,6 +285,40 @@ app.post('/api/users/logout', (req, res) => {
     res.json({ msg: 'Logged out.' });
 });
 
+app.delete('/api/users/me', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        // Collect all audio keys before deleting DB rows
+        const audioRows = await pool.query(
+            'SELECT audio_url FROM echoes WHERE user_id = $1 AND audio_url IS NOT NULL',
+            [userId]
+        );
+
+        // Delete user — CASCADE handles echoes, walks, walk_echoes, push_subscriptions,
+        // recording_discards, echo_plays_log, echo_reports
+        await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+
+        // Best-effort R2 cleanup (orphan cron will catch any misses)
+        if (audioRows.rows.length > 0) {
+            const r2Base = process.env.R2_PUBLIC_URL_BASE;
+            const objects = audioRows.rows
+                .map(r => ({ Key: r.audio_url.replace(r2Base + '/', '') }))
+                .filter(o => o.Key && !o.Key.startsWith('http'));
+            if (objects.length > 0) {
+                await s3.send(new DeleteObjectsCommand({
+                    Bucket: process.env.R2_BUCKET_NAME,
+                    Delete: { Objects: objects }
+                })).catch(err => console.error('[AccountDelete] R2 cleanup error:', err.message));
+            }
+        }
+
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('[AccountDelete]', err.message);
+        res.status(500).json({ msg: 'Server error.' });
+    }
+});
+
 // Clerk user sync — creates DB row on first sign-in, returns existing on subsequent calls
 app.post('/api/users/sync', async (req, res) => {
     const { userId } = getAuth(req);

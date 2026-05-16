@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Settings — Echoes</title>
+    <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="my-echoes.css">
     <link rel="stylesheet" href="settings.css">
 </head>
@@ -108,6 +109,15 @@
                 </div>
             </section>
         </div>
+
+        <section class="settings-section" id="account-section">
+            <h2 class="settings-section-title">Account</h2>
+            <div class="glass-card danger-zone-card">
+                <p class="danger-zone-label">Delete account</p>
+                <p class="danger-zone-desc">Permanently deletes your account, all your echoes, walks, and recordings. This cannot be undone.</p>
+                <button id="delete-account-btn" class="pill-btn danger-btn">Delete my account</button>
+            </div>
+        </section>
 
         <div id="auth-gate" style="display:none">
             <p>Sign in to manage your notification settings.</p>

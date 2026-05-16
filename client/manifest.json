@@ -1,11 +1,18 @@
 {
-  "name": "Medley by Echoes",
-  "short_name": "Medley",
-  "start_url": "/medley.html",
+  "name": "Echoes",
+  "short_name": "Echoes",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#121212",
-  "theme_color": "#1DB954",
-  "icons": [],
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
   "share_target": {
     "action": "/medley.html",
     "method": "GET",

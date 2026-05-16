@@ -8,6 +8,7 @@ let currentPrefs = null;
 window.addEventListener('auth:ready', async ({ detail: { user } }) => {
     if (!user) {
         document.getElementById('settings-content').style.display = 'none';
+        document.getElementById('account-section').style.display = 'none';
         document.getElementById('auth-gate').style.display = '';
         return;
     }
@@ -109,4 +110,41 @@ document.getElementById('disable-push-btn').addEventListener('click', async () =
     showView('disabled');
     btn.disabled = false;
     btn.textContent = 'Turn off';
+});
+
+document.getElementById('delete-account-btn').addEventListener('click', () => {
+    const modal = document.createElement('div');
+    modal.id = 'delete-confirm-modal';
+    modal.innerHTML = `
+        <div class="delete-modal-box">
+            <h3>Delete your account?</h3>
+            <p>All your echoes, walks, and recordings will be permanently deleted. This cannot be undone.</p>
+            <div class="delete-modal-actions">
+                <button id="modal-cancel-btn" class="pill-btn ghost">Cancel</button>
+                <button id="modal-confirm-btn" class="pill-btn danger-btn">Delete everything</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('modal-cancel-btn').addEventListener('click', () => modal.remove());
+
+    document.getElementById('modal-confirm-btn').addEventListener('click', async () => {
+        const confirmBtn = document.getElementById('modal-confirm-btn');
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Deleting…';
+        try {
+            const res = await window.authFetch(`${API_URL}/api/users/me`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Server error');
+            // Sign out of Clerk then redirect to home
+            if (window.Clerk) await window.Clerk.signOut();
+            window.location.href = '/';
+        } catch (_) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Delete everything';
+            const p = modal.querySelector('p');
+            p.textContent = 'Something went wrong. Please try again.';
+            p.style.color = '#f87171';
+        }
+    });
 });

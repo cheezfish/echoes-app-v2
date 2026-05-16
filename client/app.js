@@ -293,10 +293,24 @@ function initializeApp() {
     const savedMapState = JSON.parse(localStorage.getItem('echoes_map') || 'null');
     const initCenter = savedMapState ? [savedMapState.lat, savedMapState.lng] : [20, 0];
     const initZoom  = savedMapState ? savedMapState.zoom : 2;
-    map = L.map('map', { zoomControl: true, attributionControl: false }).setView(initCenter, initZoom);
-    L.tileLayer('https://api.maptiler.com/maps/toner-v2/{z}/{x}/{y}.png?key=oeJYklnaUPpZgpHgTszf', { maxZoom: 20, attribution: '© <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
+    map = L.map('map', {
+        zoomControl: true,
+        attributionControl: false,
+        zoomSnap: 0,
+        zoomDelta: 0.25,
+        bounceAtZoomLimits: false,
+        scrollWheelZoom: false,
+        smoothWheelZoom: true,
+        smoothSensitivity: 1.2,
+    }).setView(initCenter, initZoom);
+    L.tileLayer('https://api.maptiler.com/maps/toner-v2/{z}/{x}/{y}.webp?key=oeJYklnaUPpZgpHgTszf', {
+        maxZoom: 20,
+        keepBuffer: 4,
+        updateWhenZooming: false,
+        attribution: '© <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
     L.control.attribution({ position: 'topright' }).addTo(map);
-    markers = L.markerClusterGroup({ disableClusteringAtZoom: 15 });
+    markers = L.markerClusterGroup({ disableClusteringAtZoom: 15, animate: false });
     map.addLayer(markers);
     map.on('movestart', () => { isUserInVicinity = false; updateActionButtonState(); });
 

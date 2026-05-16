@@ -1153,7 +1153,19 @@ function startLocationWatcher() {
 }
 
 function onLocationError(error) { updateStatus(`Error: ${error.message}`, 'error'); isUserInVicinity = false; updateActionButtonState(); }
-function handleFindMeClick() { updateStatus("Locating...", "info"); if (!("geolocation" in navigator)) return updateStatus("Geolocation not supported.", "error"); const options = { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }; navigator.geolocation.getCurrentPosition(position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startLocationWatcher(); }, onLocationError, options); }
+function handleFindMeClick() {
+    updateStatus("Locating...", "info");
+    if (!("geolocation" in navigator)) return updateStatus("Geolocation not supported.", "error");
+    const onSuccess = position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startLocationWatcher(); };
+    navigator.geolocation.getCurrentPosition(onSuccess, err => {
+        if (err.code === 3) {
+            // High-accuracy timed out (common on desktop) — retry with IP/WiFi fallback
+            navigator.geolocation.getCurrentPosition(onSuccess, onLocationError, { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 });
+        } else {
+            onLocationError(err);
+        }
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+}
 function handleRecordClick() { if (!('geolocation' in navigator)) return updateStatus("Geolocation not supported.", "error"); const options = { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }; navigator.geolocation.getCurrentPosition( position => { onLocationUpdate(position); map.flyTo([currentUserPosition.lat, currentUserPosition.lng], 16); startRecordingProcess(); }, err => { onLocationError(err); updateStatus("Could not get location.", "error"); }, options ); }
 
 async function startRecordingProcess() {

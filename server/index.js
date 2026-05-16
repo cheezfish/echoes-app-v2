@@ -124,16 +124,18 @@ const corsOptions = {
     optionsSuccessStatus: 200,
 };
 
+app.set('trust proxy', 1); // Behind Cloudflare
 app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 
 // --- RATE LIMITERS ---
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 15 * 60 * 1000,
     max: 20,
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { xForwardedForHeader: false },
     message: { error: 'Too many attempts, please try again later.' },
 });
 const apiLimiter = rateLimit({
@@ -141,6 +143,7 @@ const apiLimiter = rateLimit({
     max: 120,
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { xForwardedForHeader: false },
     message: { error: 'Too many requests, please slow down.' },
 });
 app.use('/api/', apiLimiter);

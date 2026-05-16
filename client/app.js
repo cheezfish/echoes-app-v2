@@ -635,29 +635,49 @@ function renderNearbyList(echoes) {
     nearbyEchoesList.innerHTML = '';
 
     if (instructionalEcho && !localStorage.getItem('echoes_welcomed')) {
-        const hint = document.createElement('div');
-        hint.className = 'inst-hint';
-        const arrow = document.createElement('span');
-        arrow.className = 'inst-arrow';
-        arrow.textContent = '↑';
-        if (currentUserPosition) {
-            const bearing = _instBearing(
-                currentUserPosition,
-                { lat: instructionalEcho.lat, lng: instructionalEcho.lng }
-            );
-            arrow.style.transform = `rotate(${bearing}deg)`;
-        }
-        const dist = currentUserPosition
+        const instDist = currentUserPosition
             ? Math.round(L.latLng(currentUserPosition.lat, currentUserPosition.lng)
                 .distanceTo(L.latLng(instructionalEcho.lat, instructionalEcho.lng)))
             : null;
-        const text = document.createElement('span');
-        text.textContent = dist !== null
-            ? `an echo is waiting ${dist}m away`
-            : 'an echo is waiting nearby';
-        hint.appendChild(arrow);
-        hint.appendChild(text);
-        nearbyEchoesList.appendChild(hint);
+        const instInRange = instDist !== null && instDist <= INTERACTION_RANGE_METERS;
+
+        if (instInRange) {
+            const item = document.createElement('div');
+            item.className = 'inst-list-item';
+            item.innerHTML = `
+                <div class="inst-list-icon">◎</div>
+                <div class="inst-list-body">
+                    <div class="inst-list-label">a message from echoes</div>
+                    <div class="inst-list-sub">tap to listen</div>
+                </div>`;
+            item.addEventListener('click', () => {
+                const userLatLng = currentUserPosition ? L.latLng(currentUserPosition.lat, currentUserPosition.lng) : null;
+                const popup = buildPopupEl(instructionalEcho, true, instDist, userLatLng);
+                instructionalMarker.unbindPopup().bindPopup(popup).openPopup();
+                map.panTo([instructionalEcho.lat, instructionalEcho.lng]);
+            });
+            nearbyEchoesList.appendChild(item);
+        } else {
+            const hint = document.createElement('div');
+            hint.className = 'inst-hint';
+            const arrow = document.createElement('span');
+            arrow.className = 'inst-arrow';
+            arrow.textContent = '↑';
+            if (currentUserPosition) {
+                const bearing = _instBearing(
+                    currentUserPosition,
+                    { lat: instructionalEcho.lat, lng: instructionalEcho.lng }
+                );
+                arrow.style.transform = `rotate(${bearing}deg)`;
+            }
+            const text = document.createElement('span');
+            text.textContent = instDist !== null
+                ? `an echo is waiting ${instDist}m away`
+                : 'an echo is waiting nearby';
+            hint.appendChild(arrow);
+            hint.appendChild(text);
+            nearbyEchoesList.appendChild(hint);
+        }
     }
 
     if (echoes.length === 0) {

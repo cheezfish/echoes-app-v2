@@ -133,6 +133,19 @@ async function runMigrations() {
             );
 
             CREATE INDEX IF NOT EXISTS idx_walk_echoes_walk_id ON walk_echoes(walk_id);
+
+            ALTER TABLE echo_plays_log ADD COLUMN IF NOT EXISTS percent_played REAL;
+            ALTER TABLE echo_plays_log ADD COLUMN IF NOT EXISTS distance_meters REAL;
+            ALTER TABLE echo_plays_log ADD COLUMN IF NOT EXISTS session_id TEXT;
+
+            CREATE TABLE IF NOT EXISTS recording_discards (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                duration_seconds REAL,
+                lat REAL,
+                lng REAL,
+                discarded_at TIMESTAMPTZ DEFAULT NOW()
+            );
         `);
         // Backfill geohash for existing rows that have a geog but no geohash
         await client.query(`
@@ -1014,59 +1027,132 @@ app.delete('/api/echoes/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// In server/index.js, inside the POST /api/echoes/:id/play route
-
-// REPLACE your existing /api/echoes/:id/play route with this one:
-
 app.post('/api/echoes/:id/play', async (req, res) => {
-    // NOTICE: We removed 'authMiddleware' from the line above. 
-    // This allows anonymous requests to enter the function.
-
     const { id } = req.params;
+    const { lat, lng, session_id } = req.body || {};
 
-    // 1. Manually check for a user token (Optional Auth)
+    // Optional auth via Clerk
     let listenerId = null;
-    const tokenHeader = req.header('Authorization');
-    
-    // If a token exists and isn't the string "null" or undefined
-    if (tokenHeader && tokenHeader.startsWith('Bearer ') && !tokenHeader.includes('null')) {
-        try {
-            const token = tokenHeader.split(' ')[1];
-            // We use the 'jwt' library you already imported at the top of index.js
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            listenerId = decoded.user.id;
-        } catch (err) {
-            console.warn("[Play] Invalid token provided, treating listener as anonymous.");
+    try {
+        const { userId: clerkId } = getAuth(req);
+        if (clerkId) {
+            const row = await pool.query('SELECT id FROM users WHERE clerk_id = $1', [clerkId]);
+            if (row.rows.length) listenerId = row.rows[0].id;
         }
-    }
+    } catch (_) {}
 
     try {
-        // 2. Increment play count (The core feature)
-        const query = `
-            UPDATE echoes SET last_played_at = CURRENT_TIMESTAMP, play_count = play_count + 1
-            WHERE id = $1 RETURNING *;
-        `;
-        const result = await pool.query(query, [id]);
+        const result = await pool.query(
+            `UPDATE echoes SET last_played_at = CURRENT_TIMESTAMP, play_count = play_count + 1
+             WHERE id = $1 RETURNING *`,
+            [id]
+        );
         if (result.rowCount === 0) return res.status(404).json({ error: "Echo not found." });
-        
+
         const listenedEcho = result.rows[0];
 
-        // 3. Handle Achievements (Only if applicable)
-        
-        // A. Listener Achievement: Only if we successfully identified the user
+        // Compute distance if listener coords provided
+        let distanceMeters = null;
+        if (lat != null && lng != null && listenedEcho.lat != null && listenedEcho.lng != null) {
+            const toR = d => d * Math.PI / 180;
+            const R = 6371000;
+            const dLat = toR(listenedEcho.lat - lat);
+            const dLng = toR(listenedEcho.lng - lng);
+            const a = Math.sin(dLat/2)**2 + Math.cos(toR(lat)) * Math.cos(toR(listenedEcho.lat)) * Math.sin(dLng/2)**2;
+            distanceMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        // Log the play event
+        const logResult = await pool.query(
+            `INSERT INTO echo_plays_log (echo_id, listener_user_id, listener_lat, listener_lng, distance_meters, session_id)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [id, listenerId, lat ?? null, lng ?? null, distanceMeters, session_id ?? null]
+        );
+        const playLogId = logResult.rows[0].id;
+
+        // Update listener's last_active_at
+        if (listenerId) {
+            pool.query('UPDATE users SET last_active_at = NOW() WHERE id = $1', [listenerId]).catch(() => {});
+        }
+
         if (listenerId && listenedEcho.user_id !== listenerId) {
             checkAndAwardAchievements(listenerId, 'LISTEN_ECHO', { listenedEcho });
         }
-        
-        // B. Creator Achievement: Always check for the creator
         if (listenedEcho.user_id) {
             checkAndAwardAchievements(listenedEcho.user_id, 'LISTEN_ECHO', { listenedEcho });
         }
 
-        res.status(200).json(listenedEcho);
+        res.status(200).json({ ...listenedEcho, play_log_id: playLogId });
     } catch (err) {
         console.error(`Error updating play count for echo ${id}:`, err);
         res.status(500).send("Server Error");
+    }
+});
+
+// POST /api/echoes/:id/play-complete — record completion percentage
+app.post('/api/echoes/:id/play-complete', async (req, res) => {
+    const { play_log_id, percent_played } = req.body || {};
+    if (!play_log_id || percent_played == null) return res.status(400).json({ error: 'play_log_id and percent_played required.' });
+    const pct = Math.min(1, Math.max(0, parseFloat(percent_played)));
+    try {
+        await pool.query(
+            `UPDATE echo_plays_log SET percent_played = $1 WHERE id = $2`,
+            [pct, play_log_id]
+        );
+        // Track completion on the echo itself (≥95% counts as completed)
+        if (pct >= 0.95) {
+            await pool.query(`UPDATE echoes SET completion_count = completion_count + 1 WHERE id = $1`, [req.params.id]);
+        }
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('[PlayComplete]', err.message);
+        res.status(500).json({ error: 'Failed.' });
+    }
+});
+
+// POST /api/echoes/discard — log a recording that was previewed then discarded
+app.post('/api/echoes/discard', async (req, res) => {
+    const { duration_seconds, lat, lng } = req.body || {};
+    let userId = null;
+    try {
+        const { userId: clerkId } = getAuth(req);
+        if (clerkId) {
+            const row = await pool.query('SELECT id FROM users WHERE clerk_id = $1', [clerkId]);
+            if (row.rows.length) userId = row.rows[0].id;
+        }
+    } catch (_) {}
+    try {
+        await pool.query(
+            `INSERT INTO recording_discards (user_id, duration_seconds, lat, lng) VALUES ($1, $2, $3, $4)`,
+            [userId, duration_seconds ?? null, lat ?? null, lng ?? null]
+        );
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('[Discard]', err.message);
+        res.status(500).json({ error: 'Failed.' });
+    }
+});
+
+// GET /admin/api/stats/churn — users who posted ≥1 echo but inactive ≥7 days
+app.get('/admin/api/stats/churn', adminAuthMiddleware, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT u.id, u.username, u.display_name, u.last_active_at,
+                   COUNT(e.id)::int AS echo_count,
+                   MAX(e.created_at) AS last_echo_at
+            FROM users u
+            JOIN echoes e ON e.user_id = u.id AND e.parent_id IS NULL
+            WHERE u.last_active_at < NOW() - INTERVAL '7 days'
+               OR u.last_active_at IS NULL
+            GROUP BY u.id
+            HAVING COUNT(e.id) >= 1
+            ORDER BY u.last_active_at DESC NULLS LAST
+            LIMIT 200
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[Churn]', err.message);
+        res.status(500).json({ error: 'Failed.' });
     }
 });
 

@@ -2,6 +2,7 @@
 
 const API_URL = 'https://echoes-server.cheezfish.com';
 const R2_PUBLIC_URL_BASE = 'https://pub-01555d49f21d4b6ca8fa85fc6f52fb0a.r2.dev';
+const sessionId = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 // --- CONFIG & ICONS ---
 const MAX_RECORDING_SECONDS = 180;
@@ -162,7 +163,12 @@ function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng
         p.textContent = `Recorded on: ${new Date(echo.created_at).toLocaleDateString()} ${author}`;
         wrap.appendChild(h3);
         wrap.appendChild(p);
-        wrap.appendChild(buildAudioPlayer(echo.audio_url, () => window.keepEchoAlive(echo.id)));
+        let _playLogId = null;
+        wrap.appendChild(buildAudioPlayer(
+            echo.audio_url,
+            async () => { _playLogId = await window.keepEchoAlive(echo.id); },
+            (pct) => logPlayComplete(echo.id, _playLogId, pct)
+        ));
         if (echo.transcript && echo.transcript_status === 'done') {
             const details = document.createElement('details');
             details.className = 'echo-transcript';
@@ -765,22 +771,38 @@ function clearNearbyListAndMarkers() { currentEchoesInView = []; markers.clearLa
 
 window.keepEchoAlive = async (id) => {
     try {
-        fetch(`${API_URL}/api/echoes/${id}/play`, {
+        const res = await fetch(`${API_URL}/api/echoes/${id}/play`, {
             method: 'POST',
             headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                lat: currentUserPosition?.lat ?? null,
+                lng: currentUserPosition?.lng ?? null,
+                session_id: sessionId
+            })
         });
+        const data = res.ok ? await res.json() : {};
 
-        // Update the UI immediately (turn the ring red/orange)
-        const marker = echoMarkersMap.get(id); 
-        if (marker) { 
-            const echoData = currentEchoesInView.find(e => e.id === id); 
-            if (echoData) echoData.last_played_at = new Date().toISOString(); 
-            marker.setIcon(createHealthIcon(100, id === highlightedEchoId)); 
-        } 
-    } catch (err) { 
-        console.error("Failed to send keep-alive ping:", err); 
-    } 
+        const marker = echoMarkersMap.get(id);
+        if (marker) {
+            const echoData = currentEchoesInView.find(e => e.id === id);
+            if (echoData) echoData.last_played_at = new Date().toISOString();
+            marker.setIcon(createHealthIcon(100, id === highlightedEchoId));
+        }
+        return data.play_log_id ?? null;
+    } catch (err) {
+        console.error("Failed to send keep-alive ping:", err);
+        return null;
+    }
 };
+
+function logPlayComplete(echoId, playLogId, percentPlayed) {
+    if (!playLogId) return;
+    fetch(`${API_URL}/api/echoes/${echoId}/play-complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ play_log_id: playLogId, percent_played: percentPlayed })
+    }).catch(() => {});
+}
 
 // ── WALK GUIDANCE ─────────────────────────────────────────────────────────────
 
@@ -1058,7 +1080,18 @@ function showRecordingPreview() {
     updateActionButtonState();
 }
 
-function dismissPreview() {
+function dismissPreview(isPosting = false) {
+    if (pendingRecording && !isPosting) {
+        fetch(`${API_URL}/api/echoes/discard`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                duration_seconds: pendingRecording.duration ?? null,
+                lat: currentUserPosition?.lat ?? null,
+                lng: currentUserPosition?.lng ?? null
+            })
+        }).catch(() => {});
+    }
     if (pendingRecording?.blobUrl) URL.revokeObjectURL(pendingRecording.blobUrl);
     pendingRecording = null;
     pendingReplyToEchoId = null;
@@ -1072,7 +1105,7 @@ async function confirmPostEcho() {
     const postBtn = document.getElementById('preview-post-btn');
     postBtn.disabled = true;
     postBtn.textContent = 'Posting…';
-    dismissPreview();
+    dismissPreview(true);
 
     const fileName = `echo_${currentBucketKey}_${Date.now()}.webm`;
     try {

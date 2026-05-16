@@ -13,9 +13,10 @@
             `linear-gradient(to right, #2563eb ${pct}%, rgba(255,255,255,0.12) ${pct}%)`;
     }
 
-    window.buildAudioPlayer = function (src, onPlay) {
+    window.buildAudioPlayer = function (src, onPlay, onEnded) {
         const audio = new Audio(src);
         audio.preload = 'metadata';
+        let maxPctReached = 0;
 
         const wrap = document.createElement('div');
         wrap.className = 'audio-player';
@@ -72,6 +73,7 @@
         audio.ontimeupdate = () => {
             if (!audio.duration) return;
             const pct = (audio.currentTime / audio.duration) * 100;
+            if (pct > maxPctReached) maxPctReached = pct;
             setScrubberFill(scrubber, pct);
             scrubber.value = pct;
             timeEl.textContent = `${fmt(audio.currentTime)} / ${fmt(audio.duration)}`;
@@ -86,7 +88,10 @@
             setScrubberFill(scrubber, 0);
             scrubber.value = 0;
             timeEl.textContent = `0:00 / ${fmt(audio.duration)}`;
+            if (onEnded) onEnded(1.0);
         };
+
+        wrap._getMaxPct = () => maxPctReached / 100;
 
         scrubber.addEventListener('input', () => {
             if (!audio.duration) return;

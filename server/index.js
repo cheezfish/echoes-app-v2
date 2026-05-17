@@ -202,6 +202,7 @@ async function runMigrations() {
             );
             ALTER TABLE achievements ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'General';
             ALTER TABLE achievements ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 99;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_achievements_name ON achievements(name);
         `);
 
         await client.query(`

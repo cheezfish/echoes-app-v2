@@ -18,105 +18,237 @@
     <main class="settings-main">
         <h1 class="page-heading">Settings</h1>
 
+        <!-- Notifications -->
         <section class="settings-section">
             <p class="section-label">Notifications</p>
 
             <div id="push-status-card" class="glass-card push-status-card">
-                    <div id="push-disabled-view">
-                        <p class="push-status-label">Push notifications are off</p>
-                        <p class="push-status-hint">Enable to be notified about nearby echoes and activity on yours.</p>
-                        <button id="enable-push-btn" class="pill-btn primary">Enable notifications</button>
-                    </div>
-                    <div id="push-enabled-view" style="display:none">
-                        <p class="push-status-label push-status-on">Notifications enabled</p>
-                        <button id="disable-push-btn" class="pill-btn ghost">Turn off</button>
-                    </div>
-                    <div id="push-denied-view" style="display:none">
-                        <p class="push-status-label push-status-denied">Notifications blocked by browser</p>
-                        <p class="push-status-hint">Go to your browser settings and allow notifications for this site.</p>
-                    </div>
+                <div id="push-disabled-view">
+                    <p class="push-status-label">Push notifications are off</p>
+                    <p class="push-status-hint">Enable to be notified about nearby echoes and activity on yours.</p>
+                    <button id="enable-push-btn" class="pill-btn primary">Enable notifications</button>
                 </div>
+                <div id="push-enabled-view" style="display:none">
+                    <p class="push-status-label push-status-on">Notifications enabled</p>
+                    <button id="disable-push-btn" class="pill-btn ghost">Turn off</button>
+                </div>
+                <div id="push-denied-view" style="display:none">
+                    <p class="push-status-label push-status-denied">Notifications blocked by browser</p>
+                    <p class="push-status-hint">Go to your browser settings and allow notifications for this site.</p>
+                </div>
+            </div>
 
-                <div id="notification-toggles" class="glass-card toggles-card" style="display:none">
-                    <div class="toggle-row" data-pref="new_echo_listening">
-                        <div class="toggle-info">
-                            <span class="toggle-label">New echo within earshot</span>
-                            <span class="toggle-desc">When a new echo appears within 100m of you</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" data-pref="new_echo_listening">
-                            <span class="toggle-track"></span>
-                        </label>
+            <div id="notification-toggles" class="glass-card toggles-card" style="display:none">
+                <div class="toggle-row" data-pref="new_echo_listening">
+                    <div class="toggle-info">
+                        <span class="toggle-label">New echo within earshot</span>
+                        <span class="toggle-desc">When a new echo appears within 100m of you</span>
                     </div>
-                    <div class="toggle-row" data-pref="new_echo_scanning">
-                        <div class="toggle-info">
-                            <span class="toggle-label">New echo nearby</span>
-                            <span class="toggle-desc">When a new echo appears within 500m of you</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" data-pref="new_echo_scanning">
-                            <span class="toggle-track"></span>
-                        </label>
-                    </div>
-                    <div class="toggle-row" data-pref="first_listen">
-                        <div class="toggle-info">
-                            <span class="toggle-label">First listen on your echo</span>
-                            <span class="toggle-desc">When someone hears your echo for the first time</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" data-pref="first_listen">
-                            <span class="toggle-track"></span>
-                        </label>
-                    </div>
-                    <div class="toggle-row" data-pref="reply">
-                        <div class="toggle-info">
-                            <span class="toggle-label">Replies to your echo</span>
-                            <span class="toggle-desc">When someone leaves a reply at your echo's location</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" data-pref="reply">
-                            <span class="toggle-track"></span>
-                        </label>
-                    </div>
-                    <div class="toggle-row" data-pref="expiry_warning">
-                        <div class="toggle-info">
-                            <span class="toggle-label">Your echo is fading</span>
-                            <span class="toggle-desc">3 days before your echo disappears from the map</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" data-pref="expiry_warning">
-                            <span class="toggle-track"></span>
-                        </label>
-                    </div>
-                    <div class="toggle-row" data-pref="milestone_listens">
-                        <div class="toggle-info">
-                            <span class="toggle-label">Milestone listens</span>
-                            <span class="toggle-desc">At 5, 10, 25, 50, 100 plays on your echo</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" data-pref="milestone_listens">
-                            <span class="toggle-track"></span>
-                        </label>
-                    </div>
-                    <div class="toggle-row" data-pref="weekly_digest">
-                        <div class="toggle-info">
-                            <span class="toggle-label">Weekly area digest</span>
-                            <span class="toggle-desc">A weekly summary of new echoes near you</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" data-pref="weekly_digest">
-                            <span class="toggle-track"></span>
-                        </label>
-                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" data-pref="new_echo_listening">
+                        <span class="toggle-track"></span>
+                    </label>
                 </div>
+                <div class="toggle-row" data-pref="new_echo_scanning">
+                    <div class="toggle-info">
+                        <span class="toggle-label">New echo nearby</span>
+                        <span class="toggle-desc">When a new echo appears within 500m of you</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" data-pref="new_echo_scanning">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="toggle-row" data-pref="first_listen">
+                    <div class="toggle-info">
+                        <span class="toggle-label">First listen on your echo</span>
+                        <span class="toggle-desc">When someone hears your echo for the first time</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" data-pref="first_listen">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="toggle-row" data-pref="reply">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Replies to your echo</span>
+                        <span class="toggle-desc">When someone leaves a reply at your echo's location</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" data-pref="reply">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="toggle-row" data-pref="expiry_warning">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Your echo is fading</span>
+                        <span class="toggle-desc">3 days before your echo disappears from the map</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" data-pref="expiry_warning">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="toggle-row" data-pref="milestone_listens">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Milestone listens</span>
+                        <span class="toggle-desc">At 5, 10, 25, 50, 100 plays on your echo</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" data-pref="milestone_listens">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="toggle-row" data-pref="weekly_digest">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Weekly area digest</span>
+                        <span class="toggle-desc">A weekly summary of new echoes near you</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" data-pref="weekly_digest">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+            </div>
         </section>
 
+        <!-- Playback -->
+        <section class="settings-section">
+            <p class="section-label">Playback</p>
+            <div class="glass-card toggles-card">
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Haptic feedback</span>
+                        <span class="toggle-desc">Vibrate when you walk into range of an echo</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="pref-haptic">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Auto-expand transcripts</span>
+                        <span class="toggle-desc">Show transcript text open by default in echo popups</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="pref-transcripts">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Playback volume</span>
+                        <span class="toggle-desc">Volume for all echo audio players</span>
+                    </div>
+                    <div class="volume-control">
+                        <input type="range" id="pref-volume" class="volume-slider" min="0" max="100" step="1">
+                        <span id="volume-label" class="volume-label">100%</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recording -->
+        <section class="settings-section">
+            <p class="section-label">Recording</p>
+            <div class="glass-card toggles-card">
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Audio quality</span>
+                        <span class="toggle-desc">Higher quality uses more storage and data</span>
+                    </div>
+                    <div class="segmented" id="seg-quality">
+                        <button class="seg-btn" data-val="64">Standard</button>
+                        <button class="seg-btn" data-val="128">High</button>
+                    </div>
+                </div>
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Echo life</span>
+                        <span class="toggle-desc">How long your echoes stay on the map</span>
+                    </div>
+                    <div class="segmented" id="seg-expiry">
+                        <button class="seg-btn" data-val="7">7d</button>
+                        <button class="seg-btn" data-val="14">14d</button>
+                        <button class="seg-btn" data-val="30">30d</button>
+                    </div>
+                </div>
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Skip preview step</span>
+                        <span class="toggle-desc">Post immediately without reviewing your recording</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="pref-skip-preview">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+            </div>
+        </section>
+
+        <!-- Accessibility -->
+        <section class="settings-section">
+            <p class="section-label">Accessibility</p>
+            <div class="glass-card toggles-card">
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Reduce motion</span>
+                        <span class="toggle-desc">Disable pulsing animations and transitions</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="pref-reduce-motion">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Distance units</span>
+                        <span class="toggle-desc">How distances are shown around the map</span>
+                    </div>
+                    <div class="segmented" id="seg-units">
+                        <button class="seg-btn" data-val="metric">m / km</button>
+                        <button class="seg-btn" data-val="imperial">ft / mi</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Data -->
+        <section class="settings-section">
+            <p class="section-label">Data</p>
+            <div class="glass-card account-actions-card">
+                <div class="account-action-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Export my data</span>
+                        <span class="toggle-desc">Download all your echoes as JSON</span>
+                    </div>
+                    <button id="export-data-btn" class="pill-btn ghost">Export</button>
+                </div>
+                <div class="account-action-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Reset onboarding</span>
+                        <span class="toggle-desc">Show the instructional echo again on next visit</span>
+                    </div>
+                    <button id="reset-onboarding-btn" class="pill-btn ghost">Reset</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Account -->
         <section class="settings-section" id="account-section">
             <p class="section-label">Account</p>
-            <div class="glass-card danger-zone-card">
-                <p class="danger-zone-label">Delete account</p>
-                <p class="danger-zone-desc">Permanently deletes your account, all your echoes, walks, and recordings. This cannot be undone.</p>
-                <button id="delete-account-btn" class="pill-btn danger-btn">Delete my account</button>
+            <div class="glass-card account-actions-card">
+                <div class="account-action-row">
+                    <div class="toggle-info">
+                        <span class="toggle-label">Profile</span>
+                        <span class="toggle-desc">Change your name, email, or password</span>
+                    </div>
+                    <button id="manage-account-btn" class="pill-btn ghost">Manage</button>
+                </div>
+            </div>
+            <div class="delete-account-wrap">
+                <button id="delete-account-btn" class="delete-account-link">delete account</button>
             </div>
         </section>
 

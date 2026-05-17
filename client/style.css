@@ -987,3 +987,10 @@ body.sheet-expanded #context-action-btn {
     0%, 100% { opacity: 0.6; }
     50%       { opacity: 1;   }
 }
+
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+}

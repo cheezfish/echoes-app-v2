@@ -16,6 +16,7 @@
     window.buildAudioPlayer = function (src, onPlay, onEnded) {
         const audio = new Audio(src);
         audio.preload = 'metadata';
+        audio.volume = parseFloat(localStorage.getItem('echoes_volume') ?? '1');
         let maxPctReached = 0;
 
         const wrap = document.createElement('div');

@@ -212,6 +212,7 @@ function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng
         if (echo.transcript && echo.transcript_status === 'done') {
             const details = document.createElement('details');
             details.className = 'echo-transcript';
+            if (localStorage.getItem('echoes_transcripts') === 'true') details.open = true;
             const summary = document.createElement('summary');
             summary.textContent = 'Transcript';
             const tp = document.createElement('p');
@@ -310,6 +311,7 @@ function createHealthIcon(healthPercent, isHighlighted = false, customSize = nul
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    if (localStorage.getItem('echoes_reduce_motion') === 'true') document.body.classList.add('reduce-motion');
     loginBtn = document.getElementById("login-btn");
     welcomeMessage = document.getElementById("welcome-message");
     loggedOutView = document.getElementById("logged-out-view");
@@ -1155,7 +1157,7 @@ function onLocationUpdate(position) {
     const lngStr = currentUserPosition.lng.toFixed(4);
     currentBucketKey = `sq_${latStr}_${lngStr}`;
     if (!isUserInVicinity) {
-        navigator.vibrate?.(200);
+        if (localStorage.getItem('echoes_haptic') !== 'false') navigator.vibrate?.(200);
         injectInstructionalEcho(currentUserPosition.lat, currentUserPosition.lng);
     }
     isUserInVicinity = true;
@@ -1218,7 +1220,8 @@ async function startRecordingProcess() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-        mediaRecorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 64000 });
+        const bitrate = parseInt(localStorage.getItem('echoes_quality') || '64') * 1000;
+        mediaRecorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: bitrate });
         audioChunks = [];
         mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
         mediaRecorder.onstop = showRecordingPreview;

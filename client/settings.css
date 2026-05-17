@@ -153,22 +153,127 @@
     background: #4ade80;
 }
 
-.danger-zone-card {
-    padding: 1.25rem 1.5rem;
+.account-actions-card {
+    padding: 0;
+    overflow: hidden;
 }
 
-.danger-zone-label {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.85);
-    margin: 0 0 0.4rem 0;
+.account-action-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    gap: 1rem;
 }
 
-.danger-zone-desc {
-    font-size: 0.82rem;
+.account-action-row:last-child {
+    border-bottom: none;
+}
+
+/* Volume slider */
+.volume-control {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+}
+
+.volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 90px;
+    height: 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+    cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.8);
+    border: none;
+    cursor: pointer;
+}
+
+.volume-label {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.4);
+    min-width: 2.8rem;
+    text-align: right;
+}
+
+/* Segmented control */
+.segmented {
+    display: flex;
+    gap: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+.seg-btn {
+    background: transparent;
+    border: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
     color: rgba(255, 255, 255, 0.35);
-    margin: 0 0 1rem 0;
-    line-height: 1.4;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.seg-btn:last-child {
+    border-right: none;
+}
+
+.seg-btn.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.seg-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* Delete account */
+.delete-account-wrap {
+    text-align: center;
+    margin-top: 2rem;
+    padding-bottom: 1rem;
+}
+
+.delete-account-link {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    transition: color 0.2s;
+    font-family: inherit;
+    letter-spacing: 0.03em;
+}
+
+.delete-account-link:hover {
+    color: #f87171;
 }
 
 .danger-btn {

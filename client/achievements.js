@@ -2,6 +2,28 @@
 
 const API_URL = 'https://echoes-server.cheezfish.com';
 
+const ACHIEVEMENT_EMOJI = {
+    'First Echo': '🎙',
+    'Storyteller': '📖',
+    'Orator': '🗣',
+    'Historian': '📚',
+    'Secret-Keeper': '🤫',
+    'Monologist': '🎭',
+    'Traveler': '🗺',
+    'Globetrotter': '🌍',
+    'Voyager': '🚀',
+    'Night Owl': '🦉',
+    'Early Bird': '🌅',
+    'Echo Chamber': '🔄',
+    'Explorer': '🧭',
+    'Archivist': '🗂',
+    'Sage': '🔮',
+    'Reach Out': '🤝',
+    'Heard Afresh': '✨',
+    'Savior': '💫',
+    'Century Club': '🏆',
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
     const gridContainer = document.getElementById('achievements-grid-container');
     const loadingMessage = document.getElementById('loading-message');
@@ -41,16 +63,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         achievements.forEach(ach => {
             const card = document.createElement('div');
             card.className = 'achievement-card';
-            
+
             const isUnlocked = !!ach.unlocked_at;
             if (!isUnlocked) card.classList.add('locked');
 
-            const iconUrl = `https://api.iconify.design/${encodeURIComponent(ach.icon)}.svg?color=${isUnlocked ? '%2300aaff' : '%23555'}`;
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'achievement-icon';
+            iconSpan.textContent = ACHIEVEMENT_EMOJI[ach.name] || '◎';
 
-            const img = document.createElement('img');
-            img.className = 'achievement-icon';
-            img.src = iconUrl;
-            img.alt = ach.name;
+            const textDiv = document.createElement('div');
+            textDiv.className = 'achievement-text';
 
             const h3 = document.createElement('h3');
             h3.className = 'achievement-name';
@@ -60,18 +82,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             desc.className = 'achievement-description';
             desc.textContent = ach.description;
 
-            card.appendChild(img);
-            card.appendChild(h3);
-            card.appendChild(desc);
+            textDiv.appendChild(h3);
+            textDiv.appendChild(desc);
+
+            card.appendChild(iconSpan);
+            card.appendChild(textDiv);
 
             if (isUnlocked) {
                 const date = new Date(ach.unlocked_at).toLocaleDateString('en-US', {
-                    year: 'numeric', month: 'long', day: 'numeric'
+                    year: 'numeric', month: 'short', day: 'numeric'
                 });
-                const dateP = document.createElement('p');
-                dateP.className = 'achievement-unlocked-date';
-                dateP.textContent = `Unlocked on ${date}`;
-                card.appendChild(dateP);
+                const dateSpan = document.createElement('span');
+                dateSpan.className = 'achievement-unlocked-date';
+                dateSpan.textContent = date;
+                card.appendChild(dateSpan);
             }
 
             gridContainer.appendChild(card);

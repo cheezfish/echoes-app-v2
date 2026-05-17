@@ -1,0 +1,82 @@
+/* shared.css — common components for all sub-pages */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    width: 100%;
+    min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #080808;
+    color: #eee;
+}
+
+#page-back {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 400;
+}
+
+.pill-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(15, 15, 15, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    padding: 0.4rem 0.9rem;
+    color: #ddd;
+    font-size: 0.82rem;
+    font-family: inherit;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+    white-space: nowrap;
+}
+.pill-btn:hover {
+    background: rgba(35, 35, 35, 0.95);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.page-user-label {
+    position: fixed;
+    top: 1.35rem;
+    right: 1.25rem;
+    z-index: 400;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.35);
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.page-heading {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.01em;
+    margin: 0 0 1.1rem;
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+}
+
+.section-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.28);
+    margin: 0 0 0.6rem 0.1rem;
+}
+
+.empty-message {
+    text-align: center;
+    font-size: 0.88rem;
+    color: rgba(255, 255, 255, 0.25);
+    padding: 3rem 0;
+}

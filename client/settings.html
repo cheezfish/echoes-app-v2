@@ -5,21 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Settings — Echoes</title>
     <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="shared.css">
     <link rel="stylesheet" href="my-echoes.css">
     <link rel="stylesheet" href="settings.css">
 </head>
 <body>
-    <div id="page-container">
-        <header class="page-header">
-            <a href="index.html" class="back-link">← Map</a>
-            <h1 class="page-heading">Settings</h1>
-        </header>
+    <div id="page-back">
+        <a href="index.html" class="pill-btn back-pill">← echoes</a>
+    </div>
+    <span id="page-nav-user" class="page-user-label"></span>
 
-        <div id="settings-content">
-            <section class="settings-section">
-                <h2 class="settings-section-title">Notifications</h2>
+    <main class="settings-main">
+        <h1 class="page-heading">Settings</h1>
 
-                <div id="push-status-card" class="glass-card push-status-card">
+        <section class="settings-section">
+            <p class="section-label">Notifications</p>
+
+            <div id="push-status-card" class="glass-card push-status-card">
                     <div id="push-disabled-view">
                         <p class="push-status-label">Push notifications are off</p>
                         <p class="push-status-hint">Enable to be notified about nearby echoes and activity on yours.</p>
@@ -107,11 +109,10 @@
                         </label>
                     </div>
                 </div>
-            </section>
-        </div>
+        </section>
 
         <section class="settings-section" id="account-section">
-            <h2 class="settings-section-title">Account</h2>
+            <p class="section-label">Account</p>
             <div class="glass-card danger-zone-card">
                 <p class="danger-zone-label">Delete account</p>
                 <p class="danger-zone-desc">Permanently deletes your account, all your echoes, walks, and recordings. This cannot be undone.</p>
@@ -120,10 +121,10 @@
         </section>
 
         <div id="auth-gate" style="display:none">
-            <p>Sign in to manage your notification settings.</p>
+            <p>Sign in to manage your settings.</p>
             <button onclick="window.signIn()" class="pill-btn">Sign in</button>
         </div>
-    </div>
+    </main>
 
     <script crossorigin="anonymous" data-clerk-publishable-key="pk_test_Z2FtZS1vcnl4LTg5LmNsZXJrLmFjY291bnRzLmRldiQ" src="https://game-oryx-89.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js" type="text/javascript"></script>
     <script src="auth.js"></script>

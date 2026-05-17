@@ -1,77 +1,63 @@
-body {
-    background-color: #080808;
-}
-
 .achievements-main {
-    padding: 5rem 1.25rem 2rem;
-    max-width: 1100px;
+    padding: 4rem 1.25rem 3rem;
+    max-width: 600px;
     margin: 0 auto;
-    min-height: 100vh;
 }
 
 #achievements-grid-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
+    overflow: hidden;
 }
 
 .achievement-card {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    padding: 1.5rem 1.25rem;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    text-align: center;
-    transition: border-color 0.2s, transform 0.2s;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.03);
+    transition: background 0.15s;
 }
+.achievement-card:last-child { border-bottom: none; }
+.achievement-card:not(.locked):hover { background: rgba(255, 255, 255, 0.055); }
 
 .achievement-card.locked {
     opacity: 0.35;
-    filter: grayscale(100%);
-}
-
-.achievement-card:not(.locked):hover {
-    border-color: rgba(255, 255, 255, 0.18);
-    transform: translateY(-3px);
 }
 
 .achievement-icon {
-    width: 56px;
-    height: 56px;
-    margin-bottom: 1rem;
+    font-size: 1.35rem;
+    width: 32px;
+    text-align: center;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.achievement-text {
+    flex: 1;
+    min-width: 0;
 }
 
 .achievement-name {
-    font-size: 1rem;
+    font-size: 0.88rem;
     font-weight: 600;
-    color: #eee;
-    margin-bottom: 0.4rem;
-}
-
-.achievement-card.locked .achievement-name {
-    color: rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 0.15rem;
 }
 
 .achievement-description {
-    font-size: 0.82rem;
-    color: rgba(255, 255, 255, 0.4);
-    line-height: 1.5;
-    flex-grow: 1;
+    font-size: 0.76rem;
+    color: rgba(255, 255, 255, 0.35);
+    line-height: 1.4;
 }
 
 .achievement-unlocked-date {
-    font-size: 0.75rem;
-    color: rgba(96, 165, 250, 0.8);
-    margin-top: 0.75rem;
-    font-style: italic;
-}
-
-#loading-message {
-    text-align: center;
-    font-size: 1rem;
-    color: rgba(255, 255, 255, 0.3);
-    padding: 4rem 0;
-    grid-column: 1 / -1;
+    font-size: 0.7rem;
+    color: rgba(96, 165, 250, 0.7);
+    white-space: nowrap;
+    flex-shrink: 0;
 }

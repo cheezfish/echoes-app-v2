@@ -1,7 +1,13 @@
 /* client/settings.css */
 
+.settings-main {
+    padding: 4rem 1.25rem 3rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
 .settings-section {
-    margin-bottom: 2rem;
+    margin-bottom: 1.75rem;
 }
 
 .settings-section-title {

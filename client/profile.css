@@ -1,5 +1,11 @@
 /* profile.css — minimal additions on top of my-echoes.css */
 
+.profile-main {
+    padding: 4rem 1.25rem 3rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
 .profile-stats {
     display: flex;
     gap: 0.6rem;

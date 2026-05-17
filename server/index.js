@@ -178,6 +178,103 @@ async function runMigrations() {
             SET geohash = ST_GeoHash(geog::geometry, 7)
             WHERE geohash IS NULL AND geog IS NOT NULL;
         `);
+        // ── ACHIEVEMENTS ──────────────────────────────────────────────────────
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS achievements (
+                id SERIAL PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT,
+                icon TEXT,
+                category TEXT DEFAULT 'General',
+                sort_order INTEGER DEFAULT 99
+            );
+            CREATE TABLE IF NOT EXISTS user_achievements (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                achievement_id INTEGER NOT NULL REFERENCES achievements(id) ON DELETE CASCADE,
+                unlocked_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(user_id, achievement_id)
+            );
+            CREATE TABLE IF NOT EXISTS unique_echo_listens (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                echo_id INTEGER NOT NULL REFERENCES echoes(id) ON DELETE CASCADE,
+                PRIMARY KEY (user_id, echo_id)
+            );
+            ALTER TABLE achievements ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'General';
+            ALTER TABLE achievements ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 99;
+        `);
+
+        await client.query(`
+            INSERT INTO achievements (name, description, icon, category, sort_order) VALUES
+            -- Creator — Volume
+            ('First Echo',      'Your first mark on the world',               '🎙', 'Creator', 10),
+            ('Storyteller',     'Leave 5 echoes',                             '📖', 'Creator', 11),
+            ('Orator',          'Leave 25 echoes',                            '🗣', 'Creator', 12),
+            ('Historian',       'Leave 100 echoes',                           '📚', 'Creator', 13),
+            ('Mythmaker',       'Leave 500 echoes',                           '🗿', 'Creator', 14),
+            ('Living Legend',   'Leave 1000 echoes',                          '👑', 'Creator', 15),
+            -- Creator — Craft
+            ('Secret-Keeper',   'Leave an echo under 3 seconds',              '🤫', 'Creator', 20),
+            ('Haiku',           'Leave an echo between 8 and 17 seconds',     '🍃', 'Creator', 21),
+            ('Monologist',      'Leave an echo longer than 55 seconds',       '🎭', 'Creator', 22),
+            ('The Long Game',   'Leave an echo longer than 2 minutes',        '⏳', 'Creator', 23),
+            ('The Method Actor','Leave an echo longer than 2 minutes 45 seconds', '🎬', 'Creator', 24),
+            -- Creator — Range
+            ('Traveler',        'Leave echoes more than 1km apart',           '🗺', 'Creator', 30),
+            ('Globetrotter',    'Leave echoes more than 100km apart',         '🌍', 'Creator', 31),
+            ('Voyager',         'Leave echoes more than 1000km apart',        '🚀', 'Creator', 32),
+            -- Creator — Time
+            ('Night Owl',       'Leave an echo between midnight and 4am',     '🦉', 'Creator', 40),
+            ('Early Bird',      'Leave an echo between 4am and 7am',          '🌅', 'Creator', 41),
+            ('Rush Hour',       'Leave an echo during morning or evening rush','🚇', 'Creator', 42),
+            ('Lunch Break',     'Leave an echo between noon and 2pm',         '🥪', 'Creator', 43),
+            ('Weekend Warrior', 'Leave an echo on a Saturday or Sunday',      '🏖', 'Creator', 44),
+            ('The Insomniac',   'Leave 3 echoes between 1am and 5am',         '🌑', 'Creator', 45),
+            -- Creator — Dedication
+            ('Back to Back',    'Leave 2 echoes on the same day',             '🔁', 'Creator', 50),
+            ('Dedicated',       'Leave echoes on 7 different days',           '📅', 'Creator', 51),
+            ('Consistent',      'Leave echoes on 30 different days',          '🗓', 'Creator', 52),
+            -- Creator — Replies
+            ('Conversationalist','Reply to 3 echoes',                         '💬', 'Creator', 60),
+            ('Pen Pal',         'Reply to 10 echoes',                         '✉️', 'Creator', 61),
+            ('Agony Aunt',      'Reply to 25 echoes',                         '🫂', 'Creator', 62),
+            -- Creator — Walks
+            ('Tour Guide',      'Create your first walk',                     '🎯', 'Creator', 70),
+            ('Curator',         'Create a walk with 5 or more echoes',        '🗃', 'Creator', 71),
+            ('Trail Blazer',    'Create 3 walks',                             '🥾', 'Creator', 72),
+            -- Creator — Spatial
+            ('Whispering Gallery','Leave 3 echoes within 50m of each other',  '👂', 'Creator', 80),
+            -- Listener — Volume
+            ('Explorer',        'Hear your first echo from someone else',     '🧭', 'Listener', 110),
+            ('Archivist',       'Hear 25 unique echoes',                      '🗂', 'Listener', 111),
+            ('Sage',            'Hear 100 unique echoes',                     '🔮', 'Listener', 112),
+            ('Devotee',         'Hear 250 unique echoes',                     '🎧', 'Listener', 113),
+            ('Pilgrim',         'Hear 500 unique echoes',                     '🛤', 'Listener', 114),
+            ('Oracle',          'Hear 1000 unique echoes',                    '🌐', 'Listener', 115),
+            -- Listener — Moments
+            ('Reach Out',       'Be the first person to hear an echo',        '🤝', 'Listener', 120),
+            ('Fresh Off the Press','Listen within 5 minutes of an echo being left','⚡','Listener',121),
+            ('Heard Afresh',    'Listen within an hour of an echo being left','✨', 'Listener', 122),
+            ('Old Soul',        'Listen to an echo over 15 days old',         '🕰', 'Listener', 123),
+            ('Savior',          'Revive an echo not heard in over 15 days',   '💫', 'Listener', 124),
+            ('The Completionist','Listen to an echo all the way through',     '✅', 'Listener', 125),
+            -- Audience
+            ('Century Club',    'Get 100 plays on a single echo',             '🏆', 'Audience', 210),
+            ('Hall of Fame',    'Get 500 plays on a single echo',             '🏛', 'Audience', 211),
+            ('Going Viral',     'Get 1000 plays on a single echo',            '📡', 'Audience', 212),
+            ('Cult Following',  'Have 5 different echoes each with 10+ plays','👁', 'Audience', 213),
+            ('Talked About',    'Receive your first reply on an echo',        '💭', 'Audience', 214),
+            ('The Discussable', 'Receive 5 replies across your echoes',       '🗣', 'Audience', 215),
+            ('Fan Mail',        'Receive 25 replies across your echoes',      '💌', 'Audience', 216),
+            -- Hidden
+            ('Echo Chamber',    'Listen to your own echo',                    '🔄', 'Hidden', 310)
+            ON CONFLICT (name) DO UPDATE SET
+                description = EXCLUDED.description,
+                icon        = EXCLUDED.icon,
+                category    = EXCLUDED.category,
+                sort_order  = EXCLUDED.sort_order;
+        `);
+
         console.log('[Migration] DB schema up to date.');
     } catch (err) {
         console.error('[Migration] Failed:', err.message);
@@ -513,18 +610,13 @@ app.get('/api/achievements', authMiddleware, async (req, res) => {
         // This query fetches all achievements and LEFT JOINS the user's unlocked achievements.
         // If a user has an achievement, user_id will be their ID. If not, it will be NULL.
         const query = `
-            SELECT 
-                a.id, 
-                a.name, 
-                a.description, 
-                a.icon,
+            SELECT
+                a.id, a.name, a.description, a.icon,
+                a.category, a.sort_order,
                 ua.unlocked_at
-            FROM 
-                achievements a
-            LEFT JOIN 
-                user_achievements ua ON a.id = ua.achievement_id AND ua.user_id = $1
-            ORDER BY
-                ua.unlocked_at DESC, a.id;
+            FROM achievements a
+            LEFT JOIN user_achievements ua ON a.id = ua.achievement_id AND ua.user_id = $1
+            ORDER BY a.sort_order ASC, a.id ASC;
         `;
         const result = await pool.query(query, [userId]);
         
@@ -1069,6 +1161,7 @@ app.post('/echoes', authMiddleware, async (req, res) => {
                     body: `A reply was left at ${parentRow.rows[0].location_name}.`,
                     url: '/my-echoes.html'
                 });
+                checkAndAwardAchievements(parentRow.rows[0].user_id, 'REPLY_RECEIVED', {});
             }
         } else {
             // Notify users nearby
@@ -1145,6 +1238,7 @@ app.post('/api/walks', authMiddleware, async (req, res) => {
             [req.user.id, title.trim(), description || null]
         );
         res.status(201).json({ ...result.rows[0], echo_count: 0 });
+        checkAndAwardAchievements(req.user.id, 'WALK_CREATED', {});
     } catch (err) {
         console.error('Error creating walk:', err);
         res.status(500).json({ error: 'Server error.' });
@@ -1199,6 +1293,7 @@ app.post('/api/walks/:id/echoes', authMiddleware, async (req, res) => {
             [req.params.id, echo_id, nextPos]
         );
         res.status(201).json({ message: 'Echo added to walk.' });
+        checkAndAwardAchievements(req.user.id, 'WALK_ECHO_ADDED', { walkId: parseInt(req.params.id) });
     } catch (err) {
         console.error('Error adding echo to walk:', err);
         res.status(500).json({ error: 'Server error.' });
@@ -1396,6 +1491,9 @@ app.post('/api/echoes/:id/play-complete', async (req, res) => {
         // Track completion on the echo itself (≥95% counts as completed)
         if (pct >= 0.95) {
             await pool.query(`UPDATE echoes SET completion_count = completion_count + 1 WHERE id = $1`, [req.params.id]);
+            const logRow = await pool.query(`SELECT listener_user_id FROM echo_plays_log WHERE id = $1`, [play_log_id]);
+            const listenerId = logRow.rows[0]?.listener_user_id;
+            if (listenerId) checkAndAwardAchievements(listenerId, 'PLAY_COMPLETE', {});
         }
         res.json({ ok: true });
     } catch (err) {

@@ -1588,4 +1588,64 @@ async function runExpiryCron() {
 setInterval(runExpiryCron, 6 * 60 * 60 * 1000);
 setTimeout(runExpiryCron, 30000); // run 30s after startup
 
+// --- PLAYS LOG RETENTION CRON (daily) ---
+async function runPlaysLogRetentionCron() {
+    try {
+        const result = await pool.query(
+            `DELETE FROM echo_plays_log WHERE created_at < NOW() - INTERVAL '90 days'`
+        );
+        if (result.rowCount > 0) console.log(`[RetentionCron] Deleted ${result.rowCount} old play log rows.`);
+    } catch (err) {
+        console.error('[RetentionCron] Error:', err.message);
+    }
+}
+setInterval(runPlaysLogRetentionCron, 24 * 60 * 60 * 1000);
+setTimeout(runPlaysLogRetentionCron, 60000);
+
+// --- R2 ORPHAN CLEANUP CRON (daily, offset from retention cron) ---
+async function runOrphanCleanupCron() {
+    try {
+        const liveUrls = new Set();
+        let offset = 0;
+        const PAGE = 1000;
+        while (true) {
+            const page = await pool.query(
+                `SELECT audio_url FROM echoes WHERE audio_url IS NOT NULL ORDER BY id LIMIT $1 OFFSET $2`,
+                [PAGE, offset]
+            );
+            page.rows.forEach(r => liveUrls.add(r.audio_url));
+            if (page.rows.length < PAGE) break;
+            offset += PAGE;
+        }
+
+        const r2PublicBase = process.env.R2_PUBLIC_URL_BASE;
+        if (!r2PublicBase) return;
+
+        const allR2Files = [];
+        let continuationToken;
+        do {
+            const r2Page = await s3.send(new ListObjectsV2Command({
+                Bucket: process.env.R2_BUCKET_NAME,
+                ...(continuationToken ? { ContinuationToken: continuationToken } : {}),
+            }));
+            allR2Files.push(...(r2Page.Contents || []));
+            continuationToken = r2Page.IsTruncated ? r2Page.NextContinuationToken : undefined;
+        } while (continuationToken);
+
+        const orphans = allR2Files.filter(f => !liveUrls.has(`${r2PublicBase}/${f.Key}`));
+        if (orphans.length === 0) return;
+
+        await s3.send(new DeleteObjectsCommand({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Delete: { Objects: orphans.map(f => ({ Key: f.Key })) },
+        }));
+        const mb = (orphans.reduce((s, f) => s + f.Size, 0) / (1024 * 1024)).toFixed(2);
+        console.log(`[OrphanCron] Purged ${orphans.length} orphaned R2 files (${mb} MB).`);
+    } catch (err) {
+        console.error('[OrphanCron] Error:', err.message);
+    }
+}
+setInterval(runOrphanCleanupCron, 24 * 60 * 60 * 1000);
+setTimeout(runOrphanCleanupCron, 90000);
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

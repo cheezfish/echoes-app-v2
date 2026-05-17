@@ -1217,7 +1217,8 @@ function handleRecordClick() { if (!('geolocation' in navigator)) return updateS
 async function startRecordingProcess() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+        mediaRecorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 64000 });
         audioChunks = [];
         mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
         mediaRecorder.onstop = showRecordingPreview;

@@ -407,6 +407,7 @@ body.sheet-expanded #context-action-btn {
 #nearby-echoes-list {
     overflow-y: auto;
     flex-grow: 1;
+    padding-top: 0.4rem;
     padding-bottom: env(safe-area-inset-bottom, 8px);
     overscroll-behavior: contain;
 }
@@ -840,7 +841,7 @@ body.sheet-expanded #context-action-btn {
 #sheet-tabs {
     display: flex;
     gap: 0.5rem;
-    padding: 0.6rem 1rem 0;
+    padding: 0.6rem 1rem 0.5rem;
 }
 .sheet-tab {
     flex: 1;
@@ -861,7 +862,7 @@ body.sheet-expanded #context-action-btn {
 }
 
 /* ── WALK BROWSE CARDS ───────────────────────────────────────────────────────── */
-#walks-browse-list { padding-bottom: 1rem; }
+#walks-browse-list { padding-top: 0.4rem; padding-bottom: 1rem; }
 .walk-browse-card {
     display: flex;
     align-items: center;

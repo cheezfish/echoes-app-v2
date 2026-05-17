@@ -917,42 +917,6 @@ body.sheet-expanded #context-action-btn {
 }
 
 /* ── INSTRUCTIONAL ECHO ──────────────────────────────────────────────────────── */
-.inst-marker-wrapper {
-    background: none !important;
-    border: none !important;
-}
-.inst-icon {
-    position: relative;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(10, 8, 4, 0.85);
-    border: 1.5px solid rgba(240, 176, 64, 0.7);
-    border-radius: 50%;
-}
-.inst-core {
-    font-size: 1.15rem;
-    color: #f0b040;
-    position: relative;
-    z-index: 2;
-    line-height: 1;
-    text-shadow: 0 0 10px rgba(240, 176, 64, 0.9);
-}
-.inst-ring {
-    position: absolute;
-    border-radius: 50%;
-    border: 1.5px solid rgba(240, 176, 64, 0.5);
-    animation: inst-sonar 2.8s ease-out infinite;
-    pointer-events: none;
-}
-.inst-ring-1 { inset: -2px; animation-delay: 0s; }
-.inst-ring-2 { inset: -2px; animation-delay: 1.4s; }
-@keyframes inst-sonar {
-    0%   { transform: scale(1);   opacity: 0.65; }
-    100% { transform: scale(2.8); opacity: 0;    }
-}
 .instructional-popup {
     display: flex;
     flex-direction: column;

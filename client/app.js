@@ -294,8 +294,8 @@ function buildPopupEl(echo, isWithinInteractionRange, distanceToUser, userLatLng
 }
 
 /** Creates the dynamic "health ring" icon */
-function createHealthIcon(healthPercent, isHighlighted = false) {
-    const size = isHighlighted ? 48 : 40;
+function createHealthIcon(healthPercent, isHighlighted = false, customSize = null) {
+    const size = customSize || (isHighlighted ? 48 : 40);
     const strokeWidth = isHighlighted ? 4 : 3;
     const radius = (size / 2) - (strokeWidth / 2);
     const circumference = 2 * Math.PI * radius;
@@ -981,13 +981,8 @@ function injectInstructionalEcho(lat, lng) {
         is_instructional: true,
     };
 
-    const iconHtml = `<div class="inst-icon">
-        <div class="inst-core">◎</div>
-        <div class="inst-ring inst-ring-1"></div>
-        <div class="inst-ring inst-ring-2"></div>
-    </div>`;
     instructionalMarker = L.marker([instructionalEcho.lat, instructionalEcho.lng], {
-        icon: L.divIcon({ html: iconHtml, className: 'inst-marker-wrapper', iconSize: [48, 48], iconAnchor: [24, 24] }),
+        icon: createHealthIcon(100, false, 32),
         zIndexOffset: 1000,
     }).addTo(map);
 
